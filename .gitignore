@@ -1,0 +1,6 @@
+data/raw/
+logs/
+*.jsonl
+*.jsonl.part
+__pycache__/
+*.py[cod]

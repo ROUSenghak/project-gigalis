@@ -1,0 +1,457 @@
+{
+  "retrieved_at": "2026-08-07",
+  "base_url": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1",
+  "dataset_id": "boamp",
+  "dataset": {
+    "visibility": "domain",
+    "fields": [
+      {
+        "name": "idweb",
+        "annotations": {
+          "id": true
+        },
+        "label": "idweb",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "id",
+        "label": "id",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "contractfolderid",
+        "label": "contractfolderid",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "objet",
+        "label": "objet",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "filename",
+        "label": "Filename",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "famille",
+        "annotations": {
+          "facet": true
+        },
+        "label": "famille",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "code_departement",
+        "annotations": {
+          "multivalued": ",",
+          "facet": true
+        },
+        "label": "code_departement",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "code_departement_prestation",
+        "label": "code_departement_prestation",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "famille_libelle",
+        "annotations": {
+          "facet": true
+        },
+        "label": "famille_libelle",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "dateparution",
+        "annotations": {
+          "facetsort": "-count",
+          "timeserie_precision": "day"
+        },
+        "label": "dateparution",
+        "type": "date",
+        "description": null
+      },
+      {
+        "name": "datefindiffusion",
+        "annotations": {
+          "facetsort": "-count",
+          "timeserie_precision": "day"
+        },
+        "label": "datefindiffusion",
+        "type": "date",
+        "description": null
+      },
+      {
+        "name": "datelimitereponse",
+        "annotations": {
+          "facetsort": "-count",
+          "timeserie_precision": "hour"
+        },
+        "label": "datelimitereponse",
+        "type": "datetime",
+        "description": null
+      },
+      {
+        "name": "nomacheteur",
+        "label": "nomacheteur",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "titulaire",
+        "annotations": {
+          "multivalued": ","
+        },
+        "label": "titulaire",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "perimetre",
+        "annotations": {
+          "facet": true
+        },
+        "label": "perimetre",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "type_procedure",
+        "label": "type_procedure",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "soustype_procedure",
+        "label": "soustype_procedure",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "procedure_libelle",
+        "label": "procedure_libelle",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "procedure_categorise",
+        "annotations": {
+          "hierarchical": "/",
+          "facet": true
+        },
+        "label": "procedure_categorise",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "nature",
+        "label": "nature",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "sousnature",
+        "label": "sousnature",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "nature_libelle",
+        "label": "nature_libelle",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "sousnature_libelle",
+        "label": "sousnature_libelle",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "nature_categorise",
+        "annotations": {
+          "hierarchical": "/"
+        },
+        "label": "nature_categorise",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "nature_categorise_libelle",
+        "annotations": {
+          "facet": true,
+          "hierarchical": "/"
+        },
+        "label": "nature_categorise_libelle",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "criteres",
+        "description": "critères sociaux et/ou environnementaux",
+        "annotations": {
+          "multivalued": ",",
+          "facet": true
+        },
+        "label": "criteres",
+        "type": "text"
+      },
+      {
+        "name": "marche_public_simplifie",
+        "annotations": {
+          "facet": true
+        },
+        "label": "marche_public_simplifie",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "marche_public_simplifie_label",
+        "annotations": {
+          "facet": true
+        },
+        "label": "marche_public_simplifie_label",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "etat",
+        "annotations": {
+          "facet": true
+        },
+        "label": "etat",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "descripteur_code",
+        "annotations": {
+          "multivalued": ",",
+          "facet": true
+        },
+        "label": "descripteur_code",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "dc",
+        "annotations": {
+          "facet": true,
+          "multivalued": ","
+        },
+        "label": "dc",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "descripteur_libelle",
+        "annotations": {
+          "multivalued": ";",
+          "facet": true
+        },
+        "label": "descripteur_libelle",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "type_marche",
+        "annotations": {
+          "facet": true,
+          "multivalued": ","
+        },
+        "label": "type_marche",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "type_marche_facette",
+        "annotations": {
+          "facet": true,
+          "multivalued": ","
+        },
+        "label": "type_marche_facette",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "type_avis",
+        "annotations": {
+          "multivalued": ",",
+          "facet": true
+        },
+        "label": "type_avis",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "annonce_lie",
+        "annotations": {
+          "multivalued": ","
+        },
+        "label": "annonce_lie",
+        "type": "text",
+        "description": null
+      },
+      {
+        "name": "annonces_anterieures",
+        "description": "liste des annonces antérieures liées ",
+        "label": "annonces_anterieures",
+        "type": "text",
+        "annotations": {}
+      },
+      {
+        "name": "source_schema",
+        "label": "source_schema",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "gestion",
+        "label": "GESTION",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "donnees",
+        "label": "DONNEES",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      },
+      {
+        "name": "url_avis",
+        "label": "url_avis",
+        "type": "text",
+        "annotations": {},
+        "description": null
+      }
+    ],
+    "dataset_id": "boamp",
+    "dataset_uid": "da_ov6xz4",
+    "has_records": true,
+    "features": [
+      "analyze",
+      "timeserie"
+    ],
+    "attachments": [],
+    "alternative_exports": [],
+    "data_visible": true,
+    "metas": {
+      "default": {
+        "title": "BOAMP",
+        "description": "<p>boamp - Le jeux de données des avis du boamp.fr</p>",
+        "theme": [
+          "Administration, Gouvernement, Finances publiques, Citoyenneté"
+        ],
+        "keyword": null,
+        "license": null,
+        "license_url": null,
+        "language": "fr",
+        "metadata_languages": [
+          "fr"
+        ],
+        "timezone": null,
+        "modified": "2025-08-25T07:18:41+00:00",
+        "modified_updates_on_metadata_change": false,
+        "modified_updates_on_data_change": false,
+        "data_processed": "2026-08-06T23:11:37.059000+00:00",
+        "metadata_processed": "2026-08-07T01:20:00.074000+00:00",
+        "geographic_reference": [
+          "world_fr"
+        ],
+        "geographic_reference_auto": true,
+        "territory": [
+          "France"
+        ],
+        "geometry_types": null,
+        "bbox": null,
+        "publisher": null,
+        "references": null,
+        "records_count": 1695879,
+        "attributions": null,
+        "source_domain": null,
+        "source_domain_title": null,
+        "source_domain_address": null,
+        "source_dataset": null,
+        "shared_catalog": null,
+        "federated": true,
+        "parent_domain": "datadila",
+        "update_frequency": null
+      }
+    }
+  },
+  "exports": {
+    "links": [
+      {
+        "rel": "self",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports"
+      },
+      {
+        "rel": "csv",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/csv"
+      },
+      {
+        "rel": "json",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/json"
+      },
+      {
+        "rel": "geojson",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/geojson"
+      },
+      {
+        "rel": "jsonl",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/jsonl"
+      },
+      {
+        "rel": "parquet",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/parquet"
+      },
+      {
+        "rel": "rdfxml",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/rdfxml"
+      },
+      {
+        "rel": "jsonld",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/jsonld"
+      },
+      {
+        "rel": "turtle",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/turtle"
+      },
+      {
+        "rel": "n3",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/n3"
+      },
+      {
+        "rel": "xlsx",
+        "href": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/xlsx"
+      }
+    ]
+  }
+}

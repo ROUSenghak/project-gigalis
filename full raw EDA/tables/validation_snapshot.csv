@@ -1,0 +1,11 @@
+metric,value
+rows_streamed,1620712
+expected_rows_from_download_summary,1620712
+counts_match_download_summary,True
+unique_idweb,1620712
+duplicate_idweb,0
+missing_idweb,0
+min_dateparution,2015-03-02
+max_dateparution,2025-12-31
+outside_historical_range,0
+invalid_dateparution,0

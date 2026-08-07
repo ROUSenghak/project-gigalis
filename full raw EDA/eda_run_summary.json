@@ -1,0 +1,51 @@
+{
+  "created_at": "2026-08-07T10:50:43",
+  "source_csv": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2015_2025_raw.csv",
+  "output_dir": "/home/senghakrou/project-gigalis/full raw EDA",
+  "rows_streamed": 1620712,
+  "expected_rows": 1620712,
+  "counts_match_expected": true,
+  "field_count": 41,
+  "unique_idweb": 1620712,
+  "duplicate_idweb": 0,
+  "missing_idweb": 0,
+  "min_dateparution": "2015-03-02",
+  "max_dateparution": "2025-12-31",
+  "outside_historical_range": 0,
+  "invalid_dateparution": 0,
+  "static_figures": [
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/01_publication_volume_by_year.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/02_monthly_publication_heatmap.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/03_notice_family_share_by_year.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/04_top_procedures.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/05_top_notice_natures.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/06_top_market_types.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/07_top_departments_prestation.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/08_top_buyers_log_scale.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/09_core_field_missingness.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/10_deadline_days_distribution.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/11_daily_volume_distribution_by_year.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/12_top_source_schemas.png"
+  ],
+  "tables": [
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/buyer_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/daily_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/deadline_days_summary.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/department_prestation_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/department_publication_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/family_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/family_share_by_year.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/missingness_analyzed_fields.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/monthly_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/nature_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/procedure_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/source_schema_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/type_avis_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/type_marche_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/validation_snapshot.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/yearly_counts.csv"
+  ],
+  "interactive_outputs": [
+    "/home/senghakrou/project-gigalis/full raw EDA/interactive/monthly_publication_volume.html"
+  ]
+}
