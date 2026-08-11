@@ -1,6 +1,8 @@
 data/raw/
+data/processed/
 logs/
 *.jsonl
 *.jsonl.part
 __pycache__/
 *.py[cod]
+.ipynb_checkpoints/

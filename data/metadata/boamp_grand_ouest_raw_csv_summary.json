@@ -1,0 +1,71 @@
+{
+  "created_at": "2026-08-11",
+  "definition": "Grand Ouest: Bretagne + Pays de la Loire + Normandie",
+  "departments": [
+    "14",
+    "22",
+    "27",
+    "29",
+    "35",
+    "44",
+    "49",
+    "50",
+    "53",
+    "56",
+    "61",
+    "72",
+    "76",
+    "85"
+  ],
+  "source_file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2015_2025_raw.csv",
+  "output_file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2015_2025_grand_ouest_raw.csv",
+  "source_rows_scanned": 1620712,
+  "rows": 226314,
+  "rows_by_year": {
+    "2015": 18462,
+    "2016": 20349,
+    "2017": 20416,
+    "2018": 20865,
+    "2019": 21601,
+    "2020": 19172,
+    "2021": 20827,
+    "2022": 21349,
+    "2023": 22012,
+    "2024": 20507,
+    "2025": 20754
+  },
+  "rows_by_region": {
+    "Bretagne": 64208,
+    "Normandie": 86180,
+    "Pays de la Loire": 75926
+  },
+  "rows_by_department": {
+    "14": 17397,
+    "22": 8951,
+    "27": 13857,
+    "29": 18444,
+    "35": 23288,
+    "44": 33116,
+    "49": 14904,
+    "50": 11110,
+    "53": 3848,
+    "56": 13525,
+    "61": 4314,
+    "72": 11463,
+    "76": 39502,
+    "85": 12595
+  },
+  "unique_idweb": 226314,
+  "duplicate_idweb": 0,
+  "missing_idweb": 0,
+  "min_dateparution": "2015-03-02",
+  "max_dateparution": "2025-12-31",
+  "outside_historical_range": 0,
+  "field_count": 41,
+  "file_size_bytes": 2031887570,
+  "filter": {
+    "kept_all_source_columns": true,
+    "cleaning_or_normalization_applied": false,
+    "row_selection": "code_departement_prestation in Grand Ouest OR code_departement contains a Grand Ouest department"
+  }
+}

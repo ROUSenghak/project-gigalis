@@ -1,0 +1,110 @@
+{
+  "created_at": "2026-08-11",
+  "source_file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2015_2025_grand_ouest_raw.csv",
+  "output_dir": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet",
+  "format": "Parquet",
+  "compression": "snappy",
+  "raw_columns_preserved": true,
+  "columns_as_strings": true,
+  "cleaning_or_normalization_applied": false,
+  "partitioning": "one file per dateparution year",
+  "period": {
+    "start": "2015-01-01",
+    "end_exclusive": "2026-01-01"
+  },
+  "source_rows": 226314,
+  "written_rows": 226314,
+  "rows_by_year": {
+    "2015": 18462,
+    "2016": 20349,
+    "2017": 20416,
+    "2018": 20865,
+    "2019": 21601,
+    "2020": 19172,
+    "2021": 20827,
+    "2022": 21349,
+    "2023": 22012,
+    "2024": 20507,
+    "2025": 20754
+  },
+  "missing_dateparution": 0,
+  "outside_historical_range": 0,
+  "min_dateparution": "2015-03-02",
+  "max_dateparution": "2025-12-31",
+  "field_count": 41,
+  "files": {
+    "2015": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2015_raw.parquet",
+      "rows": 18462,
+      "file_size_bytes": 43113268
+    },
+    "2016": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2016_raw.parquet",
+      "rows": 20349,
+      "file_size_bytes": 46651041
+    },
+    "2017": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2017_raw.parquet",
+      "rows": 20416,
+      "file_size_bytes": 45975712
+    },
+    "2018": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2018_raw.parquet",
+      "rows": 20865,
+      "file_size_bytes": 47194194
+    },
+    "2019": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2019_raw.parquet",
+      "rows": 21601,
+      "file_size_bytes": 47553127
+    },
+    "2020": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2020_raw.parquet",
+      "rows": 19172,
+      "file_size_bytes": 41448400
+    },
+    "2021": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2021_raw.parquet",
+      "rows": 20827,
+      "file_size_bytes": 46543299
+    },
+    "2022": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2022_raw.parquet",
+      "rows": 21349,
+      "file_size_bytes": 40475795
+    },
+    "2023": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2023_raw.parquet",
+      "rows": 22012,
+      "file_size_bytes": 42201724
+    },
+    "2024": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2024_raw.parquet",
+      "rows": 20507,
+      "file_size_bytes": 66239151
+    },
+    "2025": {
+      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/grand_ouest_annual_parquet/boamp_grand_ouest_2025_raw.parquet",
+      "rows": 20754,
+      "file_size_bytes": 68535018
+    }
+  },
+  "validation": {
+    "parquet_rows_by_year": {
+      "2015": 18462,
+      "2016": 20349,
+      "2017": 20416,
+      "2018": 20865,
+      "2019": 21601,
+      "2020": 19172,
+      "2021": 20827,
+      "2022": 21349,
+      "2023": 22012,
+      "2024": 20507,
+      "2025": 20754
+    },
+    "parquet_total_rows": 226314,
+    "matches_written_rows": true,
+    "schema_mismatch_years": []
+  }
+}

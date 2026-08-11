@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-08-07T10:50:43",
+  "created_at": "2026-08-11T09:18:36",
   "source_csv": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2015_2025_raw.csv",
   "output_dir": "/home/senghakrou/project-gigalis/full raw EDA",
   "rows_streamed": 1620712,
@@ -25,7 +25,13 @@
     "/home/senghakrou/project-gigalis/full raw EDA/figures/09_core_field_missingness.png",
     "/home/senghakrou/project-gigalis/full raw EDA/figures/10_deadline_days_distribution.png",
     "/home/senghakrou/project-gigalis/full raw EDA/figures/11_daily_volume_distribution_by_year.png",
-    "/home/senghakrou/project-gigalis/full raw EDA/figures/12_top_source_schemas.png"
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/12_top_source_schemas.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/13_grand_ouest_volume_by_year.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/14_grand_ouest_region_department_mix.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/15_grand_ouest_monthly_heatmap.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/16_grand_ouest_top_families.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/17_grand_ouest_top_procedures.png",
+    "/home/senghakrou/project-gigalis/full raw EDA/figures/18_grand_ouest_top_buyers.png"
   ],
   "tables": [
     "/home/senghakrou/project-gigalis/full raw EDA/tables/buyer_counts.csv",
@@ -35,6 +41,15 @@
     "/home/senghakrou/project-gigalis/full raw EDA/tables/department_publication_counts.csv",
     "/home/senghakrou/project-gigalis/full raw EDA/tables/family_counts.csv",
     "/home/senghakrou/project-gigalis/full raw EDA/tables/family_share_by_year.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_buyer_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_department_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_family_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_monthly_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_nature_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_overview.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_procedure_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_region_counts.csv",
+    "/home/senghakrou/project-gigalis/full raw EDA/tables/grand_ouest_yearly_counts.csv",
     "/home/senghakrou/project-gigalis/full raw EDA/tables/missingness_analyzed_fields.csv",
     "/home/senghakrou/project-gigalis/full raw EDA/tables/monthly_counts.csv",
     "/home/senghakrou/project-gigalis/full raw EDA/tables/nature_counts.csv",
@@ -47,5 +62,26 @@
   ],
   "interactive_outputs": [
     "/home/senghakrou/project-gigalis/full raw EDA/interactive/monthly_publication_volume.html"
-  ]
+  ],
+  "grand_ouest": {
+    "definition": "Grand Ouest: Bretagne + Pays de la Loire + Normandie",
+    "departments": [
+      "14",
+      "22",
+      "27",
+      "29",
+      "35",
+      "44",
+      "49",
+      "50",
+      "53",
+      "56",
+      "61",
+      "72",
+      "76",
+      "85"
+    ],
+    "rows": 226314,
+    "share_of_france": 0.1396386279610443
+  }
 }
