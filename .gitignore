@@ -6,3 +6,11 @@ logs/
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
+
+# LaTeX build intermediates
+*.aux
+*.fls
+*.fdb_latexmk
+*.out
+*.toc
+*.synctex.gz
