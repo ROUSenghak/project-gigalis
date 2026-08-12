@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Evaluate successor linkage against the manually reviewed benchmark.
 
-Three methods are compared, then one is frozen:
+Four methods are compared, then one is frozen:
 
 ``M_A_deterministic``
     Accept only on verified SIREN identity plus CPV continuity plus a text
@@ -14,6 +14,12 @@ Three methods are compared, then one is frozen:
 ``M_C_weighted_gated``
     The weighted score with independent acceptance gates, ported from
     ``notebooks/08``. Requires evidence from several dimensions at once.
+
+``M_D_fellegi_sunter``
+    Classical probabilistic record linkage. Unlike the three above, its
+    weights are *estimated* from the candidate pairs by expectation
+    maximisation rather than chosen by hand, and it needs no labels to fit.
+    See ``scripts/fit_fellegi_sunter.py``.
 
 Every method may abstain: an anchor with no candidate clearing its rule
 returns *no automatic successor* rather than its best guess.
@@ -168,6 +174,20 @@ def method_b_text(frame: pd.DataFrame, threshold: float) -> pd.Series:
     return frame["text_component"].fillna(0).ge(threshold / 100.0)
 
 
+def method_d_fellegi_sunter(frame: pd.DataFrame, threshold: float) -> pd.Series:
+    """Posterior match probability from the fitted Fellegi-Sunter model.
+
+    The threshold is expressed on the same ``threshold / 100`` convention as
+    the other methods, so 60 means a posterior of 0.60. The fitted posterior
+    tops out near 0.73 rather than approaching 1, because the unsupervised
+    mixture's prior is not calibrated to the true successor rate; the ranking
+    it induces is unaffected by that, which is what this method is judged on.
+    """
+    if "fs_match_probability" not in frame.columns:
+        return pd.Series(False, index=frame.index)
+    return frame["fs_match_probability"].fillna(0).ge(threshold / 100.0)
+
+
 def method_c_weighted_gated(frame: pd.DataFrame, threshold: float) -> pd.Series:
     """Weighted score plus independent buyer / text / CPV gates."""
     text = frame["text_component"].fillna(0)
@@ -188,6 +208,14 @@ METHODS: dict[str, Callable[[pd.DataFrame, float], pd.Series]] = {
     "M_A_deterministic": method_a_deterministic,
     "M_B_text_ranking": method_b_text,
     "M_C_weighted_gated": method_c_weighted_gated,
+    "M_D_fellegi_sunter": method_d_fellegi_sunter,
+}
+
+#: Methods whose threshold lives on a different scale need their own grid.
+#: The Fellegi-Sunter posterior peaks near 0.73, so the 50-80 grid used by the
+#: score-based methods would reject everything above 75.
+METHOD_THRESHOLD_GRID: dict[str, tuple[float, ...]] = {
+    "M_D_fellegi_sunter": (20.0, 30.0, 40.0, 50.0, 55.0, 60.0, 65.0, 70.0),
 }
 
 #: Column each method ranks its accepted candidates by.
@@ -195,6 +223,7 @@ RANK_COLUMN = {
     "M_A_deterministic": "linkage_score",
     "M_B_text_ranking": "text_component",
     "M_C_weighted_gated": "linkage_score",
+    "M_D_fellegi_sunter": "fs_match_probability",
 }
 
 
@@ -318,7 +347,12 @@ def evaluate(predictions: pd.DataFrame, truth: pd.DataFrame) -> dict[str, Any]:
 
 
 def build(project_root: Path, output_dir: Path) -> dict[str, Any]:
-    candidates = pd.read_parquet(output_dir / "linkage_candidates.parquet")
+    # Prefer the Fellegi-Sunter-scored candidates when they exist, so that
+    # M_D can be evaluated alongside the rule-based methods on identical pairs.
+    scored_path = output_dir / "linkage_candidates_scored.parquet"
+    candidates_path = scored_path if scored_path.exists() else output_dir / "linkage_candidates.parquet"
+    candidates = pd.read_parquet(candidates_path)
+    logging.info("Candidates: %s (%s)", f"{len(candidates):,}", candidates_path.name)
     truth = load_truth(output_dir)
 
     scored_anchors = set(candidates["anchor_episode_id"].unique())
@@ -345,7 +379,9 @@ def build(project_root: Path, output_dir: Path) -> dict[str, Any]:
     # --- threshold selection on the pilot split only -----------------------
     grid: list[dict[str, Any]] = []
     for method in METHODS:
-        for threshold in THRESHOLD_GRID:
+        if method == "M_D_fellegi_sunter" and "fs_match_probability" not in candidates.columns:
+            continue
+        for threshold in METHOD_THRESHOLD_GRID.get(method, THRESHOLD_GRID):
             predictions = predict(eval_candidates, method, threshold)
             pilot_metrics = evaluate(
                 predictions.loc[predictions["anchor_episode_id"].isin(set(pilot["anchor_v2_episode_id"]))],
@@ -365,13 +401,23 @@ def build(project_root: Path, output_dir: Path) -> dict[str, Any]:
     # --- report every method once on the locked split ----------------------
     comparison: list[dict[str, Any]] = []
     for method in METHODS:
-        predictions = predict(eval_candidates, method, selected_threshold)
+        if method == "M_D_fellegi_sunter" and "fs_match_probability" not in candidates.columns:
+            continue
+        # The three score-scale methods are compared at the frozen operating
+        # point so the headline table stays anchored to the policy in force.
+        # M_D lives on a probability scale that caps near 0.73, so a threshold
+        # of 70 means something different for it; it gets its own sweep below.
+        method_threshold = (
+            METHOD_THRESHOLD_GRID["M_D_fellegi_sunter"][-2]
+            if method == "M_D_fellegi_sunter" else selected_threshold
+        )
+        predictions = predict(eval_candidates, method, method_threshold)
         for label, split_truth in (("PILOT_DEVELOPMENT", pilot), ("LOCKED_TEST", locked), ("ALL", evaluable)):
             subset = predictions.loc[
                 predictions["anchor_episode_id"].isin(set(split_truth["anchor_v2_episode_id"]))
             ]
             comparison.append(
-                {"method": method, "threshold": selected_threshold, "split": label, **evaluate(subset, split_truth)}
+                {"method": method, "threshold": method_threshold, "split": label, **evaluate(subset, split_truth)}
             )
     comparison_frame = pd.DataFrame(comparison)
     comparison_frame.to_csv(output_dir / "linkage_method_comparison.csv", index=False)
@@ -403,6 +449,50 @@ def build(project_root: Path, output_dir: Path) -> dict[str, Any]:
             "cohort_link_rate": round(len(variant_top1) / anchors_scored, 4) if anchors_scored else None,
             "locked_test_metrics": evaluate(locked_subset, locked),
         }
+
+    # --- pre-registered adoption test for the probabilistic model -----------
+    # Fixed before the model was fitted: Fellegi-Sunter replaces the incumbent
+    # only if it weakly dominates on the locked split (precision >=, recall >=,
+    # false-positive rate <=). It is swept across its whole grid so the test is
+    # applied to its best available operating point, not an arbitrary one.
+    adoption: dict[str, Any] | None = None
+    if "fs_match_probability" in candidates.columns:
+        incumbent_predictions = predict(eval_candidates, selected_method, selected_threshold)
+        incumbent = evaluate(
+            incumbent_predictions.loc[
+                incumbent_predictions["anchor_episode_id"].isin(set(locked["anchor_v2_episode_id"]))
+            ],
+            locked,
+        )
+        sweep = []
+        for threshold in METHOD_THRESHOLD_GRID["M_D_fellegi_sunter"]:
+            challenger_predictions = predict(eval_candidates, "M_D_fellegi_sunter", threshold)
+            subset = challenger_predictions.loc[
+                challenger_predictions["anchor_episode_id"].isin(set(locked["anchor_v2_episode_id"]))
+            ] if len(challenger_predictions) else challenger_predictions
+            metrics = evaluate(subset, locked)
+            metrics["threshold"] = threshold
+            metrics["weakly_dominates_incumbent"] = bool(
+                (metrics["precision_at_1"] or 0) >= (incumbent["precision_at_1"] or 0)
+                and (metrics["recall_at_1"] or 0) >= (incumbent["recall_at_1"] or 0)
+                and (metrics["false_positive_rate_on_negatives"] or 0)
+                <= (incumbent["false_positive_rate_on_negatives"] or 0)
+            )
+            sweep.append(metrics)
+        adoption = {
+            "rule": (
+                "Fellegi-Sunter replaces the incumbent only if it weakly dominates on the "
+                "locked split: precision >=, recall >=, and false-positive rate <=. Fixed "
+                "before the model was fitted."
+            ),
+            "incumbent": {"method": selected_method, "threshold": selected_threshold, **incumbent},
+            "challenger_locked_sweep": sweep,
+            "any_operating_point_dominates": any(row["weakly_dominates_incumbent"] for row in sweep),
+            "outcome": (
+                "adopted" if any(row["weakly_dominates_incumbent"] for row in sweep) else "incumbent_retained"
+            ),
+        }
+        logging.info("Fellegi-Sunter adoption outcome: %s", adoption["outcome"])
 
     config = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -442,6 +532,7 @@ def build(project_root: Path, output_dir: Path) -> dict[str, Any]:
         },
         "candidate_retrieval": retrieval,
         "method_comparison": comparison,
+        "fellegi_sunter_adoption": adoption,
         "cohort_application": {
             "cohort_anchors_with_candidates": int(candidates["anchor_episode_id"].nunique()),
             "accepted_links": int(len(accepted_links)),
