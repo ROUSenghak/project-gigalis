@@ -98,6 +98,7 @@ These four steps run in order and produce the final study results.
 ```bash
 python3 scripts/build_survival_cohort.py      # 3,800 digital Grand Ouest contracts
 python3 scripts/build_linkage_candidates.py   # candidate successors + features
+python3 scripts/fit_fellegi_sunter.py         # probabilistic model (comparison arm)
 python3 scripts/evaluate_linkage.py           # benchmark evaluation, freezes the policy
 python3 scripts/build_survival_dataset.py     # right-censored survival records
 ```
@@ -116,9 +117,29 @@ unobservable are excluded from the score rather than counted as disagreement,
 so a missing CPV never reads as a category mismatch and a missing duration is
 never replaced by an assumed contract length.
 
+**Four methods are compared**, then one is frozen: a deterministic SIREN+CPV
+rule, TF-IDF text ranking on the same-buyer pool, the weighted-and-gated score
+ported from notebook 08, and Fellegi-Sunter probabilistic linkage whose weights
+are estimated by expectation maximisation rather than chosen by hand. The
+adoption rule was fixed before the probabilistic model was fitted: it replaces
+the incumbent only if it weakly dominates on the locked split. It does not, so
+`M_B_text_ranking @ 70` stands. The estimated weights are reported anyway,
+because they independently confirm which signals carry the discriminating
+power — and because they show *why* unsupervised probabilistic linkage fails
+here: true successors are about 0.06% of candidate pairs, so the two-class
+mixture converges on text-similarity and documentation-quality structure
+instead.
+
 **Survival.** One row per contract. An accepted successor gives an event timed
 to the successor's first notice; everything else is right-censored at the
 cutoff. A censored contract is not a contract proven never to be renewed.
+
+The operational output is `data/processed/boamp_v2/renewal_watchlist_top20.csv`
+— the five nearest-term contracts in each digital segment, ranked by the
+probability that a successor becomes visible within twelve months. It is
+stratified deliberately: the probability is a function of segment and contract
+age, so an unstratified ranking collapses onto whichever segment has the highest
+baseline hazard. Treat it as a prioritisation aid, not a per-contract forecast.
 
 Then execute the three evidence notebooks:
 
