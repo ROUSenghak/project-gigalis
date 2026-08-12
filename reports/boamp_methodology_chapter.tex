@@ -1,0 +1,1030 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Encoding and fonts ───────────────────────────────────────────────────────
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ── Page layout ──────────────────────────────────────────────────────────────
+\usepackage{geometry}
+\geometry{left=2.5cm, right=2.5cm, top=2.8cm, bottom=2.8cm}
+
+% ── Mathematics ──────────────────────────────────────────────────────────────
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+% ── Tables ───────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{makecell}
+
+% ── Colours, links, lists ────────────────────────────────────────────────────
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+% ── Figures ──────────────────────────────────────────────────────────────────
+\usepackage{float}
+\usepackage{caption}
+
+% ── TikZ ─────────────────────────────────────────────────────────────────────
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
+
+% ── Hyperref settings ────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks = true,
+  linkcolor  = blue!70!black,
+  urlcolor   = blue!70!black,
+  citecolor  = blue!70!black
+}
+
+% ── Global list and table settings ───────────────────────────────────────────
+\setlist[itemize]{topsep=3pt, itemsep=2pt, parsep=0pt}
+\setlist[enumerate]{topsep=3pt, itemsep=2pt, parsep=0pt}
+\renewcommand{\arraystretch}{1.25}
+
+% ── Custom macros ────────────────────────────────────────────────────────────
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\pathcode}[1]{{\small\nolinkurl{#1}}}
+
+% ── TikZ node and arrow styles ───────────────────────────────────────────────
+\tikzset{
+  %% Base stage node (all pipeline boxes inherit from this)
+  stg/.style = {
+    rectangle, rounded corners = 4pt,
+    minimum width = 5.6cm, minimum height = 0.82cm,
+    text centered, font = \small\sffamily, text width = 5.3cm, inner sep = 3pt
+  },
+  %% Phase-coloured variants
+  acq/.style   = {stg, draw=blue!65!black,   fill=blue!10},
+  proc/.style  = {stg, draw=teal!65!black,   fill=teal!9},
+  bench/.style = {stg, draw=violet!65!black, fill=violet!8},
+  model/.style = {stg, draw=orange!80!black, fill=orange!8},
+  rpt/.style   = {stg, draw=gray!65,         fill=gray!10},
+  %% Math-pipeline nodes
+  mnode/.style = {
+    rectangle, rounded corners = 3pt, draw=gray!60, fill=gray!7,
+    minimum width = 7.2cm, minimum height = 0.95cm,
+    text centered, font = \small, text width = 6.9cm, inner sep = 4pt
+  },
+  mfut/.style  = {
+    rectangle, rounded corners = 3pt, draw=orange!55, fill=orange!5,
+    minimum width = 7.2cm, minimum height = 0.95cm,
+    text centered, font = \small, text width = 6.9cm, inner sep = 4pt,
+    dashed
+  },
+  %% Arrow styles
+  pipe/.style     = {-Stealth, thick, draw=gray!65},
+  pipedash/.style = {-Stealth, thick, draw=orange!55, dashed},
+  mlbl/.style     = {font=\scriptsize\itshape, text=gray!65, midway, right=3pt}
+}
+
+% ── Title ────────────────────────────────────────────────────────────────────
+\title{%
+  {\Large\bfseries BOAMP Grand Ouest Renewal Linkage Project}\\[6pt]
+  {\large Chapter 3 \textemdash{} Methodology}\\[4pt]
+  {\normalsize Implementation, Mathematical Notation, and Pipeline Documentation}
+}
+\author{BOAMP Data Science Internship Project}
+\date{12 August 2026}
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\begin{document}
+% ═══════════════════════════════════════════════════════════════════════════════
+
+\maketitle
+\tableofcontents
+\clearpage
+
+% ── Abstract ─────────────────────────────────────────────────────────────────
+\section*{Abstract}
+
+This document presents the methodology of the BOAMP Grand Ouest public-procurement
+renewal linkage project in academic form.  Each stage of the implemented pipeline is
+described with its purpose, the reasoning behind its design choices, and formal
+mathematical notation.  Every claim is grounded strictly in the scripts, notebooks,
+processed datasets, and metadata files present in the project repository; stages that
+are not yet implemented are explicitly identified as such.  Two pipeline diagrams are
+included: Figure~\ref{fig:pipeline} gives a coloured overview of all fourteen
+implemented stages, and Figure~\ref{fig:mathpipeline} shows the mathematical
+transformation chain from raw corpus to evaluation result.
+
+\clearpage
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Notation Reference}
+% ─────────────────────────────────────────────────────────────────────────────
+
+All mathematical symbols used in this chapter are collected in
+Table~\ref{tab:notation}.  Each symbol is also introduced contextually at its first
+occurrence in the text.
+
+\begin{table}[H]
+\centering
+\caption{Mathematical notation used throughout the methodology.}
+\label{tab:notation}
+\small
+\begin{tabularx}{\textwidth}{p{2.6cm}X}
+\toprule
+\textbf{Symbol} & \textbf{Definition} \\
+\midrule
+$\mathcal{N}$               & Full national BOAMP notice corpus \\
+$n$                         & Total number of notices in $\mathcal{N}$ \\
+$\mathcal{N}_{GO}$          & Grand Ouest regional sub-corpus \\
+$n_{GO}$                    & Number of notices in $\mathcal{N}_{GO}$ \\
+$\mathcal{D}$               & Set of 14 Grand Ouest department codes \\
+$r_i$                       & Single raw notice record indexed by $i$ \\
+$\mathbf{x}_i$              & Engineered feature vector for notice $i$ \\
+$\mathbf{F}$                & Set of 41 original BOAMP source fields \\
+$t_i$                       & Publication date of notice $i$ (\code{dateparution}) \\
+$\delta_i$                  & Binary digital-candidate indicator for notice $i$ \\
+$\Phi$                      & Digital CPV two-digit prefixes: $\{32,35,48,72\}$ \\
+$\mathcal{K}$               & Keyword taxonomy for digital-scope identification \\
+$\Delta t(a,c)$             & Temporal gap $t_c - t_a$ (days) \\
+$[\tau_{\min},\tau_{\max}]$ & Admissible temporal window for candidate generation \\
+$\mathcal{A}$               & Set of benchmark anchor notices \\
+$\mathcal{A}^{+}$           & Anchors with a confirmed successor:
+                              $\{a \in \mathcal{A} : y^{*}(a) \neq \emptyset\}$ \\
+$\mathcal{A}^{-}$           & Anchors without a confirmed successor:
+                              $\mathcal{A} \setminus \mathcal{A}^{+}$ \\
+$\mathcal{A}_{P}$           & Pilot development split (threshold tuning only) \\
+$\mathcal{A}_{L}$           & Locked test split (evaluated once per method) \\
+$\mathcal{S}$               & Set of confirmed positive successor links (ground truth) \\
+$\mathcal{C}$               & Set of all generated candidate pairs \\
+$\mathcal{C}(a)$            & Candidate successors generated for anchor $a$ \\
+$(a,c)$                     & Candidate pair: anchor $a \in \mathcal{A}$,
+                              candidate $c \in \mathcal{N}_{GO}$ \\
+$B(a,c)$                    & Buyer continuity condition for pair $(a,c)$ (Boolean) \\
+$T(a,c)$                    & Thematic continuity condition for pair $(a,c)$ (Boolean) \\
+$y^{*}(a)$                  & Ground-truth confirmed successor (empty if none) \\
+$\hat{y}(a)$                & Model's top-ranked predicted successor \\
+$s_b,s_t,s_k,s_\tau,s_g$   & Component scores: buyer, text, CPV/theme, time, geography
+                              ($\in [0,1]$) \\
+$w_b,w_t,w_k,w_\tau,w_g$   & Component weights with $\sum w = 1$ \\
+$S(a,c)$                    & Composite weighted linkage score $\in [0,100]$ \\
+$\theta$                    & Automatic acceptance threshold applied to $S(a,c)$ \\
+$G_B,G_T,G_K$               & Acceptance gates: buyer evidence, text similarity,
+                              CPV/theme continuity \\
+$P_1$                       & Precision at rank~1 \\
+$R_1$                       & Recall at rank~1 \\
+$R_5$                       & Recall at rank~5 \\
+$\text{FPR}$                & False-positive rate on no-successor anchors \\
+$\mathbf{1}[\cdot]$         & Indicator function (1 if condition holds, 0 otherwise) \\
+$\text{miss}(f)$            & Missingness rate of field $f$ over the corpus \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\clearpage
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Methodology}
+\label{sec:methodology}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Figure~\ref{fig:pipeline} shows the complete implemented pipeline at a glance.
+The subsequent subsections describe each of the fourteen stages in detail.
+
+% ── Figure 1: 14-Stage Pipeline Overview ────────────────────────────────────
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+
+  %% ── Left column: Stages 1--7 (Acquisition and Preprocessing) ─────────────
+  \node[acq]                      (s1)  {1.\enspace Data Acquisition};
+  \node[acq,  below=0.45cm of s1] (s2)  {2.\enspace Canonical Raw Consolidation};
+  \node[acq,  below=0.45cm of s2] (s3)  {3.\enspace Regional Scope Restriction};
+  \node[acq,  below=0.45cm of s3] (s4)  {4.\enspace Annual Parquet Partitioning};
+  \node[proc, below=0.45cm of s4] (s5)  {5.\enspace Exploratory Data Analysis};
+  \node[proc, below=0.45cm of s5] (s6)  {6.\enspace National Preprocessing};
+  \node[proc, below=0.45cm of s6] (s7)  {7.\enspace Grand Ouest Feature Engineering};
+
+  %% ── Right column: Stages 8--14 (Modeling and Evaluation) ─────────────────
+  %% s8 is placed at the same vertical height as s7 (horizontal handoff)
+  \node[bench, right=2.5cm of s7]  (s8)  {8.\enspace Benchmark Construction};
+  \node[bench, below=0.45cm of s8] (s9)  {9.\enspace Candidate Pair Generation};
+  \node[model, below=0.45cm of s9] (s10) {10.\enspace Baseline Linkage Modeling};
+  \node[model, below=0.45cm of s10](s11) {11.\enspace Error Analysis};
+  \node[model, below=0.45cm of s11](s12) {12.\enspace High-Precision Linkage Refinement};
+  \node[model, below=0.45cm of s12](s13) {13.\enspace Parameter Sensitivity Diagnostics};
+  \node[rpt,   below=0.45cm of s13](s14) {14.\enspace Technical Report};
+
+  %% ── Left-column flow arrows ───────────────────────────────────────────────
+  \foreach \a/\b in {s1/s2, s2/s3, s3/s4, s4/s5, s5/s6, s6/s7}
+    \draw[pipe] (\a) -- (\b);
+
+  %% ── Phase-handoff arrow (horizontal, Stage 7 to Stage 8) ─────────────────
+  \draw[pipe] (s7.east) -- (s8.west);
+
+  %% ── Right-column flow arrows ──────────────────────────────────────────────
+  \foreach \a/\b in {s8/s9, s9/s10, s10/s11, s11/s12, s12/s13, s13/s14}
+    \draw[pipe] (\a) -- (\b);
+
+\end{tikzpicture}
+\caption{%
+  Fourteen-stage implemented pipeline.
+  \textcolor{blue!65!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Acquisition \& raw
+    structuring (Stages~1--4).
+  \textcolor{teal!65!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Preprocessing \& EDA
+    (Stages~5--7).
+  \textcolor{violet!65!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Benchmark
+    (Stages~8--9).
+  \textcolor{orange!80!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Linkage modelling
+    (Stages~10--13).
+  \textcolor{gray!65}{\rule[0.5ex]{1.2em}{0.7ex}}~Report (Stage~14).
+  Every stage corresponds to materialized artifacts in the repository.
+  The left column ends at Stage~7 and feeds Stage~8 via the horizontal arrow,
+  after which the right column continues downward.
+}
+\label{fig:pipeline}
+\end{figure}
+% ─────────────────────────────────────────────────────────────────────────────
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Data Acquisition}
+\label{sec:acquisition}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{What is done.}
+The script \pathcode{scripts/download_boamp.py} queries the BOAMP Opendatasoft API and
+downloads one raw JSONL file per year for the historical period
+$2015 \leq \text{year} \leq 2025$, storing the results in
+\pathcode{data/raw/boamp/}.
+Let $\hat{n}_y$ denote the count of records downloaded for year $y$ and $n^{*}_y$ the
+count reported by the API.  Acquisition validation requires:
+\begin{equation}
+  \hat{n}_y = n^{*}_y
+  \qquad \forall\, y \in \{2015, \ldots, 2025\}
+  \label{eq:count_check}
+\end{equation}
+A date-range guard further requires that every record satisfies:
+\begin{equation}
+  \texttt{dateparution}_i \in [\,\text{2015-01-01},\, \text{2026-01-01}\,)
+  \label{eq:date_check}
+\end{equation}
+Both conditions are documented in
+\pathcode{data/metadata/boamp\_download\_summary.json}.
+The total national corpus acquired is:
+\begin{equation}
+  n = \sum_{y=2015}^{2025} \hat{n}_y = 1{,}620{,}712
+  \label{eq:corpus_size}
+\end{equation}
+
+\paragraph{Why this is reasonable.}
+Using the API count as an exact integrity check is necessary because HTTP streaming
+may silently truncate a large payload.  The date-range guard in
+Equation~\eqref{eq:date_check} prevents records from adjacent API partitions
+bleeding across yearly JSONL files, which would corrupt downstream yearly
+aggregations.  Both checks together ensure that the acquired corpus is a precise
+faithful copy of the API's contents, not merely a close approximation.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Raw Structuring and Regional Scope Definition}
+\label{sec:raw}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsubsection{Canonical Raw Consolidation}
+
+\paragraph{What is done.}
+The script \pathcode{scripts/build\_boamp\_raw\_csv.py} serialises the eleven yearly
+JSONL files into a single canonical national table.  Let $\mathbf{F} = \{f_1,
+\ldots, f_{41}\}$ be the 41 official BOAMP source fields obtained from the schema
+file \pathcode{data/metadata/boamp\_fields.json}.  The resulting table $\mathcal{N}$
+is defined as:
+\begin{equation}
+  \mathcal{N} = \bigl\{(r_i,\, f_j) : r_i \in \bigcup_{y}\text{JSONL}_y,\;
+    f_j \in \mathbf{F} \bigr\}
+  \label{eq:canonical_table}
+\end{equation}
+No transformation is applied.  Multi-valued fields are serialised as compact JSON
+strings within the CSV cell to preserve the raw structure.
+
+\paragraph{Why this is reasonable.}
+Consolidating yearly files with a stable, schema-derived field order eliminates
+field-order drift between years and provides a single reproducible national base
+table.  Storing the data as raw values—rather than applying cleaning decisions
+here—maintains full provenance.
+
+\subsubsection{Geographic Scope Restriction to Grand Ouest}
+
+\paragraph{What is done.}
+Let $\mathcal{D}$ denote the set of 14 Grand Ouest department codes:
+\begin{equation}
+  \mathcal{D} = \{14,\,22,\,27,\,29,\,35,\,44,\,49,\,50,\,53,\,56,\,61,\,72,\,76,\,85\}
+  \label{eq:dept_set}
+\end{equation}
+covering Bretagne, Normandie, and Pays de la Loire.
+The script \pathcode{scripts/create\_boamp\_grand\_ouest\_raw\_csv.py} defines the
+regional corpus $\mathcal{N}_{GO} \subseteq \mathcal{N}$ by:
+\begin{equation}
+  r_i \in \mathcal{N}_{GO}
+  \;\iff\;
+  d_{\text{prest}}(r_i) \in \mathcal{D}
+  \;\;\lor\;\;
+  \exists\, d \in d_{\text{pub}}(r_i) : d \in \mathcal{D}
+  \label{eq:go_filter}
+\end{equation}
+where $d_{\text{prest}}(r_i)$ is the prestation department and
+$d_{\text{pub}}(r_i)$ is the set of publication departments parsed from the
+\code{code\_departement} field.  The resulting extraction is summarised in
+\pathcode{data/metadata/boamp\_grand\_ouest\_raw\_csv\_summary.json}.  The regional
+corpus has:
+\begin{equation}
+  n_{GO} = |\mathcal{N}_{GO}| = 226{,}314
+  \;\approx\; 14.0\%\;\text{of}\;n
+  \label{eq:go_size}
+\end{equation}
+
+\paragraph{Why this is reasonable.}
+The logical OR in Equation~\eqref{eq:go_filter} is deliberate.
+The prestation department (\code{code\_departement\_prestation}) identifies where
+the contract will be performed and is the primary geographic signal, but it has a
+national missingness rate of $\text{miss}(\text{code\_departement\_prestation})
+\approx 0.88$ (documented in
+\pathcode{data/metadata/boamp\_preprocessing\_summary.json}).
+Restricting to prestation department alone would discard the majority of valid Grand
+Ouest notices.
+The publication department serves as a reliable fallback: it is populated in nearly
+all records and is a legally required field.
+Together, the two conditions maximise recall of regional notices without admitting
+national records.
+
+\subsubsection{Annual Parquet Partitioning}
+
+\paragraph{What is done.}
+The script \pathcode{scripts/create\_boamp\_grand\_ouest\_annual\_parquet.py}
+partitions $\mathcal{N}_{GO}$ into yearly subsets:
+\begin{equation}
+  \mathcal{N}_{GO}^{(y)} = \bigl\{r_i \in \mathcal{N}_{GO} :
+    \text{year}(t_i) = y\bigr\},
+  \qquad y \in \{2015,\ldots,2025\}
+  \label{eq:annual_partition}
+\end{equation}
+Each subset is stored as a Snappy-compressed Parquet file.  Row-count validation
+requires:
+\begin{equation}
+  \sum_{y=2015}^{2025} \bigl|\mathcal{N}_{GO}^{(y)}\bigr| = n_{GO}
+  \label{eq:partition_check}
+\end{equation}
+
+\paragraph{Why this is reasonable.}
+Parquet's columnar storage substantially reduces I/O overhead when reading subsets
+of columns or years, which is the dominant access pattern for linkage analysis.
+Partitioning by year also simplifies the temporal blocking logic used during
+candidate generation (Section~\ref{sec:candidates}).
+Condition~\eqref{eq:partition_check} guarantees that no record is lost or duplicated
+during the split.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Exploratory Data Analysis}
+\label{sec:eda}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{What is done.}
+The notebook \pathcode{notebooks/boamp\_full\_raw\_eda.ipynb} computes descriptive
+statistics over $\mathcal{N}$ and $\mathcal{N}_{GO}$.  For categorical field $f$,
+the marginal frequency distribution is:
+\begin{equation}
+  P(f = v) = \frac{\bigl|\{r_i : r_i[f] = v\}\bigr|}{n}
+  \label{eq:marginal}
+\end{equation}
+Monthly publication volume is aggregated as:
+\begin{equation}
+  c_{y,m} = \bigl|\{r_i : \text{year}(t_i) = y,\;\text{month}(t_i) = m\}\bigr|
+  \label{eq:monthly_vol}
+\end{equation}
+Field missingness is quantified as:
+\begin{equation}
+  \text{miss}(f) = \frac{\bigl|\{r_i : r_i[f] = \emptyset\}\bigr|}{n}
+  \label{eq:missingness}
+\end{equation}
+Materialized outputs are stored under \pathcode{full raw EDA/}, including 18 static
+figures, 25 tabular summaries, one interactive HTML chart, and
+\pathcode{full raw EDA/eda\_run\_summary.json}.
+
+\paragraph{Why this is reasonable.}
+The EDA is necessary before any modelling decision.  In particular,
+Equation~\eqref{eq:missingness} applied to key fields reveals that
+$\text{miss}(\code{code\_departement\_prestation}) \approx 0.88$,
+$\text{miss}(\code{datelimitereponse}) \approx 0.56$, and
+$\text{miss}(\code{contractfolderid}) \approx 0.91$.  These figures directly
+motivate the fallback logic in the geographic filter
+(Equation~\eqref{eq:go_filter}), the multi-evidence scoring in
+Section~\ref{sec:hpmodel}, and the use of explicit missingness indicators in
+feature engineering (Section~\ref{sec:goeng}).
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Preprocessing and Feature Engineering}
+\label{sec:preproc}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsubsection{National Preprocessing and Digital-Scope Identification}
+
+\paragraph{What is done.}
+The notebook \pathcode{notebooks/boamp\_preprocessing\_data\_engineering.ipynb}
+constructs an engineered national table.  Let $\Phi = \{32,35,48,72\}$ be the set
+of digital CPV two-digit prefixes, and let $\mathcal{K}$ be a keyword taxonomy with
+segments \{\textit{cloud, cybersecurity, software, it\_services, telecom\_network,
+ai\_data}\}.  The binary digital-candidate indicator is:
+\begin{equation}
+  \delta_i =
+    \mathbf{1}\!\left[
+      \exists\, p \in \mathrm{CPV}(r_i) : \lfloor p / 10^6 \rfloor \in \Phi
+    \right]
+    \;\lor\;
+    \mathbf{1}\!\left[
+      \exists\, k \in \mathcal{K} : k \subseteq \mathrm{text}(r_i)
+    \right]
+  \label{eq:digital_indicator}
+\end{equation}
+where $\mathrm{CPV}(r_i)$ is the set of CPV codes for notice $i$ and
+$\mathrm{text}(r_i)$ is its normalised subject text.  The national digital-candidate
+count is $|\{r_i \in \mathcal{N} : \delta_i = 1\}| = 129{,}115$.
+
+\paragraph{Why this is reasonable.}
+CPV prefixes 72, 48, 32, and 35 correspond to IT services, software, communications
+equipment, and security equipment respectively in the official Common Procurement
+Vocabulary hierarchy.  The keyword layer compensates for inconsistent CPV tagging,
+using a logical OR to maximise recall of digital notices at the cost of some false
+inclusions, which the 500-record annotation sample in
+\pathcode{data/processed/boamp/boamp\_digital\_annotation\_sample\_500.csv} exists
+to audit.
+
+\subsubsection{Grand Ouest Feature Engineering}
+\label{sec:goeng}
+
+\paragraph{What is done.}
+For each notice $r_i \in \mathcal{N}_{GO}$, the notebook
+\pathcode{notebooks/03\_boamp\_grand\_ouest\_preprocessing\_data\_engineering.ipynb}
+constructs the engineered feature vector $\mathbf{x}_i$:
+\begin{equation}
+  \mathbf{x}_i = \bigl(
+    \mathbf{x}^{\text{id}}_i,\;
+    \mathbf{x}^{\text{temporal}}_i,\;
+    \mathbf{x}^{\text{buyer}}_i,\;
+    \mathbf{x}^{\text{geo}}_i,\;
+    \mathbf{x}^{\text{cpv}}_i,\;
+    \mathbf{x}^{\text{text}}_i,\;
+    \mathbf{x}^{\text{econ}}_i,\;
+    \mathbf{x}^{\text{miss}}_i
+  \bigr)
+  \label{eq:feature_vector}
+\end{equation}
+where each component covers:
+\begin{itemize}
+  \item $\mathbf{x}^{\text{id}}$: normalised \code{idweb}, \code{id},
+    \code{contractfolderid};
+  \item $\mathbf{x}^{\text{temporal}}$: parsed $t_i$, parsed deadline $d_i$, and
+    $\Delta d_i = d_i - t_i$;
+  \item $\mathbf{x}^{\text{buyer}}$: raw name, normalised name, SIREN when
+    available, buyer key for blocking;
+  \item $\mathbf{x}^{\text{geo}}$: Grand Ouest department list
+    $\mathcal{D}_i \subseteq \mathcal{D}$, region label;
+  \item $\mathbf{x}^{\text{cpv}}$: CPV code list, two-digit prefix set
+    $\Phi_i$, digital theme segment;
+  \item $\mathbf{x}^{\text{text}}$: normalised notice subject used for
+    similarity computations;
+  \item $\mathbf{x}^{\text{econ}}$: extracted amount candidates, extracted
+    duration in days;
+  \item $\mathbf{x}^{\text{miss}}$: binary missingness flag $m_f \in \{0,1\}$
+    for each analytically critical field $f$.
+\end{itemize}
+The result is stored in
+\pathcode{data/processed/boamp\_grand\_ouest/notices\_engineered.parquet} with
+74 engineered fields for all $n_{GO} = 226{,}314$ notices and zero duplicate
+or missing \code{idweb}.
+
+\paragraph{Why this is reasonable.}
+Imputing missing values in a record-linkage context is particularly dangerous:
+an imputed value may create a spurious similarity signal between two notices
+that should not be linked.  By preserving missingness as explicit binary
+indicators in $\mathbf{x}^{\text{miss}}_i$, the scoring model in
+Section~\ref{sec:hpmodel} can degrade gracefully when evidence is absent rather
+than relying on substituted values that might inflate a score.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Benchmark Construction}
+\label{sec:benchmark}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\paragraph{What is done.}
+Because BOAMP does not supply an explicit renewal label, a manually reviewed
+benchmark is the only available source of ground truth.  Let $\mathcal{A} \subset
+\mathcal{N}_{GO}$ denote the set of benchmark anchor notices and
+$\mathcal{S} \subseteq \mathcal{A} \times \mathcal{N}_{GO}$ the confirmed positive
+successor links:
+\begin{equation}
+  \mathcal{S} = \bigl\{(a,c) :
+    a \in \mathcal{A},\;
+    c \in \mathcal{N}_{GO},\;
+    \text{renewal confirmed by manual review}
+  \bigr\}
+  \label{eq:ground_truth}
+\end{equation}
+The notebook \pathcode{notebooks/04\_reference\_benchmark\_preparation.ipynb}
+produces the benchmark with $|\mathcal{A}| = 120$ anchors, 94 eligible for primary
+evaluation, and $|\mathcal{S}| = 28$ confirmed positive links.
+
+The benchmark is split into two non-overlapping partitions:
+\begin{equation}
+  \mathcal{A} = \mathcal{A}_P \cup \mathcal{A}_L,
+  \qquad
+  \mathcal{A}_P \cap \mathcal{A}_L = \emptyset
+  \label{eq:split}
+\end{equation}
+where $|\mathcal{A}_P| = 16$ (pilot development, for threshold tuning) and
+$|\mathcal{A}_L| = 78$ (locked test, accessed once per method for final evaluation).
+
+\paragraph{Why this is reasonable.}
+Since ground-truth labels must be obtained manually, the benchmark is necessarily
+small.  The pilot/locked split in Equation~\eqref{eq:split} prevents the optimism
+bias that arises when evaluation data guides model selection.  Threshold choices
+are made on $\mathcal{A}_P$ only, and the final reported metrics are computed on
+$\mathcal{A}_L$ without further adjustment.  This is methodologically equivalent to
+the train/validation/test protocol in supervised learning.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Renewal Linkage Procedure}
+\label{sec:linkage}
+% ─────────────────────────────────────────────────────────────────────────────
+
+\subsubsection{Candidate Pair Generation}
+\label{sec:candidates}
+
+\paragraph{What is done.}
+For each anchor $a \in \mathcal{A}$, the set of admissible candidate successors
+$\mathcal{C}(a) \subseteq \mathcal{N}_{GO}$ is constructed in
+\pathcode{notebooks/05\_renewal\_candidate\_pair\_generation.ipynb}.  A notice $c$
+is admitted if and only if:
+\begin{equation}
+  c \in \mathcal{C}(a)
+  \;\iff\;
+  t_c > t_a
+  \;\;\land\;\;
+  \Delta t(a,c) \in [\tau_{\min}, \tau_{\max}]
+  \;\;\land\;\;
+  B(a,c)
+  \;\;\land\;\;
+  T(a,c)
+  \label{eq:candidate_rule}
+\end{equation}
+with $\tau_{\min} = 90$ days and $\tau_{\max} = 2{,}920$ days (approximately 8
+years).  The full candidate set is:
+\begin{equation}
+  \mathcal{C} = \bigcup_{a \in \mathcal{A}} \{(a,c) : c \in \mathcal{C}(a)\},
+  \qquad |\mathcal{C}| = 8{,}095
+  \label{eq:cand_total}
+\end{equation}
+The artifact is stored in
+\pathcode{data/processed/boamp\_grand\_ouest/renewal\_candidate\_pairs.parquet}.
+
+\paragraph{Why this is reasonable.}
+Without blocking, the comparison space would be $|\mathcal{A}| \times
+|\mathcal{N}_{GO}| = 120 \times 226{,}314 \approx 27$ million pairs.
+Equation~\eqref{eq:candidate_rule} reduces this to 8,095 focused pairs by applying
+three independent filters.
+The temporal window $[\tau_{\min}, \tau_{\max}]$ reflects procurement reality:
+digital service contracts shorter than 3 months rarely generate observable renewals,
+and timelines longer than 8 years are uncommon for the digital segment.
+The buyer and thematic conditions $B$ and $T$ act as blocking keys grounded in
+domain knowledge, without requiring exact matches, which is necessary because
+buyer identifiers are often missing or inconsistently formatted.
+
+\subsubsection{Baseline Linkage Modeling}
+\label{sec:baseline}
+
+\paragraph{What is done.}
+Six rule-based methods are compared in
+\pathcode{notebooks/06\_linkage\_baseline\_comparison\_and\_tuning.ipynb}.
+Each method $M$ maps $\mathcal{C}(a)$ to a ranked list.  The top-1 prediction is:
+\begin{equation}
+  \hat{y}(a) = \arg\max_{c \in \mathcal{C}(a)} \mathrm{rank}_{M}(a,c),
+  \quad \text{or } \hat{y}(a) = \emptyset
+  \text{ if } M \text{ emits no link}
+  \label{eq:top1_pred}
+\end{equation}
+The methods range from $M_0$ (always predict no link) through $M_3$ (balanced
+weighted rule score) and text-similarity methods $M_4$ (word TF-IDF) and $M_5$
+(character $n$-gram TF-IDF).  All configurations are tuned on $\mathcal{A}_P$ and
+evaluated on $\mathcal{A}_L$ without further adjustment.  Results are stored in
+\pathcode{data/processed/boamp\_grand\_ouest/linkage\_evaluation\_results.csv}.
+
+\paragraph{Why this is reasonable.}
+Establishing multiple baselines before refinement is methodologically sound because
+it identifies which signal contributes most to discriminative power.  The no-link
+baseline $M_0$ quantifies the precision cost of coverage.  The exact-match baseline
+$M_1$ bounds the performance achievable by deterministic rules alone.  Comparing
+$M_3$ against $M_4$ and $M_5$ establishes whether structured multi-field scoring
+outperforms unstructured text ranking for this domain.
+
+\subsubsection{Error Analysis}
+\label{sec:error}
+
+\paragraph{What is done.}
+The baseline failure modes are examined in
+\pathcode{notebooks/07\_linkage\_error\_analysis.ipynb}.
+Error types are classified as follows, using the sets defined in
+Section~\ref{sec:benchmark}:
+
+\begin{table}[H]
+\centering
+\caption{Error type definitions for the baseline linkage evaluation.}
+\label{tab:error_types}
+\small
+\begin{tabularx}{\textwidth}{p{5.2cm}X}
+\toprule
+\textbf{Error type} & \textbf{Formal condition} \\
+\midrule
+True positive   & $\hat{y}(a) = y^{*}(a) \neq \emptyset$ \\
+False positive  & $\hat{y}(a) \neq \emptyset,\; a \in \mathcal{A}^{-}$ \\
+False negative (no link)    & $\hat{y}(a) = \emptyset,\; a \in \mathcal{A}^{+}$ \\
+False negative (wrong link) & $\hat{y}(a) \neq y^{*}(a),\; a \in \mathcal{A}^{+}$ \\
+True successor in top-5 not top-1 &
+  $y^{*}(a) \in \mathrm{top5}(a),\; y^{*}(a) \neq \hat{y}(a)$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Why this is reasonable.}
+In a survival-analysis context, false positives are more dangerous than false
+negatives: a wrongly linked renewal introduces a false event time, which corrupts
+all downstream hazard estimates.  Explicitly profiling false positives by anchor
+theme and feature distributions is therefore essential to assess whether the
+baseline is safe for downstream use---and it is not, motivating the
+high-precision refinement in Section~\ref{sec:hpmodel}.
+
+\subsubsection{High-Precision Linkage Refinement}
+\label{sec:hpmodel}
+
+\paragraph{What is done.}
+A more conservative linkage rule (M6) is developed in
+\pathcode{notebooks/08\_high\_precision\_linkage\_iteration.ipynb}.
+Let $s_b, s_t, s_k, s_\tau, s_g \in [0,1]$ denote the buyer, text, CPV/theme,
+time-plausibility, and geography component scores respectively, and let
+$w_b,\, w_t,\, w_k,\, w_\tau,\, w_g > 0$ with $w_b + w_t + w_k + w_\tau + w_g = 1$.
+The composite weighted linkage score is:
+\begin{equation}
+  S(a,c) = 100 \times
+    \bigl(
+      w_b \cdot s_b(a,c) +
+      w_t \cdot s_t(a,c) +
+      w_k \cdot s_k(a,c) +
+      w_\tau \cdot s_\tau(a,c) +
+      w_g \cdot s_g(a,c)
+    \bigr)
+  \label{eq:score}
+\end{equation}
+The implemented weight assignment, frozen in
+\pathcode{data/processed/boamp\_grand\_ouest/high\_precision\_linkage\_config.json},
+is $(w_b, w_t, w_k, w_\tau, w_g) = (0.50, 0.25, 0.15, 0.05, 0.05)$.
+
+A link $(a,c)$ is accepted automatically if and only if:
+\begin{equation}
+  \hat{y}(a) = c
+  \;\iff\;
+  S(a,c) \geq \theta
+  \;\;\land\;\;
+  G_B(a,c)
+  \;\;\land\;\;
+  G_T(a,c)
+  \;\;\land\;\;
+  G_K(a,c)
+  \label{eq:accept_rule}
+\end{equation}
+where $\theta = 65$, and the acceptance gates require:
+\begin{itemize}
+  \item $G_B$: strong buyer evidence (SIREN match, normalised name match, or fuzzy
+    buyer similarity $\geq 0.45$);
+  \item $G_T$: text similarity $s_t(a,c) \geq 0.25$, or $\geq 0.55$ when CPV is
+    missing;
+  \item $G_K$: CPV/theme continuity, or text similarity sufficiently high to
+    compensate for absent CPV.
+\end{itemize}
+
+\paragraph{Why each weight is reasonable.}
+The weight assignment in Equation~\eqref{eq:score} is grounded in procurement-domain
+reasoning rather than statistical estimation, which is the honest position given
+$|\mathcal{A}| = 94$ eligible anchors.
+
+\medskip
+\noindent
+\textit{Buyer weight $w_b = 0.50$.}  A renewal is by definition a continuation of
+the \emph{same buyer's} need; a change of buyer breaks the episode chain.  Assigning
+half the total score to buyer evidence places the strongest constraint on the
+dimension most theoretically tied to renewal.
+
+\medskip
+\noindent
+\textit{Text weight $w_t = 0.25$.}  The notice subject text describes the functional
+need, and a renewal should address the same or closely related need.  Text similarity
+is a noisy but informative signal.
+
+\medskip
+\noindent
+\textit{CPV weight $w_k = 0.15$.}  CPV is structurally the right signal for
+functional continuity, but CPV tagging in BOAMP is inconsistent and exhibits
+non-trivial missingness.  Assigning it less weight than text prevents
+over-reliance on a field of variable quality.
+
+\medskip
+\noindent
+\textit{Time and geography weights $w_\tau = w_g = 0.05$.}  Time plausibility is
+already enforced as a hard constraint in Equation~\eqref{eq:candidate_rule}, so the
+score component provides only a graded signal within the admissible window.
+Geography weight is small because the entire dataset is already restricted to
+Grand Ouest, reducing geographic signal within the regional corpus.
+
+\medskip
+\noindent
+The acceptance gates $G_B, G_T, G_K$ correct a structural weakness of weighted
+scoring: a high $S(a,c)$ driven by text alone cannot confirm institutional
+continuity.  The gates require independent evidence from each major dimension before
+a link is accepted.
+
+The locked-test evaluation results, stored in
+\pathcode{data/processed/boamp\_grand\_ouest/high\_precision\_linkage\_evaluation.csv},
+confirm the precision--coverage tradeoff:
+
+\begin{table}[H]
+\centering
+\caption{Locked-test evaluation: baseline M3 vs.\ high-precision M6.}
+\label{tab:locked_test}
+\small
+\begin{tabularx}{0.78\textwidth}{Xrr}
+\toprule
+\textbf{Metric on $\mathcal{A}_L$ ($n = 78$)} & \textbf{M3 Baseline} & \textbf{M6 High-Precision} \\
+\midrule
+Coverage rate   & 0.564 & 0.410 \\
+$P_1$           & 0.250 & \textbf{0.438} \\
+$R_1$           & 0.579 & \textbf{0.737} \\
+$R_5$           & 0.684 & \textbf{0.842} \\
+$\text{FPR}$    & 0.441 & \textbf{0.237} \\
+No-link accuracy & 0.559 & \textbf{0.763} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent
+M6 improves $P_1$ by $+0.188$ and reduces $\text{FPR}$ by $-0.204$ relative to the
+baseline.  However, $P_1 = 0.438$ means that approximately 56\,\% of automatic
+top-1 predictions are still incorrect on the locked benchmark, which the project
+report correctly identifies as insufficient for uncritical downstream use in survival
+analysis.
+
+\subsubsection{Parameter Sensitivity Diagnostics}
+\label{sec:param}
+
+\paragraph{What is done.}
+A structured diagnostic over threshold and gate parameter combinations is implemented
+in \pathcode{notebooks/09\_linkage\_parameter\_selection\_diagnostics.ipynb}.  Let
+$\Theta$ and $\Pi$ denote the candidate threshold and minimum-text-similarity grids
+respectively.  For each $(\theta, \pi) \in \Theta \times \Pi$, the pilot-set metrics
+are:
+\begin{align}
+  P_1(\theta,\pi) &= \frac{\displaystyle\sum_{a \in \mathcal{A}_P^{+}}
+    \mathbf{1}[\hat{y}(a;\theta,\pi) = y^{*}(a)]}
+    {\bigl|\{a \in \mathcal{A}_P : \hat{y}(a;\theta,\pi) \neq \emptyset\}\bigr|}
+  \label{eq:pilot_p1}
+  \\[4pt]
+  \text{FPR}(\theta,\pi) &= \frac{\displaystyle\sum_{a \in \mathcal{A}_P^{-}}
+    \mathbf{1}[\hat{y}(a;\theta,\pi) \neq \emptyset]}
+    {|\mathcal{A}_P^{-}|}
+  \label{eq:pilot_fpr}
+\end{align}
+The resulting surface is stored in
+\pathcode{data/processed/boamp\_grand\_ouest/parameter\_selection\_grid.csv}.
+
+\paragraph{Why this is reasonable.}
+Visualising the joint sensitivity of $P_1$ and $\text{FPR}$ over $(\theta, \pi)$
+reveals whether the selected operating point $(\theta=65,\,\pi=0.25)$ is in a stable
+region of the parameter space or on a sharp boundary.  The diagnostic heatmaps
+confirm that the current setting and the grid recommendation $(\theta=65,\,\pi=0.20)$
+produce identical pilot metrics, indicating that the operating point is not near a
+steep gradient.  However, because $|\mathcal{A}_P| = 16$ with $|\mathcal{A}_P^{+}|
+= 5$, a single prediction change shifts $P_1$ by $0.2$, so these diagnostics are
+informative for ruling out clearly bad parameter regions rather than for selecting a
+precise optimum with statistical confidence.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Evaluation Metrics}
+\label{sec:metrics}
+% ─────────────────────────────────────────────────────────────────────────────
+
+All metrics are computed on the locked test set $\mathcal{A}_L$.
+
+\paragraph{Precision at rank~1} measures the fraction of automatic links that are
+correct:
+\begin{equation}
+  P_1 = \frac{\displaystyle\sum_{a \in \mathcal{A}_L}
+    \mathbf{1}[\hat{y}(a) = y^{*}(a) \neq \emptyset]}
+    {\bigl|\{a \in \mathcal{A}_L : \hat{y}(a) \neq \emptyset\}\bigr|}
+  \label{eq:p1}
+\end{equation}
+
+\paragraph{Recall at rank~1} measures the fraction of true successor anchors whose
+correct successor is the top prediction:
+\begin{equation}
+  R_1 = \frac{\displaystyle\sum_{a \in \mathcal{A}_L^{+}}
+    \mathbf{1}[\hat{y}(a) = y^{*}(a)]}
+    {|\mathcal{A}_L^{+}|}
+  \label{eq:r1}
+\end{equation}
+
+\paragraph{Recall at rank~5} measures whether the correct successor appears anywhere
+in the top-5 candidates:
+\begin{equation}
+  R_5 = \frac{\displaystyle\sum_{a \in \mathcal{A}_L^{+}}
+    \mathbf{1}[y^{*}(a) \in \mathrm{top5}(a)]}
+    {|\mathcal{A}_L^{+}|}
+  \label{eq:r5}
+\end{equation}
+
+\paragraph{False-positive rate on no-successor anchors} is the most safety-critical
+metric for downstream survival analysis:
+\begin{equation}
+  \text{FPR} = \frac{\displaystyle\sum_{a \in \mathcal{A}_L^{-}}
+    \mathbf{1}[\hat{y}(a) \neq \emptyset]}
+    {|\mathcal{A}_L^{-}|}
+  \label{eq:fpr}
+\end{equation}
+
+\paragraph{Why FPR is prioritised.}
+In survival analysis, a false-positive link attaches a false event time to a
+censored observation.  Let $\delta \in \{0,1\}$ be the event indicator and
+$\Delta t^{*}$ the observed time to renewal or censoring.  A false positive sets
+$\delta = 1$ with an incorrect $\Delta t^{*}$, biasing the Kaplan-Meier survival
+curve and any Cox regression hazard estimates.  Reducing $\text{FPR}$ therefore
+takes precedence over maximising coverage.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Current Implemented Scope}
+\label{sec:scope}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Based strictly on the materialized artifacts in the repository, the implemented
+pipeline delivers the following transformation chain:
+\begin{equation}
+  \mathcal{N}
+  \xrightarrow{\text{filter } \mathcal{D}}
+  \mathcal{N}_{GO}
+  \xrightarrow{\text{engineer } \mathbf{x}_i}
+  \{\mathbf{x}_i\}
+  \xrightarrow{\text{benchmark}}
+  (\mathcal{A},\mathcal{S})
+  \xrightarrow{\text{candidates}}
+  \mathcal{C}
+  \xrightarrow{S(a,c),\,G}
+  \hat{y}
+  \xrightarrow{\text{evaluate vs.}\, \mathcal{S}}
+  P_1,\, \text{FPR}
+  \label{eq:chain}
+\end{equation}
+
+It does not yet produce a final corpus-level renewal table
+$\hat{\mathcal{S}}_{\text{full}} \subseteq \mathcal{N}_{GO} \times \mathcal{N}_{GO}$,
+nor a survival-analysis dataset of the form $(a, \Delta t^{*}, \delta)$ where
+$\delta \in \{0,1\}$ is the event indicator and $\Delta t^{*}$ is the observed
+time to renewal or censoring.  These stages are identified as next implementation
+targets in the project report.
+
+% ── Figure 2: Mathematical Pipeline Diagram ──────────────────────────────────
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+
+  %% ── Implemented stages ────────────────────────────────────────────────────
+  \node[mnode] (m1)
+    {$\mathcal{N}$\quad (national corpus,\; $n = 1{,}620{,}712$)};
+
+  \node[mnode, below=0.5cm of m1] (m2)
+    {$\mathcal{N}_{GO}$\quad (Grand Ouest,\; $n_{GO} = 226{,}314$)};
+
+  \node[mnode, below=0.5cm of m2] (m3)
+    {$\{\mathbf{x}_i\}$\quad (\pathcode{notices\_engineered.parquet})};
+
+  \node[mnode, below=0.5cm of m3] (m4)
+    {$(\mathcal{A},\,\mathcal{S})$\quad
+    (120 anchors,\; 28 confirmed links)};
+
+  \node[mnode, below=0.5cm of m4] (m5)
+    {$\mathcal{C}$\quad (8{,}095 candidate pairs)};
+
+  \node[mnode, below=0.5cm of m5] (m6)
+    {$\hat{y}(a)$\quad (M6 automatic predictions)};
+
+  \node[mnode, below=0.5cm of m6] (m7)
+    {$P_1 = 0.44$,\quad $\text{FPR} = 0.24$\quad
+    (locked test, $n = 78$)};
+
+  %% ── Not-yet-implemented stages ────────────────────────────────────────────
+  \node[mfut, below=1.0cm of m7] (m8)
+    {$\hat{\mathcal{S}}_{\text{full}}$\quad
+    (full-corpus renewal-link table — not yet implemented)};
+
+  \node[mfut, below=0.5cm of m8] (m9)
+    {$(a,\, \Delta t^{*},\, \delta)$\quad
+    (survival-analysis dataset — not yet implemented)};
+
+  %% ── Implemented arrows ────────────────────────────────────────────────────
+  \draw[pipe] (m1) -- node[mlbl]{filter by $\mathcal{D}$} (m2);
+  \draw[pipe] (m2) -- node[mlbl]{engineer $\mathbf{x}_i$} (m3);
+  \draw[pipe] (m3) -- node[mlbl]{manual benchmark} (m4);
+  \draw[pipe] (m4) -- node[mlbl]{candidate generation} (m5);
+  \draw[pipe] (m5) --
+    node[mlbl]{score $S(a,c)$, gates $G_B,G_T,G_K$} (m6);
+  \draw[pipe] (m6) --
+    node[mlbl]{evaluate vs.\ $\mathcal{S}$ on $\mathcal{A}_L$} (m7);
+
+  %% ── Boundary line ─────────────────────────────────────────────────────────
+  \coordinate (bnd) at ($(m7.south)!0.5!(m8.north)$);
+  \draw[orange!55, thick, densely dashed]
+    (bnd -| m7.west) -- (bnd -| m7.east);
+  \node[font=\footnotesize\itshape, text=orange!65] at (bnd)
+    {\hspace{2em}current implementation boundary};
+
+  %% ── Not-yet-implemented arrows ────────────────────────────────────────────
+  \draw[pipedash] (m7)  --
+    node[mlbl]{\textit{not yet implemented}} (m8);
+  \draw[pipedash] (m8) --
+    node[mlbl]{\textit{not yet implemented}} (m9);
+
+\end{tikzpicture}
+\caption{%
+  Mathematical transformation chain from raw national corpus $\mathcal{N}$ to
+  evaluation results.  Solid grey arrows indicate implemented stages.  Dashed
+  orange arrows and orange-bordered boxes indicate stages that are logically next
+  in the pipeline but are not yet materialised as artifacts in the repository.
+  The horizontal dashed line marks the current implementation boundary.
+}
+\label{fig:mathpipeline}
+\end{figure}
+% ─────────────────────────────────────────────────────────────────────────────
+
+% ─────────────────────────────────────────────────────────────────────────────
+\subsection{Summary of Implemented Stages}
+% ─────────────────────────────────────────────────────────────────────────────
+
+Table~\ref{tab:summary} summarises every implemented stage with its driving
+artifact, primary input, and primary output.
+
+\begin{table}[H]
+\centering
+\caption{Implemented pipeline stages, inputs, and outputs.}
+\label{tab:summary}
+\small
+\begin{tabularx}{\textwidth}{p{0.3cm}p{4.4cm}p{3.8cm}p{4.4cm}}
+\toprule
+\textbf{\#} & \textbf{Stage} & \textbf{Primary input} & \textbf{Primary output} \\
+\midrule
+1  & Data Acquisition
+   & BOAMP API
+   & Yearly JSONL files; download summary \\
+2  & Canonical Raw Consolidation
+   & Yearly JSONL; field schema
+   & \code{boamp\_2015\_2025\_raw.csv} \\
+3  & Regional Scope Restriction
+   & National raw CSV
+   & \code{boamp\_\ldots\_grand\_ouest\_raw.csv} \\
+4  & Annual Parquet Partitioning
+   & Grand Ouest raw CSV
+   & 11 yearly raw Parquet files \\
+5  & Exploratory Data Analysis
+   & National raw CSV
+   & 18 figures, 25 tables, HTML chart \\
+6  & National Preprocessing
+   & National raw CSV
+   & Core and digital-candidates Parquet \\
+7  & Grand Ouest Feature Engineering
+   & Grand Ouest raw CSV
+   & \code{notices\_engineered.parquet} \\
+8  & Benchmark Construction
+   & Engineered notices; manual review
+   & Reference CSVs; anchor/link Parquet \\
+9  & Candidate Pair Generation
+   & Engineered notices; benchmark anchors
+   & \code{renewal\_candidate\_pairs.parquet} \\
+10 & Baseline Linkage Modeling
+   & Candidate pairs; ground truth
+   & Baseline predictions; evaluation CSV \\
+11 & Error Analysis
+   & Baseline predictions; ground truth
+   & Error summary; FP/FN review CSVs \\
+12 & High-Precision Linkage Refinement
+   & Candidate pairs; ground truth
+   & HP config; HP predictions; evaluation \\
+13 & Parameter Sensitivity Diagnostics
+   & HP scoring grid inputs
+   & Parameter grid CSV; recommendation \\
+14 & Technical Report
+   & All key outputs
+   & \code{boamp\_\ldots\_session\_report.pdf} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+% ═══════════════════════════════════════════════════════════════════════════════
+\end{document}
