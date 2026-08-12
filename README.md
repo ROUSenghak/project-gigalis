@@ -134,6 +134,34 @@ instead.
 to the successor's first notice; everything else is right-censored at the
 cutoff. A censored contract is not a contract proven never to be renewed.
 
+### Parallel expiry-aware sensitivity
+
+The expiry-aware policy is a parallel sensitivity arm; it does not overwrite
+the frozen v1 linkage or survival outputs.
+
+```bash
+PYTHONPATH=. python3 scripts/evaluate_expiry_aware_linkage.py
+PYTHONPATH=. python3 scripts/build_expiry_aware_survival_dataset.py
+```
+
+Candidate generation stays unchanged. `M_E_expiry_aware_text` retains the
+normal text threshold of 0.70, but a candidate published more than 365 days
+before the best observable expected end must also have text similarity of at
+least 0.85 and positive CPV continuity. Expected end uses, in order, one
+unambiguous explicit end date, one start date plus reliable duration, or award
+date plus reliable duration; missing duration is not imputed.
+
+On the current artifacts, this policy accepts 507 observable successors versus
+547 under v1 and sends 42 changed anchors to `expiry_link_review.csv`. Its
+reviewed-benchmark metrics are unchanged from v1 (precision 0.80, recall 0.3636,
+zero false positives on reviewed negative anchors). The automated promotion
+gate therefore passes, but the policy remains parallel until the changed links
+are manually reviewed. Outputs are
+`accepted_successor_links_expiry_aware.parquet`,
+`expiry_aware_linkage_summary.json`, `expiry_link_review.csv`,
+`survival_dataset_expiry_aware.parquet`, and
+`survival_dataset_expiry_aware_summary.json`.
+
 The operational output is `data/processed/boamp_v2/renewal_watchlist_top20.csv`
 — the five nearest-term contracts in each digital segment, ranked by the
 probability that a successor becomes visible within twelve months. It is
