@@ -1,0 +1,18 @@
+{
+  "created_at": "2026-08-13T22:04:50",
+  "rows": 60,
+  "strata": {
+    "HIGH_SIMILARITY_STRUCTURAL_NEGATIVE": 20,
+    "BUYER_DECLARED_RESOLVED": 20,
+    "PRIMARY_ACCEPTED": 20
+  },
+  "review_file": "/Users/macbookair/Desktop/project-gigalis/data/review/independent_link_review_sample.csv",
+  "audit_key": "/Users/macbookair/Desktop/project-gigalis/data/review/independent_link_review_audit_key.csv",
+  "protocol": "/Users/macbookair/Desktop/project-gigalis/INDEPENDENT_LINK_REVIEW_PROTOCOL.md",
+  "blinding": {
+    "bootstrap_labels_exposed": false,
+    "algorithm_scores_exposed": false,
+    "sample_stratum_exposed": false
+  },
+  "validation_passed": true
+}

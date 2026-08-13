@@ -1,0 +1,37 @@
+# Methodological References And Design Implications
+
+Assessment date: `2026-08-13`
+
+This file records the external support for the implemented choices. A reference
+supports a definition or method; it does not validate this project's empirical
+results.
+
+| Source | What it supports here | What it does not justify |
+|---|---|---|
+| [Official BOAMP API, DILA](https://www.data.gouv.fr/dataservices/api-bulletin-officiel-des-annonces-des-marches-publics-boamp) | BOAMP notices are the official source for calls and award/result notices used by the pipeline | BOAMP does not provide a complete legal-renewal label for every contract |
+| [INSEE SIREN definition](https://www.insee.fr/fr/metadonnees/definition/c2047) | A valid SIREN identifies a legal unit and should outrank buyer-name similarity | Similar names alone do not prove legal identity |
+| [INSEE SIRET definition](https://www.insee.fr/fr/metadonnees/definition/c1841) | A SIRET identifies an establishment and contains the legal unit's SIREN | Different establishments must not automatically be treated as different legal buyers |
+| [Commission Regulation (EC) No 213/2008](https://eur-lex.europa.eu/eli/reg/2008/213/oj) | CPV is a hierarchical procurement vocabulary; division continuity is a reproducible coarse domain feature | CPV equality does not prove renewal, and four CPV divisions are not a learned technology taxonomy |
+| [Directive 2014/24/EU, Article 33](https://eur-lex.europa.eu/eli/dir/2014/24/oj) | Framework duration is generally limited to four years, subject to justified exceptions | It does not justify imputing four years for contracts with missing duration |
+| [scikit-learn cosine similarity](https://scikit-learn.org/stable/modules/metrics.html#cosine-similarity) | The implemented TF-IDF cosine score is a standard normalized document-similarity measure | A high cosine score does not independently prove a successor relationship |
+| [Fellegi and Sunter (1969)](https://doi.org/10.1080/01621459.1969.10501049) | `M_D` is a recognized probabilistic record-linkage approach based on match/non-match comparison likelihoods | Its assumptions do not guarantee good performance on rare successor events with dependent candidate pairs |
+| [Kaplan and Meier (1958)](https://doi.org/10.1080/01621459.1958.10501452) | Kaplan-Meier estimation handles administrative right-censoring | It cannot correct event misclassification created by linkage errors |
+| [Cox (1972)](https://doi.org/10.1111/j.2517-6161.1972.tb00899.x) | The Cox model estimates covariate associations with the event hazard without specifying a baseline hazard | Hazard ratios are not causal effects without stronger identification assumptions |
+| [Grambsch and Therneau (1994)](https://doi.org/10.1093/biomet/81.3.515) | Schoenfeld-residual diagnostics test the proportional-hazards assumption | Passing a diagnostic would not validate linkage or causal interpretation |
+| [Killick, Fearnhead and Eckley (2012)](https://doi.org/10.1080/01621459.2012.737745) | PELT provides an efficient multiple-change-point procedure | A statistical break does not identify its cause; the report treats breaks as descriptive candidates |
+
+## Consequences For The Current Pipeline
+
+1. Preserve raw BOAMP values and record parser lineage before standardisation.
+2. Prefer validated SIREN evidence; keep legal forms such as municipality and
+   intercommunal authority distinct when identity is not established.
+3. Use CPV and text similarity as continuity evidence, not legal proof.
+4. Keep the 90-2,920 day interval as an operational broad candidate window, not
+   a statutory contract-duration rule.
+5. Do not impute missing duration or assume every framework lasts four years.
+6. Treat linkage metrics from deterministic bootstrap labels as development
+   diagnostics until the blinded specialist review is completed.
+7. Report survival estimates as linkage-conditioned and non-causal, with event
+   definition sensitivity.
+8. Treat PELT breaks and recent slopes as exploratory signals requiring domain
+   corroboration.

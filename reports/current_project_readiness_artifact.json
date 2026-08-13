@@ -1,0 +1,1049 @@
+{
+  "surface": "report",
+  "manifest": {
+    "version": 1,
+    "surface": "report",
+    "title": "BOAMP Project: Current Methodological Readiness",
+    "description": "Evidence-backed status of data quality, linkage, survival, trends, limitations, and next actions.",
+    "generatedAt": "2026-08-13T22:14:24",
+    "cards": [
+      {
+        "id": "cohort-card",
+        "dataset": "headline",
+        "sourceId": "quality",
+        "description": "Awarded Grand Ouest digital procurement episodes in the survival cohort.",
+        "metrics": [
+          {
+            "label": "Cohort episodes",
+            "field": "cohort",
+            "format": "compact"
+          }
+        ]
+      },
+      {
+        "id": "links-card",
+        "dataset": "headline",
+        "sourceId": "survival",
+        "description": "Episodes with one accepted observable successor under M_B at 0.70.",
+        "metrics": [
+          {
+            "label": "Accepted successors",
+            "field": "accepted",
+            "format": "compact"
+          }
+        ]
+      },
+      {
+        "id": "event-card",
+        "dataset": "headline",
+        "sourceId": "survival",
+        "description": "Accepted successors divided by cohort episodes; linkage-conditioned, not legal renewal prevalence.",
+        "metrics": [
+          {
+            "label": "Observed event rate",
+            "field": "event_rate",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "median-card",
+        "dataset": "headline",
+        "sourceId": "survival",
+        "description": "Median elapsed time among accepted successor events.",
+        "metrics": [
+          {
+            "label": "Median successor time",
+            "field": "median_months",
+            "format": "number"
+          }
+        ]
+      }
+    ],
+    "charts": [
+      {
+        "id": "sensitivity-chart",
+        "title": "Observed Event Rate By Linkage Rule",
+        "subtitle": "Same 3,800 episodes; rates change materially with the event definition.",
+        "type": "horizontalBar",
+        "intent": "comparison",
+        "question": "How sensitive is the event rate to linkage selection?",
+        "rationale": "Horizontal bars support direct comparison of four named operating rules.",
+        "dataset": "sensitivity",
+        "sourceId": "survival",
+        "encodings": {
+          "x": {
+            "field": "variant",
+            "type": "nominal",
+            "label": "Linkage rule"
+          },
+          "y": {
+            "field": "event_rate",
+            "type": "quantitative",
+            "format": "percent",
+            "label": "Observed event rate"
+          },
+          "tooltip": [
+            {
+              "field": "accepted",
+              "type": "quantitative",
+              "label": "Events"
+            },
+            {
+              "field": "median_months",
+              "type": "quantitative",
+              "label": "Median months"
+            }
+          ]
+        },
+        "valueFormat": "percent",
+        "layout": "full"
+      },
+      {
+        "id": "trend-chart",
+        "title": "Quarterly Awarded Digital Procurement Episodes",
+        "subtitle": "Grand Ouest, 2015Q2 to 2025Q4; descriptive counts only.",
+        "type": "line",
+        "intent": "trend",
+        "question": "How did the observed episode count evolve over the study period?",
+        "rationale": "A line chart preserves quarterly ordering without implying a forecast.",
+        "dataset": "trend_overall",
+        "sourceId": "trend-signals",
+        "encodings": {
+          "x": {
+            "field": "quarter",
+            "type": "ordinal",
+            "label": "Quarter"
+          },
+          "y": {
+            "field": "episode_count",
+            "type": "quantitative",
+            "label": "Episodes"
+          },
+          "tooltip": [
+            {
+              "field": "signal",
+              "type": "nominal",
+              "label": "Recent signal"
+            },
+            {
+              "field": "recent_p_value",
+              "type": "quantitative",
+              "label": "Recent p-value"
+            }
+          ]
+        },
+        "valueFormat": "number",
+        "layout": "full"
+      }
+    ],
+    "tables": [
+      {
+        "id": "method-table",
+        "title": "Held-Out Internal Method Comparison",
+        "subtitle": "Bootstrap-labelled reference; these are development diagnostics, not independent validation.",
+        "dataset": "methods",
+        "sourceId": "evaluation",
+        "defaultSort": {
+          "field": "precision",
+          "direction": "desc"
+        },
+        "density": "dense",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "method",
+            "label": "Method",
+            "type": "text"
+          },
+          {
+            "field": "threshold",
+            "label": "Threshold",
+            "format": "percent"
+          },
+          {
+            "field": "accepted_links",
+            "label": "Accepted",
+            "format": "number"
+          },
+          {
+            "field": "precision",
+            "label": "Precision",
+            "format": "percent"
+          },
+          {
+            "field": "recall",
+            "label": "Recall",
+            "format": "percent"
+          },
+          {
+            "field": "fpr",
+            "label": "FPR",
+            "format": "percent"
+          }
+        ]
+      },
+      {
+        "id": "readiness-table",
+        "title": "Methodological Readiness By Component",
+        "subtitle": "Current evidence, remaining limitation, and action priority.",
+        "dataset": "readiness",
+        "sourceId": "compliance",
+        "defaultSort": {
+          "field": "priority",
+          "direction": "asc"
+        },
+        "density": "spacious",
+        "layout": "full",
+        "columns": [
+          {
+            "field": "component",
+            "label": "Component",
+            "type": "text"
+          },
+          {
+            "field": "status",
+            "label": "Status",
+            "type": "text"
+          },
+          {
+            "field": "evidence",
+            "label": "Evidence",
+            "type": "text"
+          },
+          {
+            "field": "remaining_gap",
+            "label": "Remaining gap",
+            "type": "text"
+          },
+          {
+            "field": "priority",
+            "label": "Priority",
+            "format": "number"
+          }
+        ]
+      }
+    ],
+    "sources": [
+      {
+        "id": "quality",
+        "label": "Current data-quality profile",
+        "path": "reports/current_project_readiness.db",
+        "query": {
+          "engine": "SQLite",
+          "language": "sql",
+          "sql": "SELECT * FROM quality",
+          "description": "Generated by scripts/build_project_evidence.py from current materialised artifacts.",
+          "tables_used": [
+            "reports/current_project_readiness.db::quality",
+            "data/processed/boamp_v2/data_quality_profile.json"
+          ],
+          "filters": [
+            "Current materialised pipeline state as of 2025-12-31"
+          ],
+          "metric_definitions": [
+            "Candidate coverage = anchors with at least one candidate / cohort anchors.",
+            "Missingness rates use the 3,800-row survival cohort denominator."
+          ]
+        }
+      },
+      {
+        "id": "survival",
+        "label": "Current survival dataset summary",
+        "path": "reports/current_project_readiness.db",
+        "query": {
+          "engine": "SQLite",
+          "language": "sql",
+          "sql": "SELECT * FROM sensitivity",
+          "description": "Generated by scripts/build_survival_dataset.py from accepted successor links.",
+          "tables_used": [
+            "reports/current_project_readiness.db::sensitivity",
+            "data/processed/boamp_v2/survival_dataset_summary.json"
+          ],
+          "filters": [
+            "Current materialised pipeline state as of 2025-12-31"
+          ],
+          "metric_definitions": [
+            "Event rate = accepted observable-successor events / 3,800 cohort episodes.",
+            "Median successor time is calculated among accepted events, not all cohort rows."
+          ]
+        }
+      },
+      {
+        "id": "evaluation",
+        "label": "Held-out internal development-reference evaluation",
+        "path": "reports/current_project_readiness.db",
+        "query": {
+          "engine": "SQLite",
+          "language": "sql",
+          "sql": "SELECT * FROM methods",
+          "description": "Anchor-level exact-successor evaluation on the held-out bootstrap-labelled split.",
+          "tables_used": [
+            "reports/current_project_readiness.db::methods",
+            "data/processed/boamp_v2/linkage_evaluation_summary_v3_validation_primary.json"
+          ],
+          "filters": [
+            "Current materialised pipeline state as of 2025-12-31"
+          ],
+          "metric_definitions": [
+            "Precision = exact true successors / accepted successors.",
+            "Recall = exact true successors / positive anchors.",
+            "FPR = accepted links on no-successor anchors / negative anchors."
+          ]
+        }
+      },
+      {
+        "id": "trend",
+        "label": "Quarterly trend evidence",
+        "path": "reports/current_project_readiness.db",
+        "query": {
+          "engine": "SQLite",
+          "language": "sql",
+          "sql": "SELECT * FROM trend_overall",
+          "description": "Quarterly counts of awarded Grand Ouest digital procurement episodes from 2015Q2 to 2025Q4.",
+          "tables_used": [
+            "reports/current_project_readiness.db::trend_overall",
+            "data/processed/boamp_v2/trend_quarterly.csv"
+          ],
+          "filters": [
+            "Current materialised pipeline state as of 2025-12-31"
+          ],
+          "metric_definitions": [
+            "Episode count is the number of reconstructed awarded episodes per quarter."
+          ]
+        }
+      },
+      {
+        "id": "trend-signals",
+        "label": "Recent trend signal matrix",
+        "path": "reports/current_project_readiness.db",
+        "query": {
+          "engine": "SQLite",
+          "language": "sql",
+          "sql": "SELECT * FROM trend_signals",
+          "description": "Exploratory 12-quarter slopes and PELT sensitivity outputs by segment.",
+          "tables_used": [
+            "reports/current_project_readiness.db::trend_signals",
+            "data/processed/boamp_v2/trend_signal_matrix.csv"
+          ],
+          "filters": [
+            "Current materialised pipeline state as of 2025-12-31"
+          ],
+          "metric_definitions": []
+        }
+      },
+      {
+        "id": "compliance",
+        "label": "Internship-guide compliance assessment",
+        "path": "reports/current_project_readiness.db",
+        "query": {
+          "engine": "SQLite",
+          "language": "sql",
+          "sql": "SELECT * FROM readiness",
+          "description": "Evidence-to-deliverable assessment for the current project state.",
+          "tables_used": [
+            "reports/current_project_readiness.db::readiness",
+            "INTERNSHIP_GUIDE_COMPLIANCE.md"
+          ],
+          "filters": [
+            "Current materialised pipeline state as of 2025-12-31"
+          ],
+          "metric_definitions": []
+        }
+      }
+    ],
+    "blocks": [
+      {
+        "id": "title",
+        "type": "markdown",
+        "body": "# BOAMP Project: Current Methodological Readiness"
+      },
+      {
+        "id": "summary",
+        "type": "markdown",
+        "body": "## Executive Summary\n\n**Overall assessment: share with caveats.** The end-to-end measurement pipeline is reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable precision-first operating baseline, but its reported accuracy comes from deterministic bootstrap labels rather than independent specialist ground truth. Survival and trend results are therefore descriptive and conditional on the linkage definition. The highest-priority next action is the prepared 60-pair blinded specialist review."
+      },
+      {
+        "id": "headline-metrics",
+        "type": "metric-strip",
+        "cardIds": [
+          "cohort-card",
+          "links-card",
+          "event-card",
+          "median-card"
+        ]
+      },
+      {
+        "id": "quality-finding",
+        "type": "markdown",
+        "sourceId": "quality",
+        "body": "## Data Quality\n\nThe current artifacts contain **1,620,712 unique standardised notices** and **1,103,632 reconstructed episodes**. Structural checks find no duplicate notice IDs, impossible episode chronology, negative survival durations, or accepted links with conflicting validated SIRENs. The main limitations are substantive missingness: validated SIREN is absent for **66.3%** of the cohort and reliable duration for **74.9%**. Missing duration is not imputed."
+      },
+      {
+        "id": "linkage-finding",
+        "type": "markdown",
+        "sourceId": "evaluation",
+        "body": "## Linkage Evidence\n\nThe held-out internal reference favors `M_B` for false-positive control. Its exact-successor precision is 80.0%, recall 18.2%, and negative-anchor FPR 0.0%, but only five links were accepted. One changed decision would move precision materially. These values guide method development; they must not be reported as independently validated accuracy."
+      },
+      {
+        "id": "methods",
+        "type": "table",
+        "tableId": "method-table"
+      },
+      {
+        "id": "survival-finding",
+        "type": "markdown",
+        "sourceId": "survival",
+        "body": "## Survival Interpretation\n\nUnder the main rule, 544 of 3,800 episodes have an accepted observable successor (14.3%). The median among accepted events is 31.82 months. The event rate ranges from 7.8% to 35.1% across planned linkage sensitivities, so absolute survival estimates are linkage-conditioned rather than exact renewal probabilities. Cox associations are non-causal and require proportional-hazards qualification."
+      },
+      {
+        "id": "sensitivity",
+        "type": "chart",
+        "chartId": "sensitivity-chart"
+      },
+      {
+        "id": "trend-finding",
+        "type": "markdown",
+        "sourceId": "trend",
+        "body": "## Trend Evidence\n\nQuarterly episode counts are descriptive. The latest 12-quarter overall slope is stable or uncertain; CPV-48 is the only current segment with a decreasing exploratory signal. PELT breakpoints identify candidate structural changes, not causes. Awarded-amount trends are omitted because no canonical episode-level amount has been validated."
+      },
+      {
+        "id": "trend",
+        "type": "chart",
+        "chartId": "trend-chart"
+      },
+      {
+        "id": "methodology",
+        "type": "markdown",
+        "body": "## Methodology And Logic\n\nThe pipeline standardises official BOAMP notices, reconstructs procurement episodes, defines a Grand Ouest digital cohort with CPV divisions, blocks candidates to the same plausible buyer and 90-2,920 future days, compares four linkage algorithms, selects at most one successor or abstains, and builds a right-censored survival table. Validated SIREN evidence outranks names; intercommunal legal entities remain distinct; text and CPV continuity are evidence rather than legal proof. The expiry-aware rule is retained as an audit arm."
+      },
+      {
+        "id": "readiness-heading",
+        "type": "markdown",
+        "body": "## Limitations And Readiness\n\nThe table separates completed evidence from material remaining gaps."
+      },
+      {
+        "id": "readiness",
+        "type": "table",
+        "tableId": "readiness-table"
+      },
+      {
+        "id": "next-steps",
+        "type": "markdown",
+        "body": "## Recommended Next Steps\n\n1. Complete the prepared blinded 60-pair specialist review without exposing the audit key.\n2. Freeze the current threshold during review and calculate exact binomial confidence intervals afterward.\n3. Perform a compact semantic spot-check of episode reconstruction and buyer identity.\n4. Keep survival conclusions descriptive and report all event-definition sensitivities.\n5. State explicitly that the guide's supervised technology classifier is not implemented unless an independent taxonomy corpus is added."
+      },
+      {
+        "id": "questions",
+        "type": "markdown",
+        "body": "## Further Questions\n\n- Does independent review preserve precision near the 0.80 target?\n- Which buyer-name cases require additional SIREN/SIRET resolution?\n- Do key survival associations persist under strict and expiry-aware event definitions?\n- Can an awarded-amount variable be defined consistently across BOAMP schemas?"
+      }
+    ]
+  },
+  "snapshot": {
+    "version": 1,
+    "generatedAt": "2026-08-13T22:14:24",
+    "status": "ready",
+    "datasets": {
+      "headline": [
+        {
+          "cohort": 3800,
+          "accepted": 544,
+          "event_rate": 0.1432,
+          "median_months": 31.82
+        }
+      ],
+      "methods": [
+        {
+          "method": "M_A_deterministic",
+          "threshold": 0.7,
+          "accepted_links": 6,
+          "precision": 0.1667,
+          "recall": 0.0455,
+          "fpr": 0.1053,
+          "positive_anchors": 22,
+          "negative_anchors": 38,
+          "reference_status": "deterministic bootstrap labels"
+        },
+        {
+          "method": "M_B_text_ranking",
+          "threshold": 0.7,
+          "accepted_links": 5,
+          "precision": 0.8,
+          "recall": 0.1818,
+          "fpr": 0.0,
+          "positive_anchors": 22,
+          "negative_anchors": 38,
+          "reference_status": "deterministic bootstrap labels"
+        },
+        {
+          "method": "M_C_weighted_gated",
+          "threshold": 0.7,
+          "accepted_links": 15,
+          "precision": 0.6,
+          "recall": 0.4091,
+          "fpr": 0.1053,
+          "positive_anchors": 22,
+          "negative_anchors": 38,
+          "reference_status": "deterministic bootstrap labels"
+        },
+        {
+          "method": "M_D_fellegi_sunter",
+          "threshold": 0.65,
+          "accepted_links": 1,
+          "precision": 0.0,
+          "recall": 0.0,
+          "fpr": 0.0263,
+          "positive_anchors": 22,
+          "negative_anchors": 38,
+          "reference_status": "deterministic bootstrap labels"
+        }
+      ],
+      "sensitivity": [
+        {
+          "variant": "M_B at 0.80",
+          "accepted": 296,
+          "censored": 3504,
+          "cohort_rows": 3800,
+          "event_rate": 0.0779,
+          "median_months": 35.71
+        },
+        {
+          "variant": "M_B at 0.70",
+          "accepted": 544,
+          "censored": 3256,
+          "cohort_rows": 3800,
+          "event_rate": 0.1432,
+          "median_months": 31.82
+        },
+        {
+          "variant": "M_B at 0.60",
+          "accepted": 853,
+          "censored": 2947,
+          "cohort_rows": 3800,
+          "event_rate": 0.2245,
+          "median_months": 26.58
+        },
+        {
+          "variant": "M_C at 0.70",
+          "accepted": 1332,
+          "censored": 2468,
+          "cohort_rows": 3800,
+          "event_rate": 0.3505,
+          "median_months": 26.09
+        }
+      ],
+      "trend_overall": [
+        {
+          "quarter": "2015Q2",
+          "series": "Overall",
+          "episode_count": 79,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2015Q3",
+          "series": "Overall",
+          "episode_count": 96,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2015Q4",
+          "series": "Overall",
+          "episode_count": 102,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2016Q1",
+          "series": "Overall",
+          "episode_count": 90,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2016Q2",
+          "series": "Overall",
+          "episode_count": 65,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2016Q3",
+          "series": "Overall",
+          "episode_count": 93,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2016Q4",
+          "series": "Overall",
+          "episode_count": 96,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2017Q1",
+          "series": "Overall",
+          "episode_count": 77,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2017Q2",
+          "series": "Overall",
+          "episode_count": 72,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2017Q3",
+          "series": "Overall",
+          "episode_count": 80,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2017Q4",
+          "series": "Overall",
+          "episode_count": 115,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2018Q1",
+          "series": "Overall",
+          "episode_count": 106,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2018Q2",
+          "series": "Overall",
+          "episode_count": 79,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2018Q3",
+          "series": "Overall",
+          "episode_count": 101,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2018Q4",
+          "series": "Overall",
+          "episode_count": 74,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2019Q1",
+          "series": "Overall",
+          "episode_count": 118,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2019Q2",
+          "series": "Overall",
+          "episode_count": 68,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2019Q3",
+          "series": "Overall",
+          "episode_count": 92,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2019Q4",
+          "series": "Overall",
+          "episode_count": 103,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2020Q1",
+          "series": "Overall",
+          "episode_count": 112,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2020Q2",
+          "series": "Overall",
+          "episode_count": 65,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2020Q3",
+          "series": "Overall",
+          "episode_count": 62,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2020Q4",
+          "series": "Overall",
+          "episode_count": 109,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2021Q1",
+          "series": "Overall",
+          "episode_count": 109,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2021Q2",
+          "series": "Overall",
+          "episode_count": 80,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2021Q3",
+          "series": "Overall",
+          "episode_count": 92,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2021Q4",
+          "series": "Overall",
+          "episode_count": 113,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2022Q1",
+          "series": "Overall",
+          "episode_count": 96,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2022Q2",
+          "series": "Overall",
+          "episode_count": 97,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2022Q3",
+          "series": "Overall",
+          "episode_count": 104,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2022Q4",
+          "series": "Overall",
+          "episode_count": 90,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2023Q1",
+          "series": "Overall",
+          "episode_count": 99,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2023Q2",
+          "series": "Overall",
+          "episode_count": 72,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2023Q3",
+          "series": "Overall",
+          "episode_count": 69,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2023Q4",
+          "series": "Overall",
+          "episode_count": 91,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2024Q1",
+          "series": "Overall",
+          "episode_count": 72,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2024Q2",
+          "series": "Overall",
+          "episode_count": 57,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2024Q3",
+          "series": "Overall",
+          "episode_count": 72,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2024Q4",
+          "series": "Overall",
+          "episode_count": 85,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2025Q1",
+          "series": "Overall",
+          "episode_count": 93,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2025Q2",
+          "series": "Overall",
+          "episode_count": 73,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2025Q3",
+          "series": "Overall",
+          "episode_count": 73,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        },
+        {
+          "quarter": "2025Q4",
+          "series": "Overall",
+          "episode_count": 87,
+          "signal": "stable_or_uncertain",
+          "recent_slope": -0.1083916083916082,
+          "recent_p_value": 0.9213627592810232
+        }
+      ],
+      "readiness": [
+        {
+          "component": "Source and structural quality",
+          "status": "Ready with caveats",
+          "evidence": "Official BOAMP source, lineage, uniqueness and chronology checks",
+          "remaining_gap": "Semantic spot-check of reconstructed episodes and buyer identity",
+          "priority": 2
+        },
+        {
+          "component": "Linkage algorithm",
+          "status": "Development-ready",
+          "evidence": "Four methods compared; M_B at 0.70 is the precision-first baseline",
+          "remaining_gap": "Independent blinded specialist review",
+          "priority": 1
+        },
+        {
+          "component": "Survival analysis",
+          "status": "Descriptively usable",
+          "evidence": "Right-censoring, KM/Cox diagnostics and event-definition sensitivity",
+          "remaining_gap": "Do not claim causal or individual predictive performance",
+          "priority": 3
+        },
+        {
+          "component": "Trend analysis",
+          "status": "Exploratory",
+          "evidence": "Quarterly counts, PELT sensitivity and recent-slope signals",
+          "remaining_gap": "No validated awarded-amount series or causal attribution",
+          "priority": 4
+        },
+        {
+          "component": "Guide technology classifier",
+          "status": "Not implemented",
+          "evidence": "CPV segmentation is reproducible but coarse",
+          "remaining_gap": "Independent taxonomy labels and classifier evaluation",
+          "priority": 5
+        }
+      ]
+    },
+    "accessIssues": []
+  },
+  "sources": [
+    {
+      "id": "quality",
+      "label": "Current data-quality profile",
+      "path": "reports/current_project_readiness.db",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "sql": "SELECT * FROM quality",
+        "description": "Generated by scripts/build_project_evidence.py from current materialised artifacts.",
+        "tables_used": [
+          "reports/current_project_readiness.db::quality",
+          "data/processed/boamp_v2/data_quality_profile.json"
+        ],
+        "filters": [
+          "Current materialised pipeline state as of 2025-12-31"
+        ],
+        "metric_definitions": [
+          "Candidate coverage = anchors with at least one candidate / cohort anchors.",
+          "Missingness rates use the 3,800-row survival cohort denominator."
+        ]
+      }
+    },
+    {
+      "id": "survival",
+      "label": "Current survival dataset summary",
+      "path": "reports/current_project_readiness.db",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "sql": "SELECT * FROM sensitivity",
+        "description": "Generated by scripts/build_survival_dataset.py from accepted successor links.",
+        "tables_used": [
+          "reports/current_project_readiness.db::sensitivity",
+          "data/processed/boamp_v2/survival_dataset_summary.json"
+        ],
+        "filters": [
+          "Current materialised pipeline state as of 2025-12-31"
+        ],
+        "metric_definitions": [
+          "Event rate = accepted observable-successor events / 3,800 cohort episodes.",
+          "Median successor time is calculated among accepted events, not all cohort rows."
+        ]
+      }
+    },
+    {
+      "id": "evaluation",
+      "label": "Held-out internal development-reference evaluation",
+      "path": "reports/current_project_readiness.db",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "sql": "SELECT * FROM methods",
+        "description": "Anchor-level exact-successor evaluation on the held-out bootstrap-labelled split.",
+        "tables_used": [
+          "reports/current_project_readiness.db::methods",
+          "data/processed/boamp_v2/linkage_evaluation_summary_v3_validation_primary.json"
+        ],
+        "filters": [
+          "Current materialised pipeline state as of 2025-12-31"
+        ],
+        "metric_definitions": [
+          "Precision = exact true successors / accepted successors.",
+          "Recall = exact true successors / positive anchors.",
+          "FPR = accepted links on no-successor anchors / negative anchors."
+        ]
+      }
+    },
+    {
+      "id": "trend",
+      "label": "Quarterly trend evidence",
+      "path": "reports/current_project_readiness.db",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "sql": "SELECT * FROM trend_overall",
+        "description": "Quarterly counts of awarded Grand Ouest digital procurement episodes from 2015Q2 to 2025Q4.",
+        "tables_used": [
+          "reports/current_project_readiness.db::trend_overall",
+          "data/processed/boamp_v2/trend_quarterly.csv"
+        ],
+        "filters": [
+          "Current materialised pipeline state as of 2025-12-31"
+        ],
+        "metric_definitions": [
+          "Episode count is the number of reconstructed awarded episodes per quarter."
+        ]
+      }
+    },
+    {
+      "id": "trend-signals",
+      "label": "Recent trend signal matrix",
+      "path": "reports/current_project_readiness.db",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "sql": "SELECT * FROM trend_signals",
+        "description": "Exploratory 12-quarter slopes and PELT sensitivity outputs by segment.",
+        "tables_used": [
+          "reports/current_project_readiness.db::trend_signals",
+          "data/processed/boamp_v2/trend_signal_matrix.csv"
+        ],
+        "filters": [
+          "Current materialised pipeline state as of 2025-12-31"
+        ],
+        "metric_definitions": []
+      }
+    },
+    {
+      "id": "compliance",
+      "label": "Internship-guide compliance assessment",
+      "path": "reports/current_project_readiness.db",
+      "query": {
+        "engine": "SQLite",
+        "language": "sql",
+        "sql": "SELECT * FROM readiness",
+        "description": "Evidence-to-deliverable assessment for the current project state.",
+        "tables_used": [
+          "reports/current_project_readiness.db::readiness",
+          "INTERNSHIP_GUIDE_COMPLIANCE.md"
+        ],
+        "filters": [
+          "Current materialised pipeline state as of 2025-12-31"
+        ],
+        "metric_definitions": []
+      }
+    }
+  ]
+}

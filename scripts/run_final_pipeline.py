@@ -98,6 +98,41 @@ def benchmark_v3_evaluation_stages() -> tuple[Stage, ...]:
                 Path("reports/figures/benchmark_v3_validation_pair_precision_recall.png"),
             ),
         ),
+        Stage(
+            "project_quality_and_trend_evidence",
+            ("scripts/build_project_evidence.py",),
+            (
+                PROCESSED / "data_quality_profile.json",
+                PROCESSED / "trend_analysis_summary.json",
+                PROCESSED / "trend_quarterly.csv",
+                PROCESSED / "trend_breakpoints.csv",
+                PROCESSED / "trend_signal_matrix.csv",
+                Path("DATA_QUALITY_REPORT.md"),
+                Path("TREND_ANALYSIS_REPORT.md"),
+                Path("notebooks/14_data_quality_and_trend_analysis.ipynb"),
+                Path("reports/figures/data_quality_key_missingness.png"),
+                Path("reports/figures/trend_quarterly_episode_counts.png"),
+                Path("reports/figures/trend_duration_completeness.png"),
+            ),
+        ),
+        Stage(
+            "independent_link_review_queue",
+            ("scripts/prepare_independent_link_review.py",),
+            (
+                Path("data/review/independent_link_review_sample.csv"),
+                Path("data/review/independent_link_review_audit_key.csv"),
+                Path("data/review/independent_link_review_summary.json"),
+                Path("INDEPENDENT_LINK_REVIEW_PROTOCOL.md"),
+            ),
+        ),
+        Stage(
+            "readiness_report_data",
+            ("scripts/build_readiness_report.py",),
+            (
+                Path("reports/current_project_readiness.db"),
+                Path("reports/current_project_readiness_artifact.json"),
+            ),
+        ),
     )
 
 
@@ -243,6 +278,7 @@ def run_notebooks(dry_run: bool) -> None:
         "notebooks/11_cohort_and_data_quality.ipynb",
         "notebooks/12_successor_linkage_and_evaluation.ipynb",
         "notebooks/13_survival_analysis.ipynb",
+        "notebooks/14_data_quality_and_trend_analysis.ipynb",
         "--ExecutePreprocessor.timeout=0",
     ]
     run_command(command, dry_run)
@@ -260,6 +296,16 @@ def write_manifest(statuses: dict[str, str]) -> Path:
         "sensitivity_method": "M_E_expiry_aware_text",
         "sensitivity_role": "audit only; not promoted to the primary event definition",
         "manual_review": str(PROCESSED / "expiry_link_review.csv"),
+        "evaluation_status": (
+            "internal deterministic-bootstrap development reference; "
+            "independent specialist review pending"
+        ),
+        "independent_review_sample": str(
+            PROJECT_ROOT / "data/review/independent_link_review_sample.csv"
+        ),
+        "independent_review_protocol": str(
+            PROJECT_ROOT / "INDEPENDENT_LINK_REVIEW_PROTOCOL.md"
+        ),
         "stage_status": statuses,
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -269,7 +315,7 @@ def write_manifest(statuses: dict[str, str]) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--force", action="store_true", help="Rebuild every materialised stage.")
-    parser.add_argument("--with-notebooks", action="store_true", help="Execute evidence notebooks 10-13.")
+    parser.add_argument("--with-notebooks", action="store_true", help="Execute evidence notebooks 10-14.")
     parser.add_argument("--with-tests", action="store_true", help="Run the test suite after the pipeline.")
     parser.add_argument(
         "--with-current-benchmark", "--with-benchmark-v3", action="store_true",

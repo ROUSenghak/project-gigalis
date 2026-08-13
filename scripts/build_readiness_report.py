@@ -1,0 +1,525 @@
+#!/usr/bin/env python3
+"""Build the canonical portable-artifact input for the current readiness report."""
+
+from __future__ import annotations
+
+import json
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+
+import pandas as pd
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROCESSED = PROJECT_ROOT / "data/processed/boamp_v2"
+OUTPUT = PROJECT_ROOT / "reports/current_project_readiness_artifact.json"
+DATABASE = PROJECT_ROOT / "reports/current_project_readiness.db"
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def source(
+    source_id: str,
+    label: str,
+    table: str,
+    query_sql: str,
+    description: str,
+    upstream_path: str,
+    metric_definitions: list[str] | None = None,
+) -> dict:
+    return {
+        "id": source_id,
+        "label": label,
+        "path": "reports/current_project_readiness.db",
+        "query": {
+            "engine": "SQLite",
+            "language": "sql",
+            "sql": query_sql,
+            "description": description,
+            "tables_used": [
+                f"reports/current_project_readiness.db::{table}",
+                upstream_path,
+            ],
+            "filters": ["Current materialised pipeline state as of 2025-12-31"],
+            "metric_definitions": metric_definitions or [],
+        },
+    }
+
+
+def main() -> int:
+    quality = load_json(PROCESSED / "data_quality_profile.json")
+    survival = load_json(PROCESSED / "survival_dataset_summary.json")
+    evaluation = load_json(PROCESSED / "linkage_evaluation_summary_v3_validation_primary.json")
+    trend = load_json(PROCESSED / "trend_analysis_summary.json")
+    trend_panel = pd.read_csv(PROCESSED / "trend_quarterly.csv")
+    trend_signals = pd.read_csv(PROCESSED / "trend_signal_matrix.csv")
+    generated_at = datetime.now().isoformat(timespec="seconds")
+
+    main = survival["variants"]["main"]
+    method_rows = []
+    for item in evaluation["methods"]:
+        metrics = item["unweighted_all_frames"]
+        method_rows.append(
+            {
+                "method": item["method"],
+                "threshold": item["threshold"] / 100,
+                "accepted_links": metrics["accepted_links"],
+                "precision": metrics["precision_at_1"],
+                "recall": metrics["recall_at_1"],
+                "fpr": metrics["false_positive_rate_on_negatives"],
+                "positive_anchors": metrics["positive_anchors"],
+                "negative_anchors": metrics["negative_anchors"],
+                "reference_status": "deterministic bootstrap labels",
+            }
+        )
+
+    sensitivity_rows = []
+    labels = {
+        "strict": "M_B at 0.80",
+        "main": "M_B at 0.70",
+        "looser": "M_B at 0.60",
+        "contrast_high_recall": "M_C at 0.70",
+    }
+    for key, label in labels.items():
+        variant = survival["variants"][key]
+        sensitivity_rows.append(
+            {
+                "variant": label,
+                "accepted": variant["validation"]["events"],
+                "censored": variant["validation"]["censored"],
+                "cohort_rows": variant["validation"]["rows"],
+                "event_rate": variant["description"]["event_rate"],
+                "median_months": variant["description"][
+                    "median_time_to_successor_months"
+                ],
+            }
+        )
+
+    trend_rows = trend_panel.loc[trend_panel["segment"].eq("Overall")].copy()
+    trend_rows = trend_rows.merge(
+        trend_signals[
+            ["segment", "state", "slope_episodes_per_quarter", "p_value"]
+        ],
+        on="segment",
+        how="left",
+    ).rename(
+        columns={
+            "segment": "series",
+            "state": "signal",
+            "slope_episodes_per_quarter": "recent_slope",
+            "p_value": "recent_p_value",
+        }
+    )
+    trend_rows = trend_rows[
+        ["quarter", "series", "episode_count", "signal", "recent_slope", "recent_p_value"]
+    ].to_dict("records")
+
+    readiness_rows = [
+        {
+            "component": "Source and structural quality",
+            "status": "Ready with caveats",
+            "evidence": "Official BOAMP source, lineage, uniqueness and chronology checks",
+            "remaining_gap": "Semantic spot-check of reconstructed episodes and buyer identity",
+            "priority": 2,
+        },
+        {
+            "component": "Linkage algorithm",
+            "status": "Development-ready",
+            "evidence": "Four methods compared; M_B at 0.70 is the precision-first baseline",
+            "remaining_gap": "Independent blinded specialist review",
+            "priority": 1,
+        },
+        {
+            "component": "Survival analysis",
+            "status": "Descriptively usable",
+            "evidence": "Right-censoring, KM/Cox diagnostics and event-definition sensitivity",
+            "remaining_gap": "Do not claim causal or individual predictive performance",
+            "priority": 3,
+        },
+        {
+            "component": "Trend analysis",
+            "status": "Exploratory",
+            "evidence": "Quarterly counts, PELT sensitivity and recent-slope signals",
+            "remaining_gap": "No validated awarded-amount series or causal attribution",
+            "priority": 4,
+        },
+        {
+            "component": "Guide technology classifier",
+            "status": "Not implemented",
+            "evidence": "CPV segmentation is reproducible but coarse",
+            "remaining_gap": "Independent taxonomy labels and classifier evaluation",
+            "priority": 5,
+        },
+    ]
+
+    quality_rows = [
+        {
+            "standardized_notices": quality["volume"]["standardized_notices"],
+            "reconstructed_episodes": quality["volume"]["reconstructed_episodes"],
+            "cohort": quality["volume"]["survival_cohort_rows"],
+            "accepted": quality["volume"]["accepted_primary_links"],
+            "event_rate": main["description"]["event_rate"],
+            "median_months": main["description"]["median_time_to_successor_months"],
+            "buyer_siren_missing_rate": quality["cohort_missingness"]["buyer_siren"],
+            "reliable_duration_missing_rate": quality["cohort_missingness"]["reliable_duration"],
+            "duplicate_notice_ids": quality["integrity"]["duplicate_standardized_notice_ids"],
+            "impossible_chronology": quality["integrity"]["impossible_chronology_episodes"],
+            "negative_survival_durations": quality["integrity"]["negative_survival_durations"],
+            "accepted_siren_conflicts": quality["integrity"]["accepted_links_with_conflicting_validated_siren"],
+        }
+    ]
+    trend_signal_rows = trend_signals.rename(
+        columns={
+            "segment": "series",
+            "state": "signal",
+            "slope_episodes_per_quarter": "recent_slope",
+            "p_value": "recent_p_value",
+        }
+    ).to_dict("records")
+
+    frames = {
+        "quality": pd.DataFrame(quality_rows),
+        "methods": pd.DataFrame(method_rows),
+        "sensitivity": pd.DataFrame(sensitivity_rows),
+        "trend_overall": pd.DataFrame(trend_rows),
+        "trend_signals": pd.DataFrame(trend_signal_rows),
+        "readiness": pd.DataFrame(readiness_rows),
+    }
+    if DATABASE.exists():
+        DATABASE.unlink()
+    with sqlite3.connect(DATABASE) as connection:
+        for table, frame in frames.items():
+            frame.to_sql(table, connection, index=False, if_exists="replace")
+        queried = {
+            "headline": pd.read_sql_query(
+                "SELECT cohort, accepted, event_rate, median_months FROM quality",
+                connection,
+            ).to_dict("records"),
+            "methods": pd.read_sql_query("SELECT * FROM methods", connection).to_dict("records"),
+            "sensitivity": pd.read_sql_query("SELECT * FROM sensitivity", connection).to_dict("records"),
+            "trend_overall": pd.read_sql_query("SELECT * FROM trend_overall", connection).to_dict("records"),
+            "readiness": pd.read_sql_query("SELECT * FROM readiness", connection).to_dict("records"),
+        }
+
+    sources = [
+        source(
+            "quality",
+            "Current data-quality profile",
+            "quality",
+            "SELECT * FROM quality",
+            "Generated by scripts/build_project_evidence.py from current materialised artifacts.",
+            "data/processed/boamp_v2/data_quality_profile.json",
+            [
+                "Candidate coverage = anchors with at least one candidate / cohort anchors.",
+                "Missingness rates use the 3,800-row survival cohort denominator.",
+            ],
+        ),
+        source(
+            "survival",
+            "Current survival dataset summary",
+            "sensitivity",
+            "SELECT * FROM sensitivity",
+            "Generated by scripts/build_survival_dataset.py from accepted successor links.",
+            "data/processed/boamp_v2/survival_dataset_summary.json",
+            [
+                "Event rate = accepted observable-successor events / 3,800 cohort episodes.",
+                "Median successor time is calculated among accepted events, not all cohort rows.",
+            ],
+        ),
+        source(
+            "evaluation",
+            "Held-out internal development-reference evaluation",
+            "methods",
+            "SELECT * FROM methods",
+            "Anchor-level exact-successor evaluation on the held-out bootstrap-labelled split.",
+            "data/processed/boamp_v2/linkage_evaluation_summary_v3_validation_primary.json",
+            [
+                "Precision = exact true successors / accepted successors.",
+                "Recall = exact true successors / positive anchors.",
+                "FPR = accepted links on no-successor anchors / negative anchors.",
+            ],
+        ),
+        source(
+            "trend",
+            "Quarterly trend evidence",
+            "trend_overall",
+            "SELECT * FROM trend_overall",
+            "Quarterly counts of awarded Grand Ouest digital procurement episodes from 2015Q2 to 2025Q4.",
+            "data/processed/boamp_v2/trend_quarterly.csv",
+            ["Episode count is the number of reconstructed awarded episodes per quarter."],
+        ),
+        source(
+            "trend-signals",
+            "Recent trend signal matrix",
+            "trend_signals",
+            "SELECT * FROM trend_signals",
+            "Exploratory 12-quarter slopes and PELT sensitivity outputs by segment.",
+            "data/processed/boamp_v2/trend_signal_matrix.csv",
+        ),
+        source(
+            "compliance",
+            "Internship-guide compliance assessment",
+            "readiness",
+            "SELECT * FROM readiness",
+            "Evidence-to-deliverable assessment for the current project state.",
+            "INTERNSHIP_GUIDE_COMPLIANCE.md",
+        ),
+    ]
+
+    cards = [
+        {
+            "id": "cohort-card",
+            "dataset": "headline",
+            "sourceId": "quality",
+            "description": "Awarded Grand Ouest digital procurement episodes in the survival cohort.",
+            "metrics": [{"label": "Cohort episodes", "field": "cohort", "format": "compact"}],
+        },
+        {
+            "id": "links-card",
+            "dataset": "headline",
+            "sourceId": "survival",
+            "description": "Episodes with one accepted observable successor under M_B at 0.70.",
+            "metrics": [{"label": "Accepted successors", "field": "accepted", "format": "compact"}],
+        },
+        {
+            "id": "event-card",
+            "dataset": "headline",
+            "sourceId": "survival",
+            "description": "Accepted successors divided by cohort episodes; linkage-conditioned, not legal renewal prevalence.",
+            "metrics": [{"label": "Observed event rate", "field": "event_rate", "format": "percent"}],
+        },
+        {
+            "id": "median-card",
+            "dataset": "headline",
+            "sourceId": "survival",
+            "description": "Median elapsed time among accepted successor events.",
+            "metrics": [{"label": "Median successor time", "field": "median_months", "format": "number"}],
+        },
+    ]
+
+    charts = [
+        {
+            "id": "sensitivity-chart",
+            "title": "Observed Event Rate By Linkage Rule",
+            "subtitle": "Same 3,800 episodes; rates change materially with the event definition.",
+            "type": "horizontalBar",
+            "intent": "comparison",
+            "question": "How sensitive is the event rate to linkage selection?",
+            "rationale": "Horizontal bars support direct comparison of four named operating rules.",
+            "dataset": "sensitivity",
+            "sourceId": "survival",
+            "encodings": {
+                "x": {"field": "variant", "type": "nominal", "label": "Linkage rule"},
+                "y": {"field": "event_rate", "type": "quantitative", "format": "percent", "label": "Observed event rate"},
+                "tooltip": [
+                    {"field": "accepted", "type": "quantitative", "label": "Events"},
+                    {"field": "median_months", "type": "quantitative", "label": "Median months"},
+                ],
+            },
+            "valueFormat": "percent",
+            "layout": "full",
+        },
+        {
+            "id": "trend-chart",
+            "title": "Quarterly Awarded Digital Procurement Episodes",
+            "subtitle": "Grand Ouest, 2015Q2 to 2025Q4; descriptive counts only.",
+            "type": "line",
+            "intent": "trend",
+            "question": "How did the observed episode count evolve over the study period?",
+            "rationale": "A line chart preserves quarterly ordering without implying a forecast.",
+            "dataset": "trend_overall",
+            "sourceId": "trend-signals",
+            "encodings": {
+                "x": {"field": "quarter", "type": "ordinal", "label": "Quarter"},
+                "y": {"field": "episode_count", "type": "quantitative", "label": "Episodes"},
+                "tooltip": [
+                    {"field": "signal", "type": "nominal", "label": "Recent signal"},
+                    {"field": "recent_p_value", "type": "quantitative", "label": "Recent p-value"},
+                ],
+            },
+            "valueFormat": "number",
+            "layout": "full",
+        },
+    ]
+
+    tables = [
+        {
+            "id": "method-table",
+            "title": "Held-Out Internal Method Comparison",
+            "subtitle": "Bootstrap-labelled reference; these are development diagnostics, not independent validation.",
+            "dataset": "methods",
+            "sourceId": "evaluation",
+            "defaultSort": {"field": "precision", "direction": "desc"},
+            "density": "dense",
+            "layout": "full",
+            "columns": [
+                {"field": "method", "label": "Method", "type": "text"},
+                {"field": "threshold", "label": "Threshold", "format": "percent"},
+                {"field": "accepted_links", "label": "Accepted", "format": "number"},
+                {"field": "precision", "label": "Precision", "format": "percent"},
+                {"field": "recall", "label": "Recall", "format": "percent"},
+                {"field": "fpr", "label": "FPR", "format": "percent"},
+            ],
+        },
+        {
+            "id": "readiness-table",
+            "title": "Methodological Readiness By Component",
+            "subtitle": "Current evidence, remaining limitation, and action priority.",
+            "dataset": "readiness",
+            "sourceId": "compliance",
+            "defaultSort": {"field": "priority", "direction": "asc"},
+            "density": "spacious",
+            "layout": "full",
+            "columns": [
+                {"field": "component", "label": "Component", "type": "text"},
+                {"field": "status", "label": "Status", "type": "text"},
+                {"field": "evidence", "label": "Evidence", "type": "text"},
+                {"field": "remaining_gap", "label": "Remaining gap", "type": "text"},
+                {"field": "priority", "label": "Priority", "format": "number"},
+            ],
+        },
+    ]
+
+    blocks = [
+        {"id": "title", "type": "markdown", "body": "# BOAMP Project: Current Methodological Readiness"},
+        {
+            "id": "summary",
+            "type": "markdown",
+            "body": (
+                "## Executive Summary\n\n"
+                "**Overall assessment: share with caveats.** The end-to-end measurement pipeline is "
+                "reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable "
+                "precision-first operating baseline, but its reported accuracy comes from deterministic "
+                "bootstrap labels rather than independent specialist ground truth. Survival and trend "
+                "results are therefore descriptive and conditional on the linkage definition. The "
+                "highest-priority next action is the prepared 60-pair blinded specialist review."
+            ),
+        },
+        {"id": "headline-metrics", "type": "metric-strip", "cardIds": ["cohort-card", "links-card", "event-card", "median-card"]},
+        {
+            "id": "quality-finding",
+            "type": "markdown",
+            "sourceId": "quality",
+            "body": (
+                "## Data Quality\n\n"
+                f"The current artifacts contain **{quality['volume']['standardized_notices']:,} unique standardised notices** "
+                f"and **{quality['volume']['reconstructed_episodes']:,} reconstructed episodes**. Structural checks find no "
+                "duplicate notice IDs, impossible episode chronology, negative survival durations, or accepted links with "
+                "conflicting validated SIRENs. The main limitations are substantive missingness: validated SIREN is absent "
+                f"for **{quality['cohort_missingness']['buyer_siren']:.1%}** of the cohort and reliable duration for "
+                f"**{quality['cohort_missingness']['reliable_duration']:.1%}**. Missing duration is not imputed."
+            ),
+        },
+        {
+            "id": "linkage-finding",
+            "type": "markdown",
+            "sourceId": "evaluation",
+            "body": (
+                "## Linkage Evidence\n\n"
+                "The held-out internal reference favors `M_B` for false-positive control. Its exact-successor precision is "
+                "80.0%, recall 18.2%, and negative-anchor FPR 0.0%, but only five links were accepted. One changed decision "
+                "would move precision materially. These values guide method development; they must not be reported as "
+                "independently validated accuracy."
+            ),
+        },
+        {"id": "methods", "type": "table", "tableId": "method-table"},
+        {
+            "id": "survival-finding",
+            "type": "markdown",
+            "sourceId": "survival",
+            "body": (
+                "## Survival Interpretation\n\n"
+                f"Under the main rule, {main['validation']['events']:,} of {main['validation']['rows']:,} episodes have an "
+                f"accepted observable successor ({main['description']['event_rate']:.1%}). The median among accepted events "
+                f"is {main['description']['median_time_to_successor_months']:.2f} months. The event rate ranges from 7.8% to "
+                "35.1% across planned linkage sensitivities, so absolute survival estimates are linkage-conditioned rather "
+                "than exact renewal probabilities. Cox associations are non-causal and require proportional-hazards qualification."
+            ),
+        },
+        {"id": "sensitivity", "type": "chart", "chartId": "sensitivity-chart"},
+        {
+            "id": "trend-finding",
+            "type": "markdown",
+            "sourceId": "trend",
+            "body": (
+                "## Trend Evidence\n\n"
+                "Quarterly episode counts are descriptive. The latest 12-quarter overall slope is stable or uncertain; "
+                "CPV-48 is the only current segment with a decreasing exploratory signal. PELT breakpoints identify candidate "
+                "structural changes, not causes. Awarded-amount trends are omitted because no canonical episode-level amount "
+                "has been validated."
+            ),
+        },
+        {"id": "trend", "type": "chart", "chartId": "trend-chart"},
+        {
+            "id": "methodology",
+            "type": "markdown",
+            "body": (
+                "## Methodology And Logic\n\n"
+                "The pipeline standardises official BOAMP notices, reconstructs procurement episodes, defines a Grand Ouest "
+                "digital cohort with CPV divisions, blocks candidates to the same plausible buyer and 90-2,920 future days, "
+                "compares four linkage algorithms, selects at most one successor or abstains, and builds a right-censored "
+                "survival table. Validated SIREN evidence outranks names; intercommunal legal entities remain distinct; text "
+                "and CPV continuity are evidence rather than legal proof. The expiry-aware rule is retained as an audit arm."
+            ),
+        },
+        {"id": "readiness-heading", "type": "markdown", "body": "## Limitations And Readiness\n\nThe table separates completed evidence from material remaining gaps."},
+        {"id": "readiness", "type": "table", "tableId": "readiness-table"},
+        {
+            "id": "next-steps",
+            "type": "markdown",
+            "body": (
+                "## Recommended Next Steps\n\n"
+                "1. Complete the prepared blinded 60-pair specialist review without exposing the audit key.\n"
+                "2. Freeze the current threshold during review and calculate exact binomial confidence intervals afterward.\n"
+                "3. Perform a compact semantic spot-check of episode reconstruction and buyer identity.\n"
+                "4. Keep survival conclusions descriptive and report all event-definition sensitivities.\n"
+                "5. State explicitly that the guide's supervised technology classifier is not implemented unless an independent taxonomy corpus is added."
+            ),
+        },
+        {
+            "id": "questions",
+            "type": "markdown",
+            "body": (
+                "## Further Questions\n\n"
+                "- Does independent review preserve precision near the 0.80 target?\n"
+                "- Which buyer-name cases require additional SIREN/SIRET resolution?\n"
+                "- Do key survival associations persist under strict and expiry-aware event definitions?\n"
+                "- Can an awarded-amount variable be defined consistently across BOAMP schemas?"
+            ),
+        },
+    ]
+
+    artifact = {
+        "surface": "report",
+        "manifest": {
+            "version": 1,
+            "surface": "report",
+            "title": "BOAMP Project: Current Methodological Readiness",
+            "description": "Evidence-backed status of data quality, linkage, survival, trends, limitations, and next actions.",
+            "generatedAt": generated_at,
+            "cards": cards,
+            "charts": charts,
+            "tables": tables,
+            "sources": sources,
+            "blocks": blocks,
+        },
+        "snapshot": {
+            "version": 1,
+            "generatedAt": generated_at,
+            "status": "ready",
+            "datasets": queried,
+            "accessIssues": [],
+        },
+        "sources": sources,
+    }
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    OUTPUT.write_text(json.dumps(artifact, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+    print(OUTPUT.relative_to(PROJECT_ROOT))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
