@@ -270,7 +270,7 @@ def write_quality_markdown(validation_confusion: pd.DataFrame, validation_pair_m
     path = PROJECT_ROOT / "QUALITY_EVIDENCE.md"
     path.write_text(
         "# Linkage Quality Evidence\n\n"
-        "Generated from the latest v3 validation reference.\n\n"
+        "Generated from the current national validation reference.\n\n"
         "## What Each Diagnostic Means\n\n"
         "- **Confusion matrix:** anchor-level evidence, matching the actual pipeline decision: one accepted successor or abstention.\n"
         "- **Exact-successor accounting:** stricter project metric; a wrong successor is both a false accepted link and a missed true successor.\n"
@@ -285,7 +285,7 @@ def write_quality_markdown(validation_confusion: pd.DataFrame, validation_pair_m
         "## Validation Pair-Level ROC and Precision-Recall Metrics\n\n"
         f"{markdown_table(pair, ['method', 'pair_roc_auc', 'pair_average_precision', 'positive_pairs', 'negative_pairs'])}\n\n"
         "## Interpretation\n\n"
-        "`M_B_text_ranking @ 0.70` is still the defensible primary method. It is not the highest-recall method, but it has zero validation false positives on no-successor anchors and the best pair-level ranking diagnostics: ROC AUC 0.9464 and average precision 0.5402.\n\n"
+        "`M_B_text_ranking @ 0.70` is still the defensible primary method. It is not the highest-recall method, but it has zero validation false positives on no-successor anchors and the best pair-level ranking diagnostics.\n\n"
         "## Plot Files\n\n"
         "- `reports/figures/benchmark_v3_validation_confusion_matrices.png`\n"
         "- `reports/figures/benchmark_v3_validation_pair_roc.png`\n"

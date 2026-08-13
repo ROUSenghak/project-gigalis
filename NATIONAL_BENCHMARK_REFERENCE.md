@@ -1,10 +1,10 @@
 # National Benchmark Reference
 
-Generated: `2026-08-13T19:42:07`
+Generated: `2026-08-13T21:25:33`
 
 ## Purpose
 
-The v3 benchmark is the current France-wide reference for calibrating,
+The current national benchmark is the France-wide reference for calibrating,
 validating, and evaluating observable-successor linkage algorithms.
 
 It does not prove legal renewal. It tests whether a method can identify a
@@ -20,9 +20,9 @@ plausible later successor procurement from the same buyer.
 
 ## Current Method Comparison
 
-The latest v3 evaluation includes all four methods. `M_D_fellegi_sunter` is no
+The current benchmark evaluation includes all four methods. `M_D_fellegi_sunter` is no
 longer skipped because `fs_match_probability` is now computed from the fitted
-Fellegi-Sunter model when v3 exposure is evaluated.
+Fellegi-Sunter model when the current benchmark exposure is evaluated.
 
 | Method | Threshold | Validation precision | Validation recall | Validation FPR | Accepted |
 |---|---:|---:|---:|---:|---:|

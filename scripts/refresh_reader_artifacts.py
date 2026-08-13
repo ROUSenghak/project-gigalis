@@ -81,7 +81,7 @@ def plot_modeling_counts(modeling: dict[str, Any], path: Path) -> None:
     ax = frame[["anchors", "primary positives", "verified negative anchors"]].plot(
         kind="bar", figsize=(8.2, 4.2), width=0.72
     )
-    ax.set_title("Benchmark v3 modeling tables")
+    ax.set_title("Current national benchmark modeling tables")
     ax.set_ylabel("count")
     ax.set_xlabel("")
     ax.legend(frameon=False)
@@ -146,6 +146,14 @@ def write_methodology_report(
     validation_frame = method_frame(validation)
     labelled_anchors = manifest["anchor_totals"]["anchors"]
     labelled_pairs = manifest["anchor_totals"]["labelled_pairs"]
+    candidates = load_json(PROCESSED / "linkage_candidates_summary.json")
+    survival = load_json(PROCESSED / "survival_dataset_summary.json")
+    buyer_audit = load_json(PROCESSED / "buyer_blocking_legal_form_audit_summary.json")
+    expiry = load_json(PROCESSED / "expiry_aware_linkage_summary.json")
+    survival_main = survival["variants"]["main"]
+    survival_strict = survival["variants"]["strict"]
+    survival_looser = survival["variants"]["looser"]
+    survival_contrast = survival["variants"]["contrast_high_recall"]
     m_b = validation_frame.loc[validation_frame["method"].eq("M_B_text_ranking")].iloc[0]
     m_c = validation_frame.loc[validation_frame["method"].eq("M_C_weighted_gated")].iloc[0]
     m_d = validation_frame.loc[validation_frame["method"].eq("M_D_fellegi_sunter")].iloc[0]
@@ -167,7 +175,7 @@ def write_methodology_report(
 \hypersetup{{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}}
 \newcommand{{\code}}[1]{{\texttt{{#1}}}}
 \newcommand{{\pathcode}}[1]{{\texttt{{\small #1}}}}
-\title{{BOAMP Successor Linkage Methodology\\\large Current v3 Benchmark State}}
+\title{{BOAMP Successor Linkage Methodology\\\large Current Benchmark State}}
 \author{{BOAMP Data Science Internship Project}}
 \date{{{generated_at}}}
 \begin{{document}}
@@ -175,27 +183,57 @@ def write_methodology_report(
 \maketitle
 
 \section*{{Technical Summary}}
-This report is regenerated from the current v3 benchmark artifacts, not from
-static notebook output. The latest labelled reference contains
-{labelled_anchors} labelled anchors and {labelled_pairs:,}
-anchor-candidate labels. The dev split has
-{modeling["outputs"]["dev"]["anchors"]} anchors and
-{modeling["outputs"]["dev"]["rows"]:,} pair rows; the validation split has
-{modeling["outputs"]["validation"]["anchors"]} anchors and
-{modeling["outputs"]["validation"]["rows"]:,} pair rows.
+This report states the current defensible BOAMP successor-linkage pipeline. The
+study does not claim to certify legal contract renewals. Its
+event is an \emph{{observable successor procurement}}: a later BOAMP procurement
+episode from the same buyer that is sufficiently similar to an earlier awarded
+digital procurement episode.
 
-All four linkage algorithms have now been evaluated on the latest v3 reference:
-\code{{M\_A\_deterministic}}, \code{{M\_B\_text\_ranking}},
-\code{{M\_C\_weighted\_gated}}, and \code{{M\_D\_fellegi\_sunter}}.
-On validation, \code{{M\_B\_text\_ranking @ 0.70}} remains the strongest
-precision-first method: precision {m_b.precision:.3f}, recall {m_b.recall:.3f},
-and false-positive rate {m_b.fpr:.3f}. \code{{M\_C}} has higher recall
-({m_c.recall:.3f}) but also more false positives ({m_c.fpr:.3f}). \code{{M\_D}}
-does not currently challenge the incumbent: precision {m_d.precision:.3f} and
-recall {m_d.recall:.3f}.
+The current Grand Ouest survival cohort contains
+{survival_main["validation"]["rows"]:,} awarded digital procurement episodes.
+The main linkage rule accepts {survival_main["validation"]["events"]:,}
+successor links, giving an observed event rate of
+{survival_main["description"]["event_rate"]:.3f} and a median observed successor
+time of {survival_main["description"]["median_time_to_successor_months"]:.2f}
+months among linked events. The candidate pool is broad:
+{candidates["candidate_pairs"]:,} candidate pairs from
+{candidates["anchors_with_candidates"]:,} anchors with at least one candidate.
 
-\section{{Pipeline State}}
-The defensible project pipeline is:
+The current national benchmark contains {labelled_anchors} labelled anchors
+and {labelled_pairs:,} labelled anchor-candidate rows. On the validation split,
+\code{{M\_B\_text\_ranking @ 0.70}} remains the strongest precision-first
+choice: precision {m_b.precision:.3f}, recall {m_b.recall:.3f}, false-positive
+rate {m_b.fpr:.3f}, and {int(m_b.accepted_links)} accepted validation links.
+\code{{M\_C\_weighted\_gated}} recovers more positives
+(recall {m_c.recall:.3f}) but admits more false positives
+(FPR {m_c.fpr:.3f}). This trade-off is important because a false positive in a
+survival dataset creates both a false event and a false event time, while an
+abstained link is handled conservatively as right-censoring.
+
+\section{{What The Pipeline Measures}}
+Let \(i\) index an earlier awarded procurement episode and \(j\) index a later
+candidate episode. The object of interest is not a legal renewal certificate,
+because BOAMP notices do not provide that ground truth consistently. Instead,
+the pipeline estimates whether the data show a later procurement episode that is
+credible enough to be treated as a successor:
+\[
+Y_i =
+\begin{{cases}}
+1, & \text{{if one accepted observable successor is found before the cutoff,}}\\
+0, & \text{{otherwise.}}
+\end{{cases}}
+\]
+The event time is
+\[
+\tau_i = C_{{\hat{{j}}}} - A_i,
+\]
+where \(A_i\) is the award-date origin of episode \(i\), \(C_{{\hat{{j}}}}\) is
+the first-publication date of the accepted successor, and \(\hat{{j}}\) is the
+selected candidate. If no accepted successor is found before 2025-12-31, the
+episode is right-censored.
+
+\section{{End-to-End Pipeline}}
+The implemented pipeline is:
 \[
 \begin{{aligned}}
 &\text{{BOAMP notices}}
@@ -207,45 +245,124 @@ The defensible project pipeline is:
 \rightarrow \text{{survival dataset}} .
 \end{{aligned}}
 \]
-The candidate-generation rule is unchanged. For an anchor contract with award
-date \(A\) and a candidate with publication date \(C\), the candidate is eligible
-only when
-\[
-A+90 \leq C \leq A+2920.
-\]
-The new v3 benchmark does not replace this candidate pool; it evaluates how well
-the selection algorithms choose from exposed candidate pairs.
 
-\section{{Benchmark v3 Reference}}
-The v3 benchmark is national rather than Grand Ouest-only. It samples awarded
+\paragraph{{Standardisation and feature engineering.}}
+The preprocessing stage standardises dates, buyer identifiers, buyer names, CPV
+codes, text fields, procedure information, framework flags, and duration fields
+where they are explicitly available. It does not impute missing duration or
+invent expected expiry dates. Buyer standardisation is deliberately conservative:
+municipal variants such as commune/ville/mairie can be harmonised, but
+intercommunal legal forms are preserved as distinct entities, and conflicting
+validated SIRENs block a buyer match. The current legal-form audit reports
+{buyer_audit["hard_fail_conflicting_validated_siren"]} accepted links with
+conflicting validated SIREN evidence and {buyer_audit["municipal_intercommunal_mix"]}
+accepted municipal/intercommunal mixes.
+
+\paragraph{{Episode reconstruction.}}
+BOAMP is notice-level data, but the analysis needs procurement-level events.
+Therefore notices belonging to the same procurement are reconstructed into an
+episode. This avoids treating a consultation notice, correction notice, award
+notice, or lot-level administrative notice as separate renewals.
+
+\paragraph{{Candidate generation.}}
+Candidate generation is intentionally broad and is not the final model. For an
+anchor episode with award date \(A_i\) and candidate publication date \(C_j\),
+the candidate is exposed only if
+\[
+A_i+90 \leq C_j \leq A_i+2920.
+\]
+The lower bound removes very near follow-up notices and parallel administrative
+activity. The upper bound is approximately eight years; it keeps the candidate
+pool inclusive enough for long public-procurement cycles. Precision is then
+controlled by the selection stage rather than by a narrow time window. The
+current blocking rule generated {candidates["candidate_pairs"]:,} candidate
+pairs, with a median of {candidates["candidates_per_anchor"]["median"]:.0f}
+candidates per anchor.
+
+\section{{Current National Benchmark Reference}}
+The current benchmark is national rather than Grand Ouest-only. It samples awarded
 digital procurement episodes across French region groups and CPV divisions.
-Only the probability frame supports national weighted estimates; enrichment
-frames are used for stress cases and diagnostics.
+The dev split has {modeling["outputs"]["dev"]["anchors"]} anchors and
+{modeling["outputs"]["dev"]["rows"]:,} pair rows; the validation split has
+{modeling["outputs"]["validation"]["anchors"]} anchors and
+{modeling["outputs"]["validation"]["rows"]:,} pair rows. Only the probability
+frame supports national weighted estimates; enrichment frames are used for
+stress cases and diagnostics.
 
 The current annotation caveat remains important: labels are protocol-generated
 development evidence with double-pass validation and adjudication. They are not
 official legal renewal ground truth and should not be described as human
 inter-annotator ground truth.
 
-\section{{Algorithms}}
+\section{{Linkage Algorithms}}
+All methods operate on the same exposed candidate set. This is crucial: the
+primary method is not comparing text over the whole BOAMP universe. Buyer and
+time plausibility are imposed before text ranking.
+
 \paragraph{{\(M_A\): deterministic evidence.}}
-Accepts only strong buyer identity, positive CPV continuity, and a minimum text
-signal. It is conservative but misses many true successors.
+Define \(B_{{ij}}\) as buyer-identity support, \(P_{{ij}}\) as CPV continuity, and
+\(T_{{ij}}\) as text similarity. The deterministic rule accepts a link only when
+strong buyer evidence is present, CPV continuity is positive, and a minimum text
+signal is present:
+\[
+B_{{ij}}=1,\quad P_{{ij}}>0,\quad T_{{ij}}\geq t_A .
+\]
+It is interpretable, but it loses recall when CPV or buyer identifiers are
+missing or noisy.
 
 \paragraph{{\(M_B\): text ranking.}}
-Ranks same-buyer candidates by TF-IDF cosine similarity and accepts the top
-candidate only if similarity is at least 0.70. It is transparent and currently
-best aligned with a precision-first survival event definition.
+For each episode, the text fields are converted to TF--IDF vectors \(x_i\) and
+\(x_j\). Text similarity is cosine similarity:
+\[
+T_{{ij}}=\cos(x_i,x_j)=\frac{{x_i\cdot x_j}}{{\|x_i\|\|x_j\|}}.
+\]
+Within the same-buyer, plausible-time candidate set, the method selects
+\[
+\hat{{j}}_i=\arg\max_j T_{{ij}},
+\]
+and accepts the selected candidate only if
+\[
+T_{{i\hat{{j}}_i}}\geq 0.70.
+\]
+This is the primary method because it is simple, reproducible, auditable, and
+best matches the precision-first objective.
 
 \paragraph{{\(M_C\): weighted gated score.}}
-Combines buyer, text, CPV, timing, and evidence components, then applies
-independent gates. It recovers more positives but admits more false links.
+This method combines evidence components into a score:
+\[
+S_{{ij}}=0.50B_{{ij}}+0.25T_{{ij}}+0.20P_{{ij}}+0.05G_{{ij}},
+\]
+where \(G_{{ij}}\) is a timing-plausibility score. Missing components are handled
+by the implemented score-normalisation logic rather than imputation. The method
+then applies gates and ranks by \(S_{{ij}}\). It is useful as a higher-recall
+contrast, but the validation results show a materially higher false-positive
+rate.
 
 \paragraph{{\(M_D\): Fellegi--Sunter probabilistic linkage.}}
-Discretises buyer, text, CPV, and time comparisons, estimates match and
-non-match level distributions by expectation maximisation, and ranks by
-posterior match probability. The latest refresh applies the fitted model to the
-v3 exposure table so this method is no longer skipped.
+Let \(\gamma_{{ij}}\) be the discretised comparison vector for buyer, text, CPV,
+and timing evidence. Fellegi--Sunter estimates the likelihood of observing
+\(\gamma_{{ij}}\) under a match class \(M\) and a non-match class \(U\), then uses
+the log-likelihood ratio
+\[
+w_{{ij}}=\log\frac{{P(\gamma_{{ij}}\mid M)}}{{P(\gamma_{{ij}}\mid U)}}.
+\]
+The fitted model provides \code{{fs\_match\_weight}} and
+\code{{fs\_match\_probability}}. In the current data it does not outperform the
+simple text-ranking rule, likely because true successors are rare and
+same-buyer procurement activity contains many non-renewal lookalikes.
+
+\paragraph{{\(M_E\): expiry-aware audit arm.}}
+The expiry-aware method runs in parallel with the primary method. It estimates
+an expected end date \(E_i\) only from explicit end-date or duration evidence.
+It does not assume a four-year duration. Candidate timing is
+\[
+R_{{ij}}=C_j-E_i.
+\]
+Very early candidates require stronger text evidence and CPV continuity. This
+arm accepts {expiry["cohort_comparison"]["expiry_aware"]["accepted_links"]:,} links, compared with
+{survival_main["validation"]["events"]:,} under the main method. It is retained
+as an audit/sensitivity check, not promoted, because observed market behaviour
+shows many declared successors can be published before expected expiry.
 
 \section{{Dev Results}}
 \begin{{table}}[H]
@@ -258,16 +375,27 @@ Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 {latex_method_rows(dev_frame)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Unweighted dev metrics on all labelled v3 frames.}}
+\caption{{Unweighted dev metrics on all labelled current benchmark frames.}}
 \end{{table}}
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{{figures/benchmark_v3_dev_method_metrics.png}}
-\caption{{Dev split method comparison generated from the current v3 evaluation JSON.}}
+\caption{{Dev split method comparison generated from the current benchmark evaluation JSON.}}
 \end{{figure}}
 
 \section{{Validation Results}}
+Validation is the method-selection evidence. The primary comparison is
+anchor-level exact-successor performance: each anchor can produce one accepted
+successor or abstain.
+\[
+\text{{precision}}=\frac{{TP}}{{TP+FP}},\quad
+\text{{recall}}=\frac{{TP}}{{TP+FN}},\quad
+\text{{FPR}}=\frac{{FP}}{{FP+TN}}.
+\]
+For this project, false-positive control is prioritised because false links
+fabricate survival events.
+
 \begin{{table}}[H]
 \centering
 \small
@@ -278,14 +406,29 @@ Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 {latex_method_rows(validation_frame)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Unweighted validation metrics on all labelled v3 frames.}}
+\caption{{Unweighted validation metrics on all labelled current benchmark frames.}}
 \end{{table}}
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{{figures/benchmark_v3_validation_method_metrics.png}}
-\caption{{Validation split method comparison generated from the current v3 evaluation JSON.}}
+\caption{{Validation split method comparison generated from the current benchmark evaluation JSON.}}
 \end{{figure}}
+
+\section{{Quality Evidence And Interpretation}}
+The validation result supports a conservative linkage claim. \code{{M\_B}} has
+only {int(m_b.accepted_links)} accepted validation links, so its precision
+estimate is necessarily sample-sensitive; one changed decision would move the
+number materially. However, the direction of the evidence is coherent:
+\code{{M\_B}} gives the best validation precision and the lowest false-positive
+rate among useful methods, while \code{{M\_C}} shows the expected precision-recall
+trade-off.
+
+The pair-level ROC and precision-recall curves should be read as score-ranking
+diagnostics, not as the final operating decision. The final pipeline decision is
+anchor-level: choose one successor or abstain. The ROC curve is stepped rather
+than smooth because the validation benchmark contains a finite number of
+labelled pairs and many tied or near-tied scores.
 
 \section{{Modeling Tables}}
 The modeling-ready tables include strict, primary, broad, and non-match target
@@ -296,15 +439,66 @@ evaluation use the same feature state.
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.86\textwidth]{{figures/benchmark_v3_modeling_counts.png}}
-\caption{{Current v3 modeling table sizes and label support.}}
+\caption{{Current benchmark modeling table sizes and label support.}}
 \end{{figure}}
 
-\section{{Decision}}
+\section{{Survival Results}}
+The survival dataset uses the main accepted links as events and all other
+episodes as right-censored observations at the study cutoff. The main variant
+contains {survival_main["validation"]["events"]:,} events and
+{survival_main["validation"]["censored"]:,} censored observations. Segment
+event rates are {survival_main["description"]["by_digital_segment"]["CPV-32"]["event_rate"]:.3f}
+for CPV-32, {survival_main["description"]["by_digital_segment"]["CPV-35"]["event_rate"]:.3f}
+for CPV-35, {survival_main["description"]["by_digital_segment"]["CPV-48"]["event_rate"]:.3f}
+for CPV-48, and {survival_main["description"]["by_digital_segment"]["CPV-72"]["event_rate"]:.3f}
+for CPV-72. CPV-35 has the highest observed successor rate in the main arm.
+
+Sensitivity checks show that absolute event rates depend strongly on the
+linkage rule: {survival_strict["validation"]["events"]:,} events under
+\code{{M\_B @ 0.80}}, {survival_main["validation"]["events"]:,} under
+\code{{M\_B @ 0.70}}, {survival_looser["validation"]["events"]:,} under
+\code{{M\_B @ 0.60}}, and {survival_contrast["validation"]["events"]:,} under
+\code{{M\_C @ 0.70}}. Therefore the survival estimates should be interpreted as
+linkage-conditioned descriptive evidence, not as exact renewal probabilities.
+
+\section{{Defensible Decision}}
 The current defensible decision is to keep \code{{M\_B\_text\_ranking @ 0.70}}
-as the primary observable-successor method. It is not the highest-recall method,
-but the survival analysis is more sensitive to false positives than to
-abstention: a false positive fabricates both an event and an event time, while an
-abstention becomes right-censoring.
+as the primary observable-successor method and use the stricter, looser,
+weighted-gated, and expiry-aware variants as sensitivity analyses. This is a
+precision-first design. Low recall is acceptable only because the report frames
+the event rate as a lower-bound proxy for visible reprocurement activity:
+\[
+\text{{observed successor rate}} \leq \text{{true renewal/reprocurement rate}}.
+\]
+If future manual review shows weaker precision, the claim should be narrowed
+further rather than forcing a more complex model.
+
+\section{{Limitations And Robustness}}
+\begin{{itemize}}
+\item BOAMP does not consistently encode legal renewal status; accepted links are
+observable successor procurements, not legal renewal proof.
+\item The current benchmark labels are protocol-generated development evidence with
+double-pass validation, not independent human ground truth.
+\item Validation is small: {validation["methods"][1]["unweighted_all_frames"]["positive_anchors"]}
+positive validation anchors and {int(m_b.accepted_links)} accepted
+\code{{M\_B}} validation links. The selected threshold should not be over-tuned.
+\item Buyer standardisation is improved but remains an important risk area. The
+legal-form audit is retained to catch name-only and cross-legal-form cases.
+\item Missing duration and expiry fields are not imputed. This avoids creating
+false timing certainty.
+\end{{itemize}}
+
+\section{{Recommended Reporting Position}}
+The technical report should defend the project as a reproducible measurement
+pipeline, not as a black-box prediction system. The strongest statement is:
+\begin{{quote}}
+Because legal renewal status is not directly observed in BOAMP, the study
+estimates observable successor procurements. Candidate generation restricts
+comparison to the same buyer and a plausible future interval; the selected
+method then accepts only the strongest textually similar candidate above a fixed
+threshold. This prioritises precision over recall, which is appropriate because
+false positive links would create artificial survival events.
+\end{{quote}}
 
 \section{{Current Source Files}}
 \begin{{itemize}}
@@ -312,6 +506,8 @@ abstention becomes right-censoring.
 \item \pathcode{{data/processed/boamp\_v2/linkage\_evaluation\_summary\_v3\_validation\_primary.json}}
 \item \pathcode{{data/processed/boamp\_v2/benchmark\_v3/modeling/benchmark\_v3\_modeling\_summary.json}}
 \item \pathcode{{data/processed/boamp\_v2/benchmark\_v3/benchmark\_v3\_manifest.json}}
+\item \pathcode{{data/processed/boamp\_v2/survival\_dataset\_summary.json}}
+\item \pathcode{{data/processed/boamp\_v2/linkage\_candidates\_summary.json}}
 \end{{itemize}}
 
 \end{{document}}
@@ -340,7 +536,7 @@ Generated: `{generated_at}`
 
 The current primary method remains `M_B_text_ranking @ 0.70`.
 
-On the latest v3 validation reference it gives:
+On the current national validation reference it gives:
 
 - precision@1: `{m_b.precision:.3f}`;
 - recall@1: `{m_b.recall:.3f}`;
@@ -348,7 +544,7 @@ On the latest v3 validation reference it gives:
 - accepted validation links: `{int(m_b.accepted_links)}`.
 
 `M_C_weighted_gated` has higher recall but also higher false-positive risk.
-`M_D_fellegi_sunter` is now evaluated on v3, but it does not outperform `M_B`.
+`M_D_fellegi_sunter` is evaluated on the current benchmark, but it does not outperform `M_B`.
 
 ## End-to-End Workflow
 
@@ -358,7 +554,7 @@ Official BOAMP API, 2015-2025
   -> procurement episode reconstruction
   -> Grand Ouest digital study cohort
   -> broad same-buyer candidate generation
-  -> four linkage algorithms compared on v3
+  -> four linkage algorithms compared on the current national benchmark
   -> M_B primary successor selection
   -> survival dataset and expiry-aware sensitivity audit
 ```
@@ -385,7 +581,7 @@ renewal.
 ## Refresh Command
 
 ```bash
-PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-benchmark-v3-evaluation --force
+PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-current-benchmark-evaluation --force
 ```
 """
     (PROJECT_ROOT / "FINAL_PIPELINE.md").write_text(final_pipeline, encoding="utf-8")
@@ -396,7 +592,7 @@ Generated: `{generated_at}`
 
 ## Purpose
 
-The v3 benchmark is the current France-wide reference for calibrating,
+The current national benchmark is the France-wide reference for calibrating,
 validating, and evaluating observable-successor linkage algorithms.
 
 It does not prove legal renewal. It tests whether a method can identify a
@@ -412,9 +608,9 @@ plausible later successor procurement from the same buyer.
 
 ## Current Method Comparison
 
-The latest v3 evaluation includes all four methods. `M_D_fellegi_sunter` is no
+The current benchmark evaluation includes all four methods. `M_D_fellegi_sunter` is no
 longer skipped because `fs_match_probability` is now computed from the fitted
-Fellegi-Sunter model when v3 exposure is evaluated.
+Fellegi-Sunter model when the current benchmark exposure is evaluated.
 
 | Method | Threshold | Validation precision | Validation recall | Validation FPR | Accepted |
 |---|---:|---:|---:|---:|---:|
@@ -453,10 +649,10 @@ def write_notebook(generated_at: str) -> None:
     }
     cells = [
         nbf.v4.new_markdown_cell(
-            "# 12. Successor linkage and latest v3 evaluation\n\n"
+            "# 12. Successor linkage and current benchmark evaluation\n\n"
             f"Generated: `{generated_at}`\n\n"
             "This notebook is regenerated from the current script outputs. It is the "
-            "reader-facing linkage/evaluation notebook for the latest v3 state."
+            "reader-facing linkage/evaluation notebook for the current benchmark state."
         ),
         nbf.v4.new_markdown_cell(
             "## tl;dr\n\n"
@@ -522,7 +718,7 @@ def write_notebook(generated_at: str) -> None:
             "ax = validation_methods.set_index('method')[['precision', 'recall', 'fpr']].plot(\n"
             "    kind='bar', figsize=(9, 4.5), width=0.72\n"
             ")\n"
-            "ax.set_title('Latest v3 validation metrics')\n"
+            "ax.set_title('Current validation metrics')\n"
             "ax.set_ylabel('rate')\n"
             "ax.set_ylim(0, 1)\n"
             "ax.set_xlabel('')\n"
@@ -572,12 +768,12 @@ def main() -> int:
     FIGURES.mkdir(parents=True, exist_ok=True)
     plot_method_metrics(
         method_frame(dev),
-        "Latest v3 dev metrics",
+        "Current dev metrics",
         FIGURES / "benchmark_v3_dev_method_metrics.png",
     )
     plot_method_metrics(
         method_frame(validation),
-        "Latest v3 validation metrics",
+        "Current validation metrics",
         FIGURES / "benchmark_v3_validation_method_metrics.png",
     )
     plot_modeling_counts(modeling, FIGURES / "benchmark_v3_modeling_counts.png")

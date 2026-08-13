@@ -26,46 +26,46 @@ class Stage:
 
 
 def benchmark_v3_stages() -> tuple[Stage, ...]:
-    """National benchmark construction, behind --with-benchmark-v3.
+    """Current national benchmark construction.
 
-    Kept out of the default path on purpose: the frozen workflow must keep
-    reproducing byte for byte while the new benchmark is being built.
+    Kept out of the default path on purpose: annotation and sealed-test handling
+    are separate from the core Grand Ouest survival refresh.
     """
     bench = PROCESSED / "benchmark_v3"
     return (
-        Stage("v3_national_index", ("scripts/build_national_episode_index.py",),
+        Stage("benchmark_national_index", ("scripts/build_national_episode_index.py",),
               (bench / "national_episode_index.parquet",), True),
-        Stage("v3_frame", ("scripts/build_benchmark_frame.py",),
+        Stage("benchmark_frame", ("scripts/build_benchmark_frame.py",),
               (bench / "frame_national.parquet", bench / "frame_strata_summary.json"), True),
-        Stage("v3_mine_declarations", ("scripts/mine_renewal_declarations.py",),
+        Stage("benchmark_mine_declarations", ("scripts/mine_renewal_declarations.py",),
               (bench / "renewal_declarations.parquet",), True),
-        Stage("v3_resolve_predecessors", ("scripts/resolve_declared_predecessors.py",),
+        Stage("benchmark_resolve_predecessors", ("scripts/resolve_declared_predecessors.py",),
               (bench / "declared_predecessor_links.parquet",), True),
-        Stage("v3_sample_anchors", ("scripts/sample_benchmark_anchors.py",),
+        Stage("benchmark_sample_anchors", ("scripts/sample_benchmark_anchors.py",),
               (bench / "anchors.parquet",), True),
-        Stage("v3_exposure", ("scripts/build_benchmark_exposure.py",),
+        Stage("benchmark_exposure", ("scripts/build_benchmark_exposure.py",),
               (bench / "exposure_full.parquet", bench / "pool_definition.json"), True),
-        Stage("v3_structural_negatives", ("scripts/harvest_structural_negatives.py",),
+        Stage("benchmark_structural_negatives", ("scripts/harvest_structural_negatives.py",),
               (bench / "structural_negatives.parquet",), True),
     )
 
 
 def benchmark_v3_evaluation_stages() -> tuple[Stage, ...]:
-    """Evaluate labelled v3 splits and refresh reader-facing artifacts."""
+    """Evaluate current benchmark splits and refresh reader-facing artifacts."""
     bench = PROCESSED / "benchmark_v3"
     return (
         Stage(
-            "v3_evaluate_dev_primary",
+            "benchmark_evaluate_dev_primary",
             ("scripts/evaluate_linkage.py", "--benchmark", "v3", "--split", "dev", "--event-set", "primary"),
             (PROCESSED / "linkage_evaluation_summary_v3_dev_primary.json",),
         ),
         Stage(
-            "v3_evaluate_validation_primary",
+            "benchmark_evaluate_validation_primary",
             ("scripts/evaluate_linkage.py", "--benchmark", "v3", "--split", "validation", "--event-set", "primary"),
             (PROCESSED / "linkage_evaluation_summary_v3_validation_primary.json",),
         ),
         Stage(
-            "v3_modeling_tables",
+            "benchmark_modeling_tables",
             ("scripts/build_benchmark_modeling_dataset.py",),
             (
                 bench / "modeling" / "benchmark_v3_modeling_dev.parquet",
@@ -86,7 +86,7 @@ def benchmark_v3_evaluation_stages() -> tuple[Stage, ...]:
             ),
         ),
         Stage(
-            "v3_quality_evidence",
+            "benchmark_quality_evidence",
             ("scripts/build_quality_evidence.py",),
             (
                 PROCESSED / "quality_evidence" / "benchmark_v3_quality_evidence_summary.json",
@@ -253,7 +253,7 @@ def write_manifest(statuses: dict[str, str]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "workflow": "final_defensible_pipeline_v1",
+        "workflow": "current_defensible_pipeline",
         "primary_method": "M_B_text_ranking @ 0.70",
         "primary_links": str(PROCESSED / "accepted_successor_links.parquet"),
         "primary_survival_dataset": str(PROCESSED / "survival_dataset.parquet"),
@@ -272,12 +272,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--with-notebooks", action="store_true", help="Execute evidence notebooks 10-13.")
     parser.add_argument("--with-tests", action="store_true", help="Run the test suite after the pipeline.")
     parser.add_argument(
-        "--with-benchmark-v3", action="store_true",
-        help="Build the national v3 benchmark. Annotation is a separate, manual step.",
+        "--with-current-benchmark", "--with-benchmark-v3", action="store_true",
+        dest="with_benchmark_v3",
+        help="Build the current national benchmark. Annotation is a separate, manual step.",
     )
     parser.add_argument(
-        "--with-benchmark-v3-evaluation", action="store_true",
-        help="Evaluate labelled v3 dev/validation splits and refresh notebooks/reports.",
+        "--with-current-benchmark-evaluation", "--with-benchmark-v3-evaluation", action="store_true",
+        dest="with_benchmark_v3_evaluation",
+        help="Evaluate labelled current benchmark dev/validation splits and refresh notebooks/reports.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print work without executing commands.")
     return parser.parse_args()

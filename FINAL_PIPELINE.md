@@ -1,12 +1,12 @@
 # Final Defensible Pipeline
 
-Generated: `2026-08-13T19:42:07`
+Generated: `2026-08-13T21:25:33`
 
 ## Current Decision
 
 The current primary method remains `M_B_text_ranking @ 0.70`.
 
-On the latest v3 validation reference it gives:
+On the current national validation reference it gives:
 
 - precision@1: `0.800`;
 - recall@1: `0.182`;
@@ -14,7 +14,7 @@ On the latest v3 validation reference it gives:
 - accepted validation links: `5`.
 
 `M_C_weighted_gated` has higher recall but also higher false-positive risk.
-`M_D_fellegi_sunter` is now evaluated on v3, but it does not outperform `M_B`.
+`M_D_fellegi_sunter` is evaluated on the current benchmark, but it does not outperform `M_B`.
 
 ## End-to-End Workflow
 
@@ -24,7 +24,7 @@ Official BOAMP API, 2015-2025
   -> procurement episode reconstruction
   -> Grand Ouest digital study cohort
   -> broad same-buyer candidate generation
-  -> four linkage algorithms compared on v3
+  -> four linkage algorithms compared on the current national benchmark
   -> M_B primary successor selection
   -> survival dataset and expiry-aware sensitivity audit
 ```
@@ -51,5 +51,5 @@ renewal.
 ## Refresh Command
 
 ```bash
-PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-benchmark-v3-evaluation --force
+PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-current-benchmark-evaluation --force
 ```

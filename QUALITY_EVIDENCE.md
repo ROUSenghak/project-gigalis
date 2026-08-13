@@ -1,6 +1,6 @@
 # Linkage Quality Evidence
 
-Generated from the latest v3 validation reference.
+Generated from the current national validation reference.
 
 ## What Each Diagnostic Means
 
@@ -42,7 +42,7 @@ This is the stricter accounting behind project precision and recall. Cells do no
 
 ## Interpretation
 
-`M_B_text_ranking @ 0.70` is still the defensible primary method. It is not the highest-recall method, but it has zero validation false positives on no-successor anchors and the best pair-level ranking diagnostics: ROC AUC 0.9464 and average precision 0.5402.
+`M_B_text_ranking @ 0.70` is still the defensible primary method. It is not the highest-recall method, but it has zero validation false positives on no-successor anchors and the best pair-level ranking diagnostics.
 
 ## Plot Files
 
