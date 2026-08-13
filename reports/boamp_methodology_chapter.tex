@@ -1,1211 +1,170 @@
 \documentclass[11pt,a4paper]{article}
-
-% ── Encoding and fonts ───────────────────────────────────────────────────────
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 \usepackage{microtype}
-
-% ── Page layout ──────────────────────────────────────────────────────────────
 \usepackage{geometry}
-\geometry{left=2.5cm, right=2.5cm, top=2.8cm, bottom=2.8cm}
-
-% ── Mathematics ──────────────────────────────────────────────────────────────
-\usepackage{amsmath}
-\usepackage{amssymb}
-
-% ── Tables ───────────────────────────────────────────────────────────────────
-\usepackage{booktabs}
-\usepackage{longtable}
-\usepackage{array}
-\usepackage{tabularx}
-\usepackage{makecell}
-
-% ── Colours, links, lists ────────────────────────────────────────────────────
-\usepackage{xcolor}
-\usepackage{hyperref}
-\usepackage{enumitem}
-
-% ── Figures ──────────────────────────────────────────────────────────────────
+\geometry{left=2.5cm,right=2.5cm,top=2.6cm,bottom=2.6cm}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,tabularx}
+\usepackage{graphicx}
 \usepackage{float}
-\usepackage{caption}
-
-% ── TikZ ─────────────────────────────────────────────────────────────────────
-\usepackage{tikz}
-\usetikzlibrary{shapes.geometric, arrows.meta, positioning, calc}
-
-% ── Hyperref settings ────────────────────────────────────────────────────────
-\hypersetup{
-  colorlinks = true,
-  linkcolor  = blue!70!black,
-  urlcolor   = blue!70!black,
-  citecolor  = blue!70!black
-}
-
-% ── Global list and table settings ───────────────────────────────────────────
-\setlist[itemize]{topsep=3pt, itemsep=2pt, parsep=0pt}
-\setlist[enumerate]{topsep=3pt, itemsep=2pt, parsep=0pt}
-\renewcommand{\arraystretch}{1.25}
-
-% ── Custom macros ────────────────────────────────────────────────────────────
-\newcommand{\code}[1]{\texttt{\small #1}}
-\newcommand{\pathcode}[1]{{\small\nolinkurl{#1}}}
-
-% ── TikZ node and arrow styles ───────────────────────────────────────────────
-\tikzset{
-  %% Base stage node (all pipeline boxes inherit from this)
-  stg/.style = {
-    rectangle, rounded corners = 4pt,
-    minimum width = 5.6cm, minimum height = 0.82cm,
-    text centered, font = \small\sffamily, text width = 5.3cm, inner sep = 3pt
-  },
-  %% Phase-coloured variants
-  acq/.style   = {stg, draw=blue!65!black,   fill=blue!10},
-  proc/.style  = {stg, draw=teal!65!black,   fill=teal!9},
-  bench/.style = {stg, draw=violet!65!black, fill=violet!8},
-  model/.style = {stg, draw=orange!80!black, fill=orange!8},
-  rpt/.style   = {stg, draw=gray!65,         fill=gray!10},
-  %% Math-pipeline nodes
-  mnode/.style = {
-    rectangle, rounded corners = 3pt, draw=gray!60, fill=gray!7,
-    minimum width = 7.6cm, minimum height = 0.95cm,
-    text centered, font = \small, text width = 7.3cm, inner sep = 4pt
-  },
-  mfut/.style  = {
-    rectangle, rounded corners = 3pt, draw=orange!55, fill=orange!5,
-    minimum width = 7.6cm, minimum height = 0.95cm,
-    text centered, font = \small, text width = 7.3cm, inner sep = 4pt,
-    dashed
-  },
-  %% Arrow styles
-  pipe/.style     = {-Stealth, thick, draw=gray!65},
-  pipedash/.style = {-Stealth, thick, draw=orange!55, dashed},
-  mlbl/.style     = {font=\scriptsize\itshape, text=gray!65, midway, right=3pt}
-}
-
-% ── Title ────────────────────────────────────────────────────────────────────
-\title{%
-  {\Large\bfseries Anticipating Public Digital Purchasing Needs in the Grand Ouest}\\[6pt]
-  {\large Chapter 3 \textemdash{} Methodology}\\[4pt]
-  {\normalsize Episode Reconstruction, Successor Linkage, and Survival Analysis}
-}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\hypersetup{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\pathcode}[1]{\texttt{\small #1}}
+\title{BOAMP Successor Linkage Methodology\\\large Current v3 Benchmark State}
 \author{BOAMP Data Science Internship Project}
-\date{12 August 2026}
-
-% ═══════════════════════════════════════════════════════════════════════════════
+\date{2026-08-13T19:42:07}
 \begin{document}
-% ═══════════════════════════════════════════════════════════════════════════════
-
+\sloppy
 \maketitle
-\tableofcontents
-\clearpage
 
-% ── Abstract ─────────────────────────────────────────────────────────────────
-\section*{Abstract}
+\section*{Technical Summary}
+This report is regenerated from the current v3 benchmark artifacts, not from
+static notebook output. The latest labelled reference contains
+252 labelled anchors and 7,031
+anchor-candidate labels. The dev split has
+134 anchors and
+3,638 pair rows; the validation split has
+60 anchors and
+1,763 pair rows.
 
-This chapter documents the methodology used to estimate when a French public digital
-contract is likely to generate a new, observable purchasing need.  Each stage is
-described with what it does, the reasoning behind its design, and formal notation.
-Every numerical result is taken from a current v2 summary artifact or an executed
-notebook in the project repository; nothing is quoted from the superseded pre-v2
-session report. Where a notebook-derived standalone export is absent from the current
-checkout, that limitation is stated explicitly.
+All four linkage algorithms have now been evaluated on the latest v3 reference:
+\code{M\_A\_deterministic}, \code{M\_B\_text\_ranking},
+\code{M\_C\_weighted\_gated}, and \code{M\_D\_fellegi\_sunter}.
+On validation, \code{M\_B\_text\_ranking @ 0.70} remains the strongest
+precision-first method: precision 0.800, recall 0.182,
+and false-positive rate 0.000. \code{M\_C} has higher recall
+(0.409) but also more false positives (0.105). \code{M\_D}
+does not currently challenge the incumbent: precision 0.000 and
+recall 0.000.
 
-The central difficulty is that BOAMP publishes no field linking a contract to its
-renewal.  The link must be inferred, and because a wrong link fabricates both a
-survival event and its event time, the inference is evaluated against a manually
-reviewed benchmark rather than assumed correct.  Four v1 linkage methods are compared,
-including a classical probabilistic model whose weights are estimated rather than
-chosen; a fifth expiry-aware policy is retained as a parallel sensitivity arm.  The
-methodology is deliberately conservative: the accepted linkage policy abstains on
-most contracts, but absolute survival estimates remain policy-dependent rather than
-formal statistical lower bounds.
+\section{Pipeline State}
+The defensible project pipeline is:
+\[
+\begin{aligned}
+&\text{BOAMP notices}
+\rightarrow \text{standardised notices}
+\rightarrow \text{procurement episodes} \\
+&\rightarrow \text{candidate pairs}
+\rightarrow \text{linkage scoring}
+\rightarrow \text{one successor or abstention}
+\rightarrow \text{survival dataset} .
+\end{aligned}
+\]
+The candidate-generation rule is unchanged. For an anchor contract with award
+date \(A\) and a candidate with publication date \(C\), the candidate is eligible
+only when
+\[
+A+90 \leq C \leq A+2920.
+\]
+The new v3 benchmark does not replace this candidate pool; it evaluates how well
+the selection algorithms choose from exposed candidate pairs.
 
-Two diagrams are included.  Figure~\ref{fig:pipeline} gives a coloured overview of
-the thirteen analytical stages; Figure~\ref{fig:mathpipeline} shows the mathematical
-transformation chain from the raw corpus to the operational output.  Stage~13 is
-executed inside Notebook~13, but its standalone watchlist CSV is not present in the
-current checkout.
+\section{Benchmark v3 Reference}
+The v3 benchmark is national rather than Grand Ouest-only. It samples awarded
+digital procurement episodes across French region groups and CPV divisions.
+Only the probability frame supports national weighted estimates; enrichment
+frames are used for stress cases and diagnostics.
 
-\paragraph{A note on terminology.}
-Throughout this chapter an inferred link is called an \emph{observable successor
-procurement}, never a confirmed legal renewal, and the absence of a link is
-described as \emph{no accepted observable successor before the observation cutoff},
-never as evidence that no renewal occurred.  This distinction is maintained in the
-code, the figures, and the interpretation.
+The current annotation caveat remains important: labels are protocol-generated
+development evidence with double-pass validation and adjudication. They are not
+official legal renewal ground truth and should not be described as human
+inter-annotator ground truth.
 
-\clearpage
+\section{Algorithms}
+\paragraph{\(M_A\): deterministic evidence.}
+Accepts only strong buyer identity, positive CPV continuity, and a minimum text
+signal. It is conservative but misses many true successors.
 
-% ─────────────────────────────────────────────────────────────────────────────
-\section{Notation Reference}
-% ─────────────────────────────────────────────────────────────────────────────
+\paragraph{\(M_B\): text ranking.}
+Ranks same-buyer candidates by TF-IDF cosine similarity and accepts the top
+candidate only if similarity is at least 0.70. It is transparent and currently
+best aligned with a precision-first survival event definition.
 
-All mathematical symbols used in this chapter are collected in
-Table~\ref{tab:notation}.  Each is also introduced contextually at first use.
+\paragraph{\(M_C\): weighted gated score.}
+Combines buyer, text, CPV, timing, and evidence components, then applies
+independent gates. It recovers more positives but admits more false links.
 
+\paragraph{\(M_D\): Fellegi--Sunter probabilistic linkage.}
+Discretises buyer, text, CPV, and time comparisons, estimates match and
+non-match level distributions by expectation maximisation, and ranks by
+posterior match probability. The latest refresh applies the fitted model to the
+v3 exposure table so this method is no longer skipped.
+
+\section{Dev Results}
 \begin{table}[H]
 \centering
-\caption{Mathematical notation used throughout the methodology.}
-\label{tab:notation}
 \small
-\begin{tabularx}{\textwidth}{p{2.9cm}X}
+\begin{tabularx}{\textwidth}{lrrrrrr}
 \toprule
-\textbf{Symbol} & \textbf{Definition} \\
+Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 \midrule
-$\mathcal{N}$               & Full national BOAMP notice corpus \\
-$n$                         & Number of notices in $\mathcal{N}$ \\
-$\nu_i$                     & Standardised notice indexed by $i$ \\
-$\mathcal{E}$               & Set of reconstructed procurement episodes \\
-$e$                         & A single episode (a group of notices from one procedure) \\
-$\mathcal{E}_{GO}$          & Grand Ouest episodes (buyer postal address in scope) \\
-$\Phi$                      & Digital CPV divisions $\{32,35,48,72\}$ \\
-$\mathcal{H}$               & Study cohort: digital Grand Ouest contracts with an award \\
-$a$                         & A cohort contract (anchor), $a \in \mathcal{H}$ \\
-$t_a$                       & Award-notice date of $a$ (time zero) \\
-$o_c$                       & Origin date of candidate episode $c$ (its first notice) \\
-$\Delta t(a,c)$             & Gap $o_c - t_a$ in days \\
-$[\tau_{\min},\tau_{\max}]$ & Succession window, $[90,\,2920]$ days \\
-$\mathcal{C}(a)$            & Candidate successors retrieved for $a$ \\
-$\mathcal{C}$               & All candidate pairs, $\bigcup_a \{(a,c)\}$ \\
-$\gamma(a,c)$               & Comparison vector for pair $(a,c)$ \\
-$s_b,s_t,s_k,s_\tau$        & Component scores: buyer, text, CPV, timing \\
-$w_b,w_t,w_k,w_\tau$        & Component weights \\
-$\mathcal{O}(a,c)$          & Components that are observable for pair $(a,c)$ \\
-$S(a,c)$                    & Renormalised weighted score $\in [0,100]$ \\
-$m_k(\ell),\,u_k(\ell)$     & Match / non-match probability of level $\ell$ in field $k$ \\
-$\lambda$                   & Prior probability that a candidate pair is a match \\
-$M(a,c)$                    & Fellegi--Sunter match weight (log$_2$ Bayes factor sum) \\
-$\hat{y}(a)$                & Accepted successor for $a$, or $\emptyset$ (abstention) \\
-$y^{*}(a)$                  & Manually confirmed successor, or $\emptyset$ \\
-$\mathcal{A}$               & Benchmark anchors mapped onto the cohort \\
-$\mathcal{A}^{+},\mathcal{A}^{-}$ & Anchors with / without a confirmed successor \\
-$\mathcal{A}_P,\mathcal{A}_L$ & Pilot development split / locked evaluation split \\
-$P_1,R_1,R_K$               & Precision at rank 1; recall at rank 1; recall at rank $K$ \\
-$\text{FPR}$                & False-positive rate on confirmed no-successor anchors \\
-$\delta_a$                  & Event indicator: 1 if a successor was accepted, else 0 \\
-$T_a$                       & Observed duration (to successor, or to cutoff) \\
-$C$                         & Study cutoff, 31 December 2025 \\
-$S(t)$                      & Survival function: P(no observable successor by $t$) \\
-$h(t\mid X)$                & Hazard of an observable successor given covariates $X$ \\
-$\mathbf{1}[\cdot]$         & Indicator function \\
-$\text{miss}(f)$            & Missingness rate of field $f$ \\
+M\_A\_deterministic & 70.000 & 10 & 0.600 & 0.128 & 0.035 & 0.075 \\
+M\_B\_text\_ranking & 70.000 & 24 & 0.875 & 0.447 & 0.035 & 0.179 \\
+M\_C\_weighted\_gated & 70.000 & 47 & 0.596 & 0.596 & 0.126 & 0.351 \\
+M\_D\_fellegi\_sunter & 65.000 & 4 & 0.000 & 0.000 & 0.023 & 0.030 \\
 \bottomrule
 \end{tabularx}
+\caption{Unweighted dev metrics on all labelled v3 frames.}
 \end{table}
 
-\clearpage
-
-% ─────────────────────────────────────────────────────────────────────────────
-\section{Methodology}
-\label{sec:methodology}
-% ─────────────────────────────────────────────────────────────────────────────
-
-Figure~\ref{fig:pipeline} shows the implemented pipeline at a glance.  The
-subsections that follow describe each stage in turn.
-
-% ── Figure 1: Pipeline Overview ─────────────────────────────────────────────
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}
-
-  %% ── Left column: Stages 1--7 ──────────────────────────────────────────────
-  \node[acq]                      (s1)  {1.\enspace Data Acquisition};
-  \node[acq,  below=0.45cm of s1] (s2)  {2.\enspace Schema-Aware Standardisation};
-  \node[proc, below=0.45cm of s2] (s3)  {3.\enspace Episode Reconstruction};
-  \node[proc, below=0.45cm of s3] (s4)  {4.\enspace Evidence Audit};
-  \node[bench,below=0.45cm of s4] (s5)  {5.\enspace Benchmark Remapping};
-  \node[proc, below=0.45cm of s5] (s6)  {6.\enspace Study Cohort Definition};
-  \node[model,below=0.45cm of s6] (s7)  {7.\enspace Candidate Generation};
-
-  %% ── Right column: Stages 8--13 ────────────────────────────────────────────
-  \node[model, right=2.5cm of s7]  (s8)  {8.\enspace Comparison Scoring};
-  \node[model, below=0.45cm of s8] (s9)  {9.\enspace Linkage Methods + Expiry Arm};
-  \node[model, below=0.45cm of s9] (s10) {10.\enspace Benchmark Evaluation};
-  \node[model, below=0.45cm of s10](s11) {11.\enspace Survival Dataset};
-  \node[model, below=0.45cm of s11](s12) {12.\enspace Survival Analysis};
-  \node[rpt,   below=0.45cm of s12](s13) {13.\enspace Operational Watchlist};
-
-  %% ── Flow arrows ───────────────────────────────────────────────────────────
-  \foreach \a/\b in {s1/s2, s2/s3, s3/s4, s4/s5, s5/s6, s6/s7}
-    \draw[pipe] (\a) -- (\b);
-  \draw[pipe] (s7.east) -- (s8.west);
-  \foreach \a/\b in {s8/s9, s9/s10, s10/s11, s11/s12, s12/s13}
-    \draw[pipe] (\a) -- (\b);
-
-\end{tikzpicture}
-\caption{%
-  Thirteen-stage implemented pipeline.
-  \textcolor{blue!65!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Acquisition and
-    standardisation (Stages~1--2).
-  \textcolor{teal!65!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Episode layer, audit and
-    cohort (Stages~3--4,~6).
-  \textcolor{violet!65!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Benchmark (Stage~5).
-  \textcolor{orange!80!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Linkage and survival
-    modelling (Stages~7--12).
-  \textcolor{gray!65}{\rule[0.5ex]{1.2em}{0.7ex}}~Operational output (Stage~13).
-  Stages~1--12 have materialised data artifacts; Stage~13 is retained as executed
-  notebook output, while its standalone CSV export is currently absent.
-}
-\label{fig:pipeline}
+\includegraphics[width=0.92\textwidth]{figures/benchmark_v3_dev_method_metrics.png}
+\caption{Dev split method comparison generated from the current v3 evaluation JSON.}
 \end{figure}
 
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Data Acquisition}
-\label{sec:acquisition}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-\pathcode{scripts/download\_boamp.py} queries the BOAMP Opendatasoft API and
-downloads one JSONL file per year for
-$2015 \leq \text{year} \leq 2025$, into \pathcode{data/raw/boamp/}.
-Let $\hat{n}_y$ be the records downloaded for year $y$ and $n^{*}_y$ the count the
-API reports.  Acquisition validation requires
-\begin{equation}
-  \hat{n}_y = n^{*}_y \qquad \forall\, y \in \{2015,\ldots,2025\},
-  \label{eq:count_check}
-\end{equation}
-and every record must satisfy
-\begin{equation}
-  \texttt{dateparution}_i \in [\,\text{2015-01-01},\, \text{2026-01-01}\,).
-  \label{eq:date_check}
-\end{equation}
-Both are recorded in \pathcode{data/metadata/boamp\_download\_summary.json}.  The
-acquired corpus is
-\begin{equation}
-  n = \sum_{y=2015}^{2025} \hat{n}_y = 1{,}620{,}712 .
-  \label{eq:corpus_size}
-\end{equation}
-
-\paragraph{Why this is reasonable.}
-Using the API count as an exact integrity check matters because HTTP streaming can
-silently truncate a large payload.  The date guard prevents records from adjacent
-API partitions bleeding across yearly files, which would corrupt every downstream
-yearly aggregation.  Together the two checks establish that the corpus is a faithful
-copy rather than a close approximation.
-
-\paragraph{An observed boundary.}
-The earliest record is dated 2 March 2015 although the request window opens on
-1~January.  No record falls outside the requested interval, so this is a property of
-the source rather than of the acquisition, and it is reported rather than silently
-absorbed into the 2015 totals.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Schema-Aware Standardisation}
-\label{sec:standardise}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-BOAMP notices arrive under four distinct schemas, which differ in where the same
-information is stored.  \pathcode{scripts/build\_standardized\_notices.py}, backed by
-\pathcode{boamp\_pipeline/standardize.py} (parser version
-\code{boamp\_standardizer\_v2.2}), maps each raw record $r_i$ to a standardised
-notice $\nu_i$:
-\begin{equation}
-  \nu_i = \bigl(r_i,\; \mathbf{b}_i,\; \mathbf{g}_i,\; \mathbf{k}_i,\;
-                \mathbf{x}_i,\; \mathbf{d}_i,\; \mathbf{p}_i \bigr),
-  \label{eq:standardised}
-\end{equation}
-retaining every raw field and adding schema-aware buyer identity $\mathbf{b}_i$
-(with Luhn-validated SIREN/SIRET), buyer geography $\mathbf{g}_i$, CPV codes
-$\mathbf{k}_i$, normalised text $\mathbf{x}_i$, typed duration and amount
-$\mathbf{d}_i$, and extraction provenance $\mathbf{p}_i$.  The result has 91 fields
-over all $n = 1{,}620{,}712$ notices, with no duplicate or missing \code{idweb}.
-Grand Ouest is defined by the \emph{contracting buyer's} structured postal address,
-giving $209{,}502$ regional notices.
-
-\paragraph{Why this is reasonable.}
-Two design choices carry most of the weight.  First, geography is taken from the
-buyer's postal address rather than the place of performance, because the latter is
-missing for the large majority of records; an earlier iteration of this project used
-a place-of-performance fallback and produced a materially different, less defensible
-regional corpus.  Second, provenance is recorded for every derived field, so a
-downstream analysis can distinguish a validated SIREN from a name-only match instead
-of treating all buyer identifiers as equally trustworthy. The linkage stage therefore
-treats identifier-backed records as stronger evidence without assuming that name-only
-and identifier-backed records are equivalent.
-
-\paragraph{Evidence coverage.}
-Completeness varies sharply by field, and the analysis is built around this rather
-than against it: buyer name is present for essentially every notice, buyer geography
-for $97.9\%$, CPV for $82.6\%$, a typed amount candidate for $39.9\%$, a validated
-buyer identifier for $32.2\%$, and a typed duration for $28.1\%$.
-
-\paragraph{Raw labels versus standardised buyers.}
-The raw EDA intentionally counts the buyer-name field literally. Consequently,
-\code{Ville de Paris} ($6{,}888$ notices) and \code{VILLE DE PARIS} ($3{,}492$)
-appear as separate bars. The v2 formatter case-folds and normalises punctuation, so
-both simple variants become \code{ville de paris}; candidate blocking further maps
-that simple name to \code{paris}. This corrects formatting variation, not every entity
-resolution problem: labels such as \code{Ville de Paris - DEVE} retain their
-organisational suffix and require a shared validated SIREN or other evidence to be
-connected. Likewise, the earlier raw Grand Ouest extract contains $226{,}314$ notices
-because it used service/publication department fields, whereas the v2 count of
-$209{,}502$ uses contracting-buyer postal geography. The difference is definitional,
-not row loss during standardisation.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Procurement Episode Reconstruction}
-\label{sec:episodes}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-A BOAMP notice is not a contract.  One procurement procedure typically produces
-several notices---a call for competition, corrections, an award notice.
-\pathcode{scripts/build\_procurement\_episodes.py} groups notices belonging to one
-procedure into an \emph{episode}.  Let $G = (\mathcal{V},\mathcal{L})$ be an
-undirected graph whose vertices are notices and whose edges $\mathcal{L}$ are
-admitted, in priority order, when
-
-\begin{enumerate}
-  \item two notices share an exact \code{contractfolderid};
-  \item one notice explicitly lists the other as a linked notice;
-  \item two notices share an exact procedure reference \emph{and} an exact buyer key
-        \emph{and} an exact normalised buyer name, with adjacent notices no more
-        than 730 days apart.
-\end{enumerate}
-
-Episodes are the connected components of $G$:
-\begin{equation}
-  \mathcal{E} = \bigl\{\, e \subseteq \mathcal{V} :
-    e \text{ is a connected component of } (\mathcal{V},\mathcal{L}) \,\bigr\}.
-  \label{eq:episodes}
-\end{equation}
-An edge is rejected when the two components carry conflicting validated SIRENs.
-The implementation uses a disk-backed SQLite index with NumPy union--find so that
-the full corpus fits in memory.  The result is $|\mathcal{E}| = 1{,}103{,}632$
-episodes, of which $144{,}269$ are Grand Ouest, with $60.1\%$ singletons, zero
-buyer-conflict components, zero chronologically impossible components, and every
-notice assigned exactly once.
-
-\paragraph{Why this is reasonable.}
-Episode reconstruction is emphatically \emph{not} renewal linkage: it consolidates
-notices describing one procedure, whereas linkage searches for a \emph{later}
-procedure.  Conflating the two would inflate any renewal count with what are merely
-corrections and award notices of the same procurement.  The edge priority is
-strictly evidence-based, and the trusted-SIREN conflict rule prevents transitive
-merging of two genuinely different buyers through an ambiguous intermediate notice
-(737 edges were rejected on this ground).  Singletons are retained as legitimate
-unresolved episodes rather than being forced into groups to raise the merge rate.
-
-\paragraph{A correction carried forward.}
-An earlier parser treated generic eForms values such as \code{FRA}, \code{ORG-0001}
-and \code{DCE} as procedure references, producing a spurious 638-notice component.
-Version~2.2 restricts extraction to the direct contract-folder element.  Broad
-recursive extraction of \code{cbc:ID} is deliberately not restored.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Evidence Audit and Benchmark Remapping}
-\label{sec:audit}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\subsubsection{Structural audit}
-
-\paragraph{What is done.}
-\pathcode{notebooks/10\_standardized\_notice\_and\_episode\_evidence\_audit.ipynb}
-verifies the notice and episode layers before any inference is attempted. Its executed
-output reports $3{,}344$ suspicious episodes---overwhelmingly procedure-reference
-conflicts, plus a small number of unusually large or long-spanning components. The
-standalone audit-metrics JSON and review CSV named by that notebook are not present in
-the current checkout, so the notebook is the available evidence and completed manual
-adjudication of that queue is not claimed.
-
-\paragraph{Why this is reasonable.}
-The audit is a gate, not decoration.  Every downstream quantity inherits the episode
-layer's errors, so structural validity is established first and separately from any
-question about renewal.
-
-\subsubsection{Benchmark remapping}
-
-\paragraph{What is done.}
-The manual benchmark was annotated against a superseded episode layer, so its episode
-identifiers no longer exist.  \pathcode{scripts/remap\_benchmark\_to\_v2\_episodes.py}
-re-derives them by joining on notice identifiers, which are stable across pipeline
-versions:
-\begin{equation}
-  \text{episode}_{v2}(a) = \bigl\{\, \text{membership}(\iota) :
-    \iota \in \text{notices}(a) \,\bigr\}.
-  \label{eq:remap}
-\end{equation}
-Of 120 anchors, 118 map to exactly one current episode and 2 split across two; all
-28 confirmed successor links map cleanly.
-
-\paragraph{Why this is reasonable.}
-Joining on notice identifiers rather than trusting the stale episode identifiers
-preserves the human judgement, which was attached to notices, while discarding the
-obsolete grouping.  An anchor whose notices land in two current episodes is
-\emph{flagged}, not silently resolved to one side: in both cases the award notice
-carries a different SIREN from the tender under the same buyer name, so the
-conflict rule of Section~\ref{sec:episodes} correctly refused to merge them.  Whether
-that is a true split or a data-entry inconsistency is a question for review, and
-recording it is more useful than hiding it.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Study Cohort Definition}
-\label{sec:cohort}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-\pathcode{scripts/build\_survival\_cohort.py} defines the study cohort
-$\mathcal{H}$ as the episodes satisfying three conditions simultaneously:
-\begin{equation}
-  \mathcal{H} = \Bigl\{\, e \in \mathcal{E}_{GO} \;:\;
-    \bigl(\exists\, p \in \mathrm{CPV}(e): \lfloor p/10^{6} \rfloor \in \Phi \bigr)
-    \;\land\;
-    \bigl(\exists\, \nu \in e: \mathrm{nature}(\nu) = \textsc{attribution}\bigr)
-  \,\Bigr\}
-  \label{eq:cohort}
-\end{equation}
-with $\Phi = \{32,35,48,72\}$.  Time zero is the earliest award-notice date,
-$t_a = \min\{\, \mathrm{date}(\nu) : \nu \in a,\; \mathrm{nature}(\nu) =
-\textsc{attribution} \,\}$, and the study cutoff is $C = $ 31 December 2025.  The
-selection funnel is given in Table~\ref{tab:funnel}.
-
+\section{Validation Results}
 \begin{table}[H]
 \centering
-\caption{Cohort selection funnel.  Every exclusion is counted rather than silently applied.}
-\label{tab:funnel}
 \small
-\begin{tabularx}{0.82\textwidth}{Xr}
+\begin{tabularx}{\textwidth}{lrrrrrr}
 \toprule
-\textbf{Stage} & \textbf{Episodes} \\
+Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 \midrule
-Grand Ouest episodes                              & 144{,}269 \\
-\quad with a digital CPV division                 & 7{,}376 \\
-\quad\quad and an award notice                    & 3{,}826 \\
-\quad\quad\quad less unresolved award dates       & $-26$ \\
-\midrule
-\textbf{Study cohort} $|\mathcal{H}|$             & \textbf{3{,}800} \\
+M\_A\_deterministic & 70.000 & 6 & 0.167 & 0.045 & 0.105 & 0.100 \\
+M\_B\_text\_ranking & 70.000 & 5 & 0.800 & 0.182 & 0.000 & 0.083 \\
+M\_C\_weighted\_gated & 70.000 & 15 & 0.600 & 0.409 & 0.105 & 0.250 \\
+M\_D\_fellegi\_sunter & 65.000 & 1 & 0.000 & 0.000 & 0.026 & 0.017 \\
 \bottomrule
 \end{tabularx}
+\caption{Unweighted validation metrics on all labelled v3 frames.}
 \end{table}
 
-\paragraph{Why this is reasonable.}
-The award condition is what makes a row a \emph{contract} rather than a tender that
-may never have been awarded, and it supplies a defensible time zero matching the
-guideline's definition of contract lifetime.  The cohort exceeds the guideline's
-minimum of 800 contracts with an observed or censored duration by more than a factor
-of four, is evenly spread across the eleven award years, and gives every digital
-segment at least 564 contracts, so no stratified analysis is starved.
-
-\paragraph{Missing values.}
-No variable is imputed.  Reliable duration is available for $25\%$ of the cohort and
-a validated SIREN for $34\%$; amount is $16\%$ missing.  The governing rule is that
-\emph{missing evidence is not negative evidence}: a missing CPV is recorded as
-unobservable rather than as a category mismatch, a missing duration yields no
-expected end date rather than an assumed four-year contract, and amount is excluded
-from linkage entirely because a BOAMP amount may be an estimate, a ceiling, an award
-value or a single lot, and the field cannot be disambiguated.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Candidate Generation}
-\label{sec:candidates}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-For each cohort contract $a$, \pathcode{scripts/build\_linkage\_candidates.py}
-retrieves candidate successors:
-\begin{equation}
-  c \in \mathcal{C}(a)
-  \;\iff\;
-  c \in \mathcal{E}_{GO} \setminus \{a\}
-  \;\land\;
-  \Delta t(a,c) \in [\tau_{\min}, \tau_{\max}]
-  \;\land\;
-  B(a,c),
-  \label{eq:candidate_rule}
-\end{equation}
-where $\Delta t(a,c) = o_c - t_a$, the window is $[\tau_{\min},\tau_{\max}] =
-[90,\,2920]$ days, and $B(a,c)$ holds when $a$ and $c$ share an exact buyer key or an
-exact normalised buyer name.  This yields $|\mathcal{C}| = 868{,}527$ pairs over
-$3{,}523$ anchors, a median of 95 candidates each.
-
-\paragraph{Why the pool is broader than the cohort.}
-Candidates are \emph{not} restricted to digital or award-bearing episodes even though
-anchors are.  Only 23 of the 28 confirmed successors carry a digital CPV and only 20
-carry an award notice, so applying the cohort filter to the pool would cap achievable
-recall at $16/28$.  A renewed purchasing need becomes visible when the new tender is
-published, which is why a candidate is timed by its first notice $o_c$ rather than by
-any later award.
-
-\paragraph{Why the window has a lower bound.}
-An earlier version admitted any candidate published after the award.  The result was
-visibly wrong: 132 of 628 accepted successors fell within three months of the award,
-and for 2025 awards \emph{every} accepted successor was under twelve months old with
-a median of 1.7 months.  No renewal cycle explains that; those pairs are concurrent
-procurement---a second lot of the same programme, or a parallel tender with similar
-wording.  The floor is set empirically rather than tuned: across the confirmed
-benchmark links the shortest award-to-successor gap is 139 days, so $\tau_{\min} = 90$
-discards none of them while removing the concurrent-procurement band.  After the
-correction the median time to an observable successor moved from 21 to 32 months and
-the sub-three-month population fell from 132 accepted links to 2.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Comparison Scoring and the Treatment of Missing Evidence}
-\label{sec:scoring}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-Each pair receives four component scores in $[0,1]$: buyer evidence $s_b$ (graded by
-whether identity is established by validated SIREN or by name alone), text similarity
-$s_t$ (the maximum of word and character $n$-gram TF--IDF cosine, fitted per anchor
-block), CPV continuity $s_k$, and timing plausibility $s_\tau$ relative to the
-anchor's declared contract end.  Any component may be genuinely \emph{unobservable}:
-$s_k$ when either side lacks a CPV code, $s_\tau$ when the anchor has no reliable
-declared duration.  Let $\mathcal{O}(a,c)$ be the observable components.  The score is
-renormalised over them:
-\begin{equation}
-  S(a,c) = 100 \cdot
-  \frac{\displaystyle\sum_{j \in \mathcal{O}(a,c)} w_j\, s_j(a,c)}
-       {\displaystyle\sum_{j \in \mathcal{O}(a,c)} w_j},
-  \qquad
-  (w_b,w_t,w_k,w_\tau) = (0.50,\,0.25,\,0.20,\,0.05).
-  \label{eq:score}
-\end{equation}
-
-\paragraph{Why this is reasonable.}
-Equation~\eqref{eq:score} is the formal statement of the rule that missing evidence
-is not negative evidence.  Dropping an unobservable component from both numerator and
-denominator means a pair lacking CPV codes is judged on its remaining evidence rather
-than penalised as though the codes disagreed, and it avoids inventing a neutral
-constant.  In the candidate set, CPV is unobservable for $14.3\%$ of pairs and timing
-for $82.8\%$, so the choice is not a technicality: it governs the majority of the
-timing evidence.
-
-\paragraph{An assumption deliberately not made.}
-The predecessor implementation substituted an assumed four-year contract whenever the
-declared duration was missing, and then scored candidates by their proximity to that
-imagined end date.  That converts a missing value into the single most influential
-timing input for three quarters of the cohort.  It is not reproduced here.
-Section~\ref{sec:survival} shows the assumption would also have been empirically
-wrong: among contracts with both a reliable declared duration and an accepted
-successor, only $21.8\%$ were re-procured within six months of their declared end,
-and the median absolute discrepancy is $21.1$ months.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Linkage Methods}
-\label{sec:methods}
-% ─────────────────────────────────────────────────────────────────────────────
-
-Four methods are compared, each simple enough to state in one sentence.  Every method
-may \textbf{abstain}: a contract whose best candidate fails the rule returns
-$\hat{y}(a) = \emptyset$ rather than its closest guess.
-
-\begin{table}[H]
-\centering
-\caption{The four linkage methods compared.}
-\label{tab:methods}
-\small
-\begin{tabularx}{\textwidth}{p{3.5cm}X}
-\toprule
-\textbf{Method} & \textbf{Acceptance rule} \\
-\midrule
-$M_A$ deterministic     & Validated SIREN identity \emph{and} CPV continuity
-                          \emph{and} $s_t \geq 0.25$ \\
-$M_B$ text ranking      & $s_t \geq \theta$ on the same-buyer candidate pool \\
-$M_C$ weighted, gated   & $S(a,c) \geq \theta$ with independent buyer, text and CPV
-                          gates (ported from the predecessor pipeline) \\
-$M_D$ Fellegi--Sunter   & Posterior match probability $\geq \theta$, with weights
-                          estimated rather than assigned (Section~\ref{sec:fs}) \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-$M_B$ is less naive than its name suggests: the buyer and timing constraints are
-already enforced by Equation~\eqref{eq:candidate_rule}, so the effective rule is
-\emph{same buyer, within the succession window, text similarity at least $\theta$}.
-The structured evidence performs the blocking; text performs the ranking.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Probabilistic Linkage: the Fellegi--Sunter Model}
-\label{sec:fs}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-The three rule-based methods combine evidence with weights chosen by reasoning.  The
-classical probabilistic linkage model of Fellegi and Sunter estimates them instead.
-Each pair is reduced to a discrete comparison vector $\gamma(a,c)$ over four fields
-(buyer, binned text, CPV, timing), each with an explicit \emph{missing} level.  For
-field $k$ and level $\ell$ the model holds $m_k(\ell) = P(\ell \mid \text{match})$ and
-$u_k(\ell) = P(\ell \mid \text{non-match})$.  Under conditional independence the log
-Bayes factors add:
-\begin{equation}
-  M(a,c) = \log_2\frac{\lambda}{1-\lambda}
-         + \sum_{k} \log_2 \frac{m_k(\gamma_k)}{u_k(\gamma_k)},
-  \qquad
-  P(\text{match} \mid \gamma) = \frac{2^{M}}{1+2^{M}} .
-  \label{eq:fs}
-\end{equation}
-\pathcode{boamp\_pipeline/fellegi\_sunter.py} fits $m$ and $\lambda$ by expectation
-maximisation with $u$ held at the marginal level frequencies of the candidate pairs;
-a robustness fit frees all parameters.
-
-\paragraph{Why this method and not a supervised one.}
-Two properties make Fellegi--Sunter the right probabilistic method here.  It is
-fitted \emph{without labels}, so the 22 positively labelled anchors remain available
-for evaluation instead of being consumed by training---which is precisely why
-logistic regression is not viable on a benchmark this small.  And it renders the
-project's treatment of missing evidence measurable rather than assumed: an
-unobserved level receives its own $m/u$, and if that ratio is 1 its log weight is 0
-and the field contributes nothing, exactly as Equation~\eqref{eq:score} presumes.
-
-\paragraph{What the estimated weights show.}
-Verified identity proves far more informative than the rule-based scorer assumed: a
-validated SIREN scores $+2.3$ against $-3.0$ for a name-only match, a gap of more
-than five doublings of the odds, where the hand-set map used $1.0$ against $0.9$.
-Text similarity carries a steep, near-monotone gradient.  Both findings independently
-corroborate what $M_B$ exploits.  The neutrality assumption for missing evidence,
-however, is \emph{rejected}: a missing CPV scores about $-13.6$ rather than $0$.
-
-\paragraph{Why the fitted model is nevertheless not adopted.}
-The fitted prior is $\lambda \approx 0.053$, implying roughly $45{,}700$ matches among
-$868{,}527$ pairs when the benchmark base rate implies closer to $500$--$1{,}500$.
-Every initialisation from $10^{-4}$ to $5\times10^{-2}$ converges to the same value and
-the same log-likelihood, so this is a stable global optimum rather than a local trap.
-The interpretation is that the two-class mixture separates \emph{text-similar,
-well-documented pairs} from the rest---the dominant structure in the comparison
-space---rather than successors from non-successors, which are roughly $0.06\%$ of
-pairs.  The timing weights confirm this reading: observed timing scores negative while
-missing timing scores positive, which is a statement about which contracts carry typed
-durations, not about renewal.  Note that $\lambda$ enters
-Equation~\eqref{eq:fs} as a constant added to every pair, so it shifts the scores
-without reordering them; the ranking is unaffected, and only the interpretation of the
-posterior as a calibrated probability is lost.
-
-\paragraph{On the independence assumption.}
-Conditional independence is assumed by Equation~\eqref{eq:fs} and is mildly violated:
-Cramér's~$V$ reaches $0.19$ for buyer\,$\sim$\,CPV and $0.18$ for buyer\,$\sim$\,text,
-since better-identified buyers also file better-coded notices.  This is reported
-rather than corrected, because refining the dependence structure of a model whose
-latent class is already mis-specified would be effort spent on the wrong problem.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Benchmark Evaluation}
-\label{sec:evaluation}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\subsubsection{Two limitations of the benchmark}
-
-Both of the following inflate how good the results appear and are stated before any
-metric is quoted.
-
-\paragraph{The benchmark is conditioned on the predecessor ranker.}
-Reviewers were shown only the previous pipeline's top-25 candidates per anchor
-(\code{review\_candidates\_exported\_n} $=25$ for 97 of 120 anchors) drawn from a
-broad pool of median size 146.  A true successor that ranker buried at rank~40 was
-never on screen, and the anchor was recorded as having none.  Measured recall is
-therefore optimistic, and every ``no observed successor'' label means \emph{not found
-in that review}, not \emph{absent from BOAMP}.
-
-\paragraph{The locked split is not an untouched holdout.}
-\pathcode{data/processed/boamp\_grand\_ouest/linkage\_error\_analysis\_summary.json}
-records that the predecessor error analysis inspected locked-test error counts and
-per-error-type feature medians \emph{before} the gated method was designed.  The
-locked split has already influenced method design once.  It is reported here as
-already-inspected evaluation evidence, and true out-of-sample precision is likely
-lower than the figures below.
-
-\subsubsection{Candidate retrieval}
-
-Ranking quality is meaningless if the true successor was never retrieved, so
-retrieval is measured first and separately:
-\begin{equation}
-  R_K = \frac{1}{|\mathcal{A}^{+}|}
-        \sum_{a \in \mathcal{A}^{+}}
-        \mathbf{1}\bigl[\, y^{*}(a) \in \mathrm{top}_K(\mathcal{C}(a)) \,\bigr].
-  \label{eq:recall_at_k}
-\end{equation}
-Retrieval reaches $R_1 = 0.727$, $R_5 = R_{10} = 0.864$ and $R_{20} = 0.909$, with the
-true successor at median rank~1 and retrieved somewhere for 21 of 22 positive anchors.
-Blocking is therefore not the bottleneck.  The single unretrieved successor spans a
-change of buyer identity, which no same-buyer rule can recover---a ceiling, not a
-fixable defect.
-
-\subsubsection{Metrics}
-
-All metrics are computed on the locked split, with abstention treated as a first-class
-outcome:
-\begin{align}
-  P_1 &= \frac{\sum_{a} \mathbf{1}[\hat{y}(a) = y^{*}(a) \neq \emptyset]}
-              {|\{a : \hat{y}(a) \neq \emptyset\}|}, &
-  R_1 &= \frac{\sum_{a \in \mathcal{A}^{+}} \mathbf{1}[\hat{y}(a) = y^{*}(a)]}
-              {|\mathcal{A}^{+}|}, \label{eq:p1r1} \\[4pt]
-  \text{FPR} &= \frac{\sum_{a \in \mathcal{A}^{-}} \mathbf{1}[\hat{y}(a) \neq \emptyset]}
-                     {|\mathcal{A}^{-}|}, &
-  \text{coverage} &= \frac{|\{a : \hat{y}(a) \neq \emptyset\}|}{|\mathcal{A}|}.
-  \label{eq:fpr}
-\end{align}
-Pairwise accuracy is deliberately not reported: the pair data are overwhelmingly
-imbalanced, so a model that never links would score above $99.9\%$.
-
-\begin{table}[H]
-\centering
-\caption{Locked-split comparison of the four methods (69 anchors: 17 with a confirmed
-successor, 52 without).  $M_D$ is shown at its own best operating point.}
-\label{tab:locked}
-\small
-\begin{tabularx}{\textwidth}{Xrrrrr}
-\toprule
-\textbf{Method} & \textbf{Accepted} & $P_1$ & $R_1$ & \textbf{FPR} & \textbf{Coverage} \\
-\midrule
-$M_A$ deterministic     & 15 & 0.533 & 0.471 & 0.135 & 0.217 \\
-$M_B$ text ranking      &  8 & \textbf{0.875} & 0.412 & \textbf{0.000} & 0.116 \\
-$M_C$ weighted, gated   & 23 & 0.522 & \textbf{0.706} & 0.192 & 0.333 \\
-$M_D$ Fellegi--Sunter   & 13 & 0.308 & 0.235 & 0.096 & 0.188 \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\subsubsection{Uncertainty}
-
-Point estimates from 69 anchors are fragile, and the three metrics are not equally
-well established.  Exact (Clopper--Pearson) $95\%$ intervals for the selected method
-are given in Table~\ref{tab:intervals}; the denominators are the story.
-
-\begin{table}[H]
-\centering
-\caption{Locked-split metrics for the selected policy with exact $95\%$ intervals.}
-\label{tab:intervals}
-\small
-\begin{tabularx}{0.86\textwidth}{Xccc}
-\toprule
-\textbf{Metric} & \textbf{Count} & \textbf{Estimate} & \textbf{95\% interval} \\
-\midrule
-False-positive rate & 0/52 & 0.000 & $[0.000,\;0.068]$ \\
-Precision at rank 1 & 7/8  & 0.875 & $[0.473,\;0.997]$ \\
-Recall at rank 1    & 7/17 & 0.412 & $[0.184,\;0.671]$ \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-The false-positive rate is the solid result: zero false links across 52 reviewed
-no-successor anchors, and it is the metric that matters most because a false link
-fabricates a survival event.  Precision is encouraging but rests on eight accepted
-links---one further error would move it to $0.75$---and should never be quoted without
-its interval.  Recall of $0.41$ is a genuine finding rather than uncertainty: the
-policy misses roughly half of the successors that exist, by design, and that is the
-price of the false-positive rate above.
-
-\subsubsection{Method selection and the adoption rule}
-
-\paragraph{Selection of the primary policy.}
-The pilot split holds 5 positive anchors, so one prediction change moves its precision
-by $0.2$; it cannot discriminate between methods.  An automatic ``best pilot
-precision'' rule initially selected $M_C$, but only because an arbitrary coverage floor
-excluded the more precise low-coverage methods.  That floor proved unnecessary---every
-candidate policy yields at least 300 events, far above the guideline's thresholds---so
-the stated a-priori principle governs: \emph{precision first, because a false link
-fabricates both a survival event and its event time}.  $M_B$ at $\theta = 0.70$ is
-frozen as the primary policy.  This choice draws on the locked split, which as noted
-was never a clean holdout.
-
-\paragraph{Repository evidence note.}
-The free-text \code{selection\_rule} retained in the frozen v1
-\pathcode{linkage_evaluation_summary.json} contains legacy figures of 628 minimum
-events, 0.70 precision, and 0.019 false-positive rate. They conflict with that same
-artifact's current structured fields and must not be used as metrics. The structured
-cohort application gives a minimum of 300 events across the compared operating points,
-547 for the selected policy, and the all-benchmark evaluation gives precision 0.800
-and negative-anchor false-positive rate 0.000. This report uses those structured values;
-the frozen v1 output has not been silently rewritten.
-
-\paragraph{The adoption rule for the probabilistic model.}
-Because an automatic argmax had already selected the wrong method once, the rule for
-$M_D$ was fixed \emph{before} the model was fitted:
-\begin{equation}
-  M_D \text{ replaces } M_B
-  \iff
-  P_1^{D} \geq P_1^{B}
-  \;\land\;
-  R_1^{D} \geq R_1^{B}
-  \;\land\;
-  \text{FPR}^{D} \leq \text{FPR}^{B}
-  \quad\text{on } \mathcal{A}_L .
-  \label{eq:adoption}
-\end{equation}
-The challenger was swept across its entire threshold grid so the test applied to its
-best available operating point.  No operating point satisfies
-Equation~\eqref{eq:adoption}; $M_D$ is worse on all three metrics.  \textbf{The
-incumbent is retained.}
-
-This negative result is more informative than a positive one would have been.  It
-establishes \emph{why} the transparent rule is appropriate rather than merely
-asserting it: unsupervised probabilistic linkage requires the match/non-match split to
-be the dominant structure in the comparison space, and in this corpus it is not.
-
-\subsubsection{Parallel expiry-aware sensitivity}
-
-A subsequent fifth policy, $M_E$, leaves the $868{,}527$ candidate pairs unchanged and
-modifies selection only. Candidates published more than 365 days before the best
-observable expected end require $s_t\geq0.85$ and positive CPV continuity; all other
-candidates retain the $M_B$ text floor of $0.70$. It accepts 507 links instead of 547,
-retains 505 baseline pairs, removes 42, and selects 2 replacements. Its available
-benchmark metrics equal $M_B$ (precision $0.800$, recall $0.364$, negative-anchor FPR
-$0.000$), which demonstrates no observed benchmark degradation but not superiority.
-It remains a parallel sensitivity arm until the 42 changed anchors are manually
-adjudicated; the complete specification is in
-\pathcode{reports/expiry_aware_successor_selection_v1.tex}.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Survival Dataset Construction}
-\label{sec:dataset}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-\pathcode{scripts/build\_survival\_dataset.py} produces one row per cohort contract:
-\begin{equation}
-  \delta_a = \mathbf{1}\bigl[\hat{y}(a) \neq \emptyset\bigr],
-  \qquad
-  T_a =
-  \begin{cases}
-    o_{\hat{y}(a)} - t_a, & \delta_a = 1 \quad\text{(event)}\\[2pt]
-    C - t_a,              & \delta_a = 0 \quad\text{(right-censored)}
-  \end{cases}
-  \label{eq:survival_row}
-\end{equation}
-Where several successors are accepted, the first is used and the rule is documented.
-The result is $3{,}800$ rows: $547$ events and $3{,}253$ censored, reconciling exactly,
-with no negative durations, no duplicates, and no contract linked to itself.
-
-\paragraph{Why censoring rather than deletion or a negative label.}
-A censored contract is \emph{not} a contract proven never to be renewed.  It is one for
-which no successor was identified in BOAMP before the cutoff---a weaker and different
-statement.  Deleting censored rows would bias the estimates towards contracts that
-happen to have been re-procured quickly; labelling them as negatives would assert
-knowledge the data does not contain.  Retaining them as censored is the entire reason
-survival analysis is the right framework here.
-
-\paragraph{Is linkage itself biased?}
-If links were found mainly where records are well documented, the observed events
-would be a biased sample.  Completeness differs by under three percentage points
-between linked and unlinked contracts on both validated SIREN and reliable duration.
-Framework agreements are linked about eight points more often. This is a descriptive
-association that may reflect recurrent purchasing, different documentation, or
-linkage behavior; it is not evidence that framework status causes re-procurement.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Survival Analysis}
-\label{sec:survival}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\subsubsection{Non-parametric estimation}
-
-The Kaplan--Meier estimator gives the probability that a contract has no observable
-successor by time $t$, using every contract's follow-up including the censored ones.
-Fitted values are $S(12) = 0.954$, $S(24) = 0.932$ and $S(48) = 0.844$. Because fewer
-than half the contracts have an accepted event, the Kaplan--Meier median survival time
-is not reached; 32.07 months is instead the median observed delay among accepted
-events. The curve shows a shoulder at 40--50 months that is descriptively compatible
-with, but does not prove, a four-year procurement cycle.  All four
-digital segments clear the guideline's 30-event minimum, and a multivariate log-rank
-test separates them at $p = 1.7 \times 10^{-5}$.
-
-\subsubsection{Semi-parametric modelling}
-
-A Cox proportional-hazards model
-$h(t \mid X) = h_0(t)\exp(\beta^{\top}X)$ is fitted with five interpretable
-covariates: digital segment, region, framework status, buyer-identifier quality, and
-centred award year.  Declared duration is \emph{excluded} despite its theoretical
-relevance, because it is missing for roughly three quarters of the cohort and
-including it would require either discarding that data or performing the imputation
-this project refuses throughout.
-
-Three diagnostics constrain the interpretation.  Several covariates violate the
-proportional-hazards assumption under the Grambsch--Therneau test, so the coefficients
-are reported as time-averaged associations.  Concordance is $0.626$ in sample and
-$0.608$ on the 2015--2021 training years, but falls to $\mathbf{0.519}$ on the
-2022--2025 holdout---indistinguishable from chance.  Part of that reflects truncation,
-since recent contracts can only contribute short-gap events, but the model has no
-demonstrated out-of-time discriminative power.  \textbf{Nothing in the operational
-deliverable rests on the Cox model.}
-
-\subsubsection{Parametric model selection}
-
-Five families are fitted and compared on AIC, with graphical checks by linearised
-survival plot, as the guideline requires (Table~\ref{tab:parametric}).
-
-\begin{table}[H]
-\centering
-\caption{Parametric family selection.  Both AIC and BIC select the generalised gamma.}
-\label{tab:parametric}
-\small
-\begin{tabularx}{0.72\textwidth}{Xrrr}
-\toprule
-\textbf{Model} & \textbf{Parameters} & \textbf{AIC} & \textbf{BIC} \\
-\midrule
-Generalised gamma & 3 & \textbf{7555.7} & \textbf{7574.5} \\
-Log-normal        & 2 & 7608.6 & 7621.1 \\
-Log-logistic      & 2 & 7654.3 & 7666.8 \\
-Weibull           & 2 & 7669.4 & 7681.8 \\
-Exponential       & 1 & 7697.0 & 7703.3 \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-Weibull---the family the guideline highlights and the obvious default---ranks fourth
-of five, $113.7$ AIC behind the winner.  The linearised plots explain why: all three
-two-parameter families bend, and they bend in the same place, at the 40-month
-shoulder.  No monotone two-parameter family can represent a procurement cycle with a
-shoulder in it.
-
-Nevertheless the reported probabilities come from Kaplan--Meier, for two reasons.
-Every horizon reported here falls \emph{inside} the observed window, so the
-extrapolation that justifies a parametric model is not needed.  And at a contract age
-of 36 months---just before the renewal shoulder, and precisely when a purchasing body
-would want warning---the empirical estimate is roughly three times the parametric one
-($0.075$ against $0.019$--$0.027$ across all five families).  The families agree
-closely with each other and disagree with the data at the decision-relevant moment.
-
-\subsubsection{The operational quantity}
-
-The purchasing question is conditional.  For a contract that has run $\alpha$ months
-without an observable successor, the probability that one appears in the next $h$
-months is
-\begin{equation}
-  P\bigl(T \leq \alpha + h \,\big|\, T > \alpha\bigr)
-  = 1 - \frac{S(\alpha + h)}{S(\alpha)} .
-  \label{eq:conditional}
-\end{equation}
-For $\alpha = 24$ months this gives $0.021$ at $h = 12$ and $0.095$ at $h = 24$; at
-$\alpha = 36$ the twelve-month figure rises to $0.075$.  Confidence intervals are
-obtained by resampling contracts with replacement (500 draws, fixed seed) and refitting
-Kaplan--Meier, which carries the dependence between $S(\alpha)$ and $S(\alpha+h)$
-through without further assumptions.
-
-\subsubsection{Sensitivity to the linkage policy}
-
-Every event in this analysis was produced by an inferred link, so the conclusions are
-re-tested across four arms spanning a fourfold range in event count: strict (300
-events), main (547), looser (855), and a deliberately higher-recall contrast arm
-(1{,}341).  The log-rank test and the Cox model are refitted from scratch on each.
-
-\begin{table}[H]
-\centering
-\caption{Stability of the substantive conclusions across the four linkage arms.}
-\label{tab:stability}
-\small
-\begin{tabularx}{\textwidth}{Xl}
-\toprule
-\textbf{Conclusion} & \textbf{Status} \\
-\midrule
-Digital segments differ in re-procurement speed
-  & robust: $p < 0.001$ in 4/4 arms \\
-CPV-35 (security) re-procures fastest
-  & robust: HR 1.47--1.84, significant in 4/4 \\
-CPV-48 (software) re-procures slowest
-  & robust: bottom of the ordering in 4/4 \\
-Framework agreements re-procure sooner
-  & robust: same direction 4/4, significant 3/4 \\
-Whether CPV-72 or CPV-35 ranks \emph{first}
-  & \textbf{not robust}: flips between arms \\
-Absolute probability levels
-  & \textbf{not robust}: vary by $\approx 6\times$ \\
-Award-year effect
-  & confounded with censoring; not interpretable as a trend \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-\paragraph{Why this matters more than the point estimates.}
-The absolute level of the survival curve moves substantially with the acceptance
-threshold, unavoidably, since a looser policy manufactures more events.  What survives
-is the \emph{comparative} structure.  The defensible claim is therefore about ordering
-between segments, not about calibrated rates.
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Operational Output}
-\label{sec:watchlist}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\paragraph{What is done.}
-For every contract with no accepted successor, the segment-stratified Kaplan--Meier
-curve supplies $P(\text{successor within 12 months} \mid \text{age}, \text{segment})$
-via Equation~\eqref{eq:conditional}. The executed notebook computes a 20-row watchlist
-containing the five nearest-term contracts in each of the four digital segments,
-restricted to awards from the last five years. The intended export path is
-\pathcode{data/processed/boamp\_v2/renewal\_watchlist\_top20.csv}, but that standalone
-CSV is not present in the current checkout; the table currently exists only in the
-executed output of Notebook~13.
-
-\paragraph{Why it is stratified, and what it cannot do.}
-The probability is a function of segment and contract age alone, so an unstratified
-top-20 collapses onto whichever segment has the highest baseline hazard at the age
-nearest the renewal shoulder---in this corpus, twenty near-identical CPV-35 contracts
-from a single award year.  Stratifying gives a purchasing body something actionable in
-each of its four areas and is honest about the granularity the model supports.  Two
-contracts of the same age in the same segment receive the same number; this is a way
-of \emph{ordering a portfolio}, not a per-contract prediction.  The Cox model would in
-principle add individual discrimination, but at an out-of-time concordance of $0.52$
-that is not defensible.
-
-% ── Figure 2: Mathematical Pipeline ─────────────────────────────────────────
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}
-
-  \node[mnode] (m1)
-    {$\mathcal{N}$\quad (national corpus, $n = 1{,}620{,}712$ notices)};
-
-  \node[mnode, below=0.45cm of m1] (m2)
-    {$\{\nu_i\}$\quad (standardised, 91 fields, \code{v2.2})};
-
-  \node[mnode, below=0.45cm of m2] (m3)
-    {$\mathcal{E}$\quad (1{,}103{,}632 episodes; 144{,}269 Grand Ouest)};
-
-  \node[mnode, below=0.45cm of m3] (m4)
-    {$\mathcal{H}$\quad (cohort: 3{,}800 digital contracts with an award)};
-
-  \node[mnode, below=0.45cm of m4] (m5)
-    {$\mathcal{C}$\quad (868{,}527 candidate pairs, window $[90,2920]$\,d)};
-
-  \node[mnode, below=0.45cm of m5] (m6)
-    {$\hat{y}(a)$\quad (547 accepted links; 3{,}253 abstentions)};
-
-  \node[mnode, below=0.45cm of m6] (m7)
-    {$P_1 = 0.875$,\; $\text{FPR} = 0.000$\quad (locked split, $n = 69$)};
-
-  \node[mnode, below=0.45cm of m7] (m8)
-    {$(T_a,\, \delta_a)$\quad (547 events, 3{,}253 right-censored)};
-
-  \node[mnode, below=0.45cm of m8] (m9)
-    {$1 - S(\alpha+h)/S(\alpha)$\quad (12- and 24-month probabilities)};
-
-  \node[mfut, below=0.9cm of m9] (m10)
-    {Trend and change-point analysis by segment — not implemented};
-
-  \draw[pipe] (m1) -- node[mlbl]{standardise} (m2);
-  \draw[pipe] (m2) -- node[mlbl]{reconstruct episodes} (m3);
-  \draw[pipe] (m3) -- node[mlbl]{digital $\land$ Grand Ouest $\land$ award} (m4);
-  \draw[pipe] (m4) -- node[mlbl]{block on buyer and time} (m5);
-  \draw[pipe] (m5) -- node[mlbl]{score, threshold, abstain} (m6);
-  \draw[pipe] (m6) -- node[mlbl]{evaluate vs.\ $y^{*}$ on $\mathcal{A}_L$} (m7);
-  \draw[pipe] (m7) -- node[mlbl]{event and censoring} (m8);
-  \draw[pipe] (m8) -- node[mlbl]{Kaplan--Meier} (m9);
-
-  \coordinate (bnd) at ($(m9.south)!0.5!(m10.north)$);
-  \draw[orange!55, thick, densely dashed]
-    (bnd -| m9.west) -- (bnd -| m9.east);
-  \node[font=\footnotesize\itshape, text=orange!65] at (bnd)
-    {\hspace{2em}current implementation boundary};
-
-  \draw[pipedash] (m9) -- node[mlbl]{\textit{out of scope}} (m10);
-
-\end{tikzpicture}
-\caption{%
-  Mathematical transformation chain from the raw national corpus to the operational
-  probabilities.  Solid arrows are implemented stages backed by materialised
-  artifacts.  The dashed orange box is the one guideline deliverable in scope that was
-  not attempted, having been ranked below the survival chain in priority.
-}
-\label{fig:mathpipeline}
+\includegraphics[width=0.92\textwidth]{figures/benchmark_v3_validation_method_metrics.png}
+\caption{Validation split method comparison generated from the current v3 evaluation JSON.}
 \end{figure}
 
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Scope, Deviations, and Limitations}
-\label{sec:scope}
-% ─────────────────────────────────────────────────────────────────────────────
+\section{Modeling Tables}
+The modeling-ready tables include strict, primary, broad, and non-match target
+columns, plus observable features. They now include the Fellegi--Sunter columns
+\code{fs\_match\_weight} and \code{fs\_match\_probability}, so modeling and
+evaluation use the same feature state.
 
-\subsubsection{Deliberate deviations from the guideline}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.86\textwidth]{figures/benchmark_v3_modeling_counts.png}
+\caption{Current v3 modeling table sizes and label support.}
+\end{figure}
 
+\section{Decision}
+The current defensible decision is to keep \code{M\_B\_text\_ranking @ 0.70}
+as the primary observable-successor method. It is not the highest-recall method,
+but the survival analysis is more sensitive to false positives than to
+abstention: a false positive fabricates both an event and an event time, while an
+abstention becomes right-censoring.
+
+\section{Current Source Files}
 \begin{itemize}
-  \item \textbf{Kaplan--Meier by buyer type} is not produced.  Classifying buyers as
-        local authority, health institution or educational institution requires SIRENE
-        enrichment, which was not available offline.
-  \item \textbf{Kaplan--Meier by amount bracket} is not produced.  Amount is $16\%$
-        missing in the cohort and, more importantly, ambiguous between estimate,
-        ceiling, award value and single-lot value; it is excluded from the analysis
-        rather than used unreliably.
-  \item \textbf{NLP classification of digital contracts} is out of scope, handled
-        separately.  A transparent CPV-division definition is used instead, and is not
-        represented as a validated classifier.
-  \item \textbf{Trend and change-point detection} was ranked below the survival chain
-        and was not reached.
+\item \pathcode{data/processed/boamp\_v2/linkage\_evaluation\_summary\_v3\_dev\_primary.json}
+\item \pathcode{data/processed/boamp\_v2/linkage\_evaluation\_summary\_v3\_validation\_primary.json}
+\item \pathcode{data/processed/boamp\_v2/benchmark\_v3/modeling/benchmark\_v3\_modeling\_summary.json}
+\item \pathcode{data/processed/boamp\_v2/benchmark\_v3/benchmark\_v3\_manifest.json}
 \end{itemize}
 
-\subsubsection{Limitations that bound every reported number}
-
-\begin{enumerate}
-  \item \textbf{Linkage incompleteness.}  The policy accepts links for $14.4\%$ of the
-        3,800-contract cohort and recovers roughly four in ten reviewed successors at
-        rank one. Missing links tend to lower event estimates, while false links can
-        raise them, so the resulting survival quantities are conservative,
-        policy-dependent estimates rather than formal lower bounds or renewal rates.
-  \item \textbf{Benchmark limitations.}  Measured recall is optimistic because the
-        review was conditioned on the predecessor ranker, and no clean holdout exists.
-        The strongest single result---zero false positives in 52 reviewed
-        negatives---still carries an upper bound of $0.068$.
-  \item \textbf{Censoring is not absence.}  A censored contract may have been renewed
-        outside BOAMP, through a central purchasing body such as Gigalis itself, or
-        below publication thresholds.
-  \item \textbf{Recent-year truncation.}  Contracts awarded in 2024--2025 can only
-        contribute short-gap events.  Kaplan--Meier accounts for the unequal follow-up,
-        but the residue may include follow-on procurement rather than renewal and would
-        inflate the twelve-month figure specifically.
-\end{enumerate}
-
-% ─────────────────────────────────────────────────────────────────────────────
-\subsection{Summary of Implemented Stages}
-% ─────────────────────────────────────────────────────────────────────────────
-
-\begin{table}[H]
-\centering
-\caption{Implemented pipeline stages, driving artifacts, and outputs.}
-\label{tab:summary}
-\small
-\begin{tabularx}{\textwidth}{
-  >{\centering\arraybackslash}p{0.45cm}
-  >{\raggedright\arraybackslash}p{3.75cm}
-  >{\raggedright\arraybackslash}p{4.1cm}
-  >{\raggedright\arraybackslash}X}
-\toprule
-\textbf{\#} & \textbf{Stage} & \textbf{Driving artifact} & \textbf{Primary output} \\
-\midrule
-1  & Data Acquisition
-   & \pathcode{download_boamp.py}
-   & 11 yearly JSONL files \\
-2  & Schema-Aware Standardisation
-   & \pathcode{build_standardized_notices.py}
-   & 1{,}620{,}712 notices, 91 fields \\
-3  & Episode Reconstruction
-   & \pathcode{build_procurement_episodes.py}
-   & 1{,}103{,}632 episodes \\
-4  & Evidence Audit
-   & Notebook 10
-   & Executed audit; standalone metrics/review exports absent \\
-5  & Benchmark Remapping
-   & \pathcode{remap_benchmark_to_v2_episodes.py}
-   & Benchmark on current episode IDs \\
-6  & Study Cohort Definition
-   & \pathcode{build_survival_cohort.py}
-   & 3{,}800 contracts; quality summary \\
-7  & Candidate Generation
-   & \pathcode{build_linkage_candidates.py}
-   & 868{,}527 scored pairs \\
-8  & Probabilistic Model
-   & \pathcode{fit_fellegi_sunter.py}
-   & Estimated $m$, $u$, $\lambda$; diagnostics \\
-9  & Method Comparison
-   & \pathcode{evaluate_linkage.py}
-   & Four v1 methods; frozen config; parallel expiry arm \\
-10 & Survival Dataset
-   & \pathcode{build_survival_dataset.py}
-   & 547 events, 3{,}253 censored; 4 arms \\
-11 & Cohort and Quality Evidence
-   & Notebook 11
-   & Funnel; missingness; composition \\
-12 & Linkage Evidence
-   & Notebook 12
-   & Recall@$K$; comparison; intervals \\
-13 & Survival Evidence and Watchlist
-   & Notebook 13
-   & KM, Cox, parametric; watchlist table in notebook output \\
-\bottomrule
-\end{tabularx}
-\end{table}
-
-Each notebook closes with an \textbf{Evidence / Decision} section recording what was
-tested, the quantitative result, what remains uncertain, what was decided, and whether
-the next stage may proceed.  The full chain is reproducible from the commands
-documented in \pathcode{README.md}.
-
-% ═══════════════════════════════════════════════════════════════════════════════
 \end{document}

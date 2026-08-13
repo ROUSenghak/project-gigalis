@@ -53,6 +53,7 @@ from boamp_pipeline.linkage import (
     buyer_score,
     buyer_similarity,
     classify_buyer_match,
+    compatible_buyer_identifiers,
     cpv_continuity_score,
     evidence_completeness,
     is_digital,
@@ -156,13 +157,22 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
 
         index = np.fromiter(positions, dtype=np.int64, count=len(positions))
         origins = pool_origin[index]
-        keep = (origins >= earliest) & (origins <= horizon) & (pool_ids[index] != anchor.episode_id)
+        anchor_siren = str(anchor.buyer_siren or "").strip()
+        compatible_identifier = np.array(
+            [compatible_buyer_identifiers(anchor_siren, pool_siren[i]) for i in index],
+            dtype=bool,
+        )
+        keep = (
+            (origins >= earliest)
+            & (origins <= horizon)
+            & (pool_ids[index] != anchor.episode_id)
+            & compatible_identifier
+        )
         index = index[keep]
         if index.size == 0:
             anchors_without_candidates += 1
             continue
 
-        anchor_siren = str(anchor.buyer_siren or "").strip()
         anchor_name = str(anchor.buyer_name_blocking or "")
         anchor_cpv = parse_json_list(anchor.all_cpvs_json)
         expected_duration = (
@@ -248,7 +258,9 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
         "min_gap_days": MIN_GAP_DAYS,
         "max_gap_days": MAX_GAP_DAYS,
         "blocking_rule": (
-            "same buyer_key OR same normalized buyer name; candidate origin between "
+            "same buyer_key OR same normalized buyer name, with conflicting validated "
+            "SIRENs excluded; municipal prefixes are dropped but intercommunal legal "
+            "forms are preserved; candidate origin between "
             f"{MIN_GAP_DAYS} and {MAX_GAP_DAYS} days after the anchor award date"
         ),
         "cohort_anchors": int(len(cohort)),

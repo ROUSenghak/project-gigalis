@@ -1,0 +1,51 @@
+# Linkage Quality Evidence
+
+Generated from the latest v3 validation reference.
+
+## What Each Diagnostic Means
+
+- **Confusion matrix:** anchor-level evidence, matching the actual pipeline decision: one accepted successor or abstention.
+- **Exact-successor accounting:** stricter project metric; a wrong successor is both a false accepted link and a missed true successor.
+- **ROC curve:** pair-level score-ranking diagnostic over exposed candidate pairs. Useful, but less important than precision-recall because positives are rare.
+- **Precision-recall curve:** pair-level score-ranking diagnostic. This is the better curve for this project because validation has only 62 positive pairs out of 1,754 candidate pairs.
+
+## Validation Event-Detection Confusion Matrix
+
+Rows are actual anchor status; columns are predicted link/abstention. Here, a wrong candidate on a positive anchor still counts as detecting that the anchor has a successor.
+
+| method | threshold | tp | fp | fn | tn |
+| --- | --- | --- | --- | --- | --- |
+| M_A_deterministic | 70.0000 | 2 | 4 | 20 | 34 |
+| M_B_text_ranking | 70.0000 | 5 | 0 | 17 | 38 |
+| M_C_weighted_gated | 70.0000 | 11 | 4 | 11 | 34 |
+| M_D_fellegi_sunter | 65.0000 | 0 | 1 | 22 | 37 |
+
+## Validation Exact-Successor Accounting
+
+This is the stricter accounting behind project precision and recall. Cells do not necessarily sum to the number of anchors because a wrong successor contributes one FP and one FN.
+
+| method | threshold | tp | fp | fn | tn |
+| --- | --- | --- | --- | --- | --- |
+| M_A_deterministic | 70.0000 | 1 | 5 | 21 | 34 |
+| M_B_text_ranking | 70.0000 | 4 | 1 | 18 | 38 |
+| M_C_weighted_gated | 70.0000 | 9 | 6 | 13 | 34 |
+| M_D_fellegi_sunter | 65.0000 | 0 | 1 | 22 | 37 |
+
+## Validation Pair-Level ROC and Precision-Recall Metrics
+
+| method | pair_roc_auc | pair_average_precision | positive_pairs | negative_pairs |
+| --- | --- | --- | --- | --- |
+| M_A_deterministic | 0.5129 | 0.0390 | 62 | 1701 |
+| M_B_text_ranking | 0.9453 | 0.5354 | 62 | 1701 |
+| M_C_weighted_gated | 0.7900 | 0.3257 | 62 | 1701 |
+| M_D_fellegi_sunter | 0.6573 | 0.0533 | 62 | 1701 |
+
+## Interpretation
+
+`M_B_text_ranking @ 0.70` is still the defensible primary method. It is not the highest-recall method, but it has zero validation false positives on no-successor anchors and the best pair-level ranking diagnostics: ROC AUC 0.9464 and average precision 0.5402.
+
+## Plot Files
+
+- `reports/figures/benchmark_v3_validation_confusion_matrices.png`
+- `reports/figures/benchmark_v3_validation_pair_roc.png`
+- `reports/figures/benchmark_v3_validation_pair_precision_recall.png`

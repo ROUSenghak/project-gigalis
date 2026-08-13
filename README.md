@@ -1,4 +1,29 @@
-# BOAMP Raw Data Acquisition
+# BOAMP Observable Successor Procurement Study
+
+## Final workflow
+
+The consolidated methodology and decision boundary are documented in
+[`FINAL_PIPELINE.md`](FINAL_PIPELINE.md). There is one primary result:
+`M_B_text_ranking @ 0.70`. The expiry-aware method remains a sensitivity audit
+because manual inspection shows that a hard early-candidate rule can remove
+plausible successors.
+
+Run the complete ordered workflow with one command:
+
+```bash
+PYTHONPATH=. python3 scripts/run_final_pipeline.py
+```
+
+Complete existing stages are skipped. Add `--force` only for an intentional
+full rebuild, and add `--with-notebooks --with-tests` for the final evidence and
+verification pass. The runner writes a reproducibility manifest to
+`data/processed/boamp_v2/final_pipeline_manifest.json`.
+
+The primary event is an **observable successor procurement**, not a confirmed
+legal renewal. `expiry_link_review.csv` is a manual audit queue and is not read
+by the survival pipeline.
+
+## Raw data acquisition
 
 Download the historical BOAMP raw corpus with:
 
@@ -181,6 +206,52 @@ python3 -m jupyter nbconvert --execute --to notebook --inplace \
 
 Each notebook ends with an **Evidence / Decision** section recording what was
 tested, what the numbers were, what remains uncertain, and what was frozen.
+
+## National benchmark v3 (in construction)
+
+The two limitations below are properties of the **v1** benchmark, and v3 exists
+to remove them. Auditing v1 found more than the documented weaknesses: its
+dual-annotation and adjudication columns are empty on all 120 rows, its 70
+negatives share a single boilerplate reason, its confidence is a deterministic
+function of its outcome, and its sampling weights were computed but used in no
+metric. Its labelling rubric — "same buyer, same functional need" — is also
+what `M_B_text_ranking` computes, so the benchmark that selected the incumbent
+method structurally favoured it.
+
+Build it with:
+
+```bash
+PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-benchmark-v3
+```
+
+This is national (21,416-episode frame against v1's 1,616), stratified with a
+reproducible design whose weights reconstruct the frame exactly, and exposed
+through seven retrievers plus a random tail so that no single ranker decides
+what an annotator sees. Ground truth is mined from notices that *declare* their
+own succession, and the predecessor is resolved by expiry date, reference or
+incumbent supplier — never by text similarity.
+
+Evaluate against it without disturbing the frozen v1 results:
+
+```bash
+PYTHONPATH=. python3 scripts/evaluate_linkage.py --benchmark v3 --split dev
+```
+
+`--benchmark v1` remains the default and reproduces field-for-field.
+
+**Status: machinery complete and gated, annotation in progress.** 533 anchors
+are sampled and exposed; 3 are annotated as a protocol pilot. Read
+[`DATASHEET.md`](data/processed/boamp_v2/benchmark_v3/DATASHEET.md) before
+quoting any v3 number — labels are LLM-produced under an enforced protocol, and
+the measured correlation between those labels and the incumbent text score
+(r = 0.346) is published there rather than argued away.
+
+One finding from it already bears on the results above: across 347
+buyer-declared renewal pairs, **70.3% are published before the previous
+contract's expected end and 29.7% more than a year before**. The expiry-aware
+sensitivity arm applies its strictest rule precisely there, so on this evidence
+it would penalise roughly three in ten genuine renewals — which supports
+keeping it an audit rather than promoting it.
 
 ### Two limitations that must travel with any quoted result
 

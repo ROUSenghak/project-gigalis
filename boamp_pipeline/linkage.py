@@ -86,8 +86,7 @@ _ACCENT_RE = re.compile(r"[^a-z0-9]+")
 _WS_RE = re.compile(r"\s+")
 _BUYER_STOPWORDS_RE = re.compile(
     r"\b(commune de|ville de|mairie de|departement de|departement|region|"
-    r"conseil regional|conseil departemental|communaute de communes|"
-    r"communaute d agglomeration|metropole)\b"
+    r"conseil regional|conseil departemental)\b"
 )
 
 
@@ -128,6 +127,10 @@ def normalize_buyer_for_blocking(value: Any) -> str:
 
     "Commune de Nantes" and "Nantes" block together, which matters because the
     same buyer is named inconsistently across BOAMP schemas.
+
+    Intercommunal legal forms are deliberately preserved. For example,
+    "Rennes Metropole" must not collapse onto "Ville de Rennes": they are
+    distinct public buyers unless a validated SIREN proves otherwise.
     """
     return _WS_RE.sub(" ", _BUYER_STOPWORDS_RE.sub(" ", normalize_text(value))).strip()
 
@@ -172,6 +175,8 @@ def classify_buyer_match(
     matches another empty SIREN, because "both unknown" is not evidence of
     being the same organisation.
     """
+    if not compatible_buyer_identifiers(anchor_siren, candidate_siren):
+        return "none"
     if anchor_siren and candidate_siren and anchor_siren == candidate_siren:
         return "siren"
     if anchor_name and candidate_name and anchor_name == candidate_name:
@@ -181,6 +186,13 @@ def classify_buyer_match(
     if jaccard(buyer_tokens(anchor_name), buyer_tokens(candidate_name)) >= token_threshold:
         return "token_overlap"
     return "none"
+
+
+def compatible_buyer_identifiers(anchor_siren: str, candidate_siren: str) -> bool:
+    """False when both validated buyer identifiers exist and conflict."""
+    left = str(anchor_siren or "").strip()
+    right = str(candidate_siren or "").strip()
+    return not (left and right and left != right)
 
 
 def buyer_score(match_type: str) -> float:

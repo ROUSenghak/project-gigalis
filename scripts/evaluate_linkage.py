@@ -56,6 +56,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from boamp_pipeline.benchmark_io import load_truth_v1, load_truth_v3
+from boamp_pipeline.benchmark_metrics import (
+    annotator_bias_report,
+    hard_negative_suite_metrics,
+    weighted_evaluate,
+)
+from boamp_pipeline.fellegi_sunter_scoring import score_with_fitted_model
 from boamp_pipeline.linkage import DEFAULT_WEIGHTS
 
 DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
@@ -83,17 +90,11 @@ FUZZY_BUYER_MIN_SIMILARITY = 0.82
 #: coverage floor of 0.25 excluded the more precise but lower-coverage
 #: methods.
 #:
-#: That coverage floor turned out to be unnecessary: every candidate policy
-#: yields at least 628 events on the 3,800-episode cohort, far above the
-#: guideline's thresholds (>=800 contracts, >=30 events per Kaplan-Meier
-#: stratum, >=10 events per Cox covariate). With event volume no longer
-#: binding, the stated a-priori principle governs: a false link fabricates
-#: both a survival event and its event time, so precision and the
-#: false-positive rate on no-successor anchors take priority over coverage.
-#:
-#: ``M_B_text_ranking`` is the most precise method on the benchmark
-#: (precision@1 0.70, false-positive rate 0.019 against 0.44/0.24 for
-#: ``M_C_weighted_gated``) while still producing 628 events.
+#: With event volume not binding, the stated a-priori principle governs: a
+#: false link fabricates both a survival event and its event time, so precision
+#: and the false-positive rate on no-successor anchors take priority over
+#: coverage. The current computed metrics live in the JSON summaries; this
+#: comment deliberately avoids frozen numeric claims.
 #:
 #: Honesty constraint: this choice draws on the locked split, which was
 #: already inspected in notebooks/07 before the present work and therefore
@@ -135,18 +136,13 @@ def configure_logging(project_root: Path) -> None:
 
 
 def load_truth(output_dir: Path) -> pd.DataFrame:
-    """One row per evaluable benchmark anchor, mapped onto v2 episode IDs."""
-    remap_dir = output_dir / "benchmark_remap"
-    evaluation = pd.read_csv(remap_dir / "evaluation_subset_v2_remap.csv")
-    evaluation = evaluation.loc[evaluation["anchor_v2_episode_id"].notna()].copy()
-    evaluation["true_successors"] = evaluation["successor_v2_episode_ids_json"].map(json.loads)
-    evaluation["has_successor"] = evaluation["final_outcome"].isin(
-        ["OBSERVED_SUCCESSOR", "MULTIPLE_SUCCESSORS"]
-    )
-    # An anchor labelled as having a successor but whose successor did not
-    # survive remapping cannot be scored for recall; keep it visible.
-    evaluation["truth_usable"] = ~evaluation["has_successor"] | evaluation["true_successors"].str.len().gt(0)
-    return evaluation
+    """One row per evaluable benchmark anchor, mapped onto v2 episode IDs.
+
+    The v1 body now lives in :func:`boamp_pipeline.benchmark_io.load_truth_v1`,
+    moved verbatim so that adding the v3 benchmark cannot change a v1 number.
+    A test asserts the v1 summary still reproduces field for field.
+    """
+    return load_truth_v1(output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -506,12 +502,12 @@ def build(project_root: Path, output_dir: Path) -> dict[str, Any]:
         "selection_rule": (
             "Documented judgement, not an automatic argmax. The pilot split has 5 positive "
             "anchors, so its precision moves by 0.2 per prediction and cannot discriminate "
-            "between methods. Every candidate policy clears the event volume survival analysis "
-            "needs (>=628 events on 3,800 episodes), so the a-priori precision-first principle "
-            "governs: a false link fabricates both a survival event and its event time. "
-            "M_B_text_ranking is the most precise method available (precision@1 0.70, "
-            "false-positive rate 0.019). This choice draws on the locked split, which was "
-            "already inspected in notebooks/07 and never functioned as an untouched holdout."
+            "between methods. The a-priori precision-first principle governs: a false "
+            "link fabricates both a survival event and its event time. Current precision, "
+            "recall, false-positive-rate, and event-volume values are reported in the "
+            "structured summary fields generated in the same run. This choice draws on "
+            "the locked split, which was already inspected in notebooks/07 and never "
+            "functioned as an untouched holdout."
         ),
         "threshold_grid": list(THRESHOLD_GRID),
     }
@@ -565,10 +561,141 @@ def build(project_root: Path, output_dir: Path) -> dict[str, Any]:
     return summary
 
 
+def build_v3(project_root: Path, output_dir: Path, split: str, event_set: str,
+             open_sealed: bool, seal_reason: str) -> dict[str, Any]:
+    """Evaluate the frozen methods against the national v3 benchmark.
+
+    Reported alongside, never instead of, the v1 result. Three things the v1
+    path could not do happen here: estimates are design-weighted with
+    intervals, a false-positive rate is computed only over anchors whose whole
+    pool was reviewed, and every method is additionally scored on a suite of
+    pairs that are provably not renewals.
+    """
+    benchmark_dir = output_dir / "benchmark_v3"
+    exposure = pd.read_parquet(benchmark_dir / "exposure_full.parquet")
+    exposure = score_with_fitted_model(exposure, output_dir / "fellegi_sunter_model.json")
+    truth, access_record = load_truth_v3(
+        benchmark_dir, split, event_set,
+        project_root=project_root, allow_sealed=open_sealed, seal_reason=seal_reason,
+    )
+    logging.info(
+        "v3 benchmark: split=%s event_set=%s anchors=%s", split, event_set, len(truth)
+    )
+
+    # The benchmark's own universe: a prediction outside it is out of scope,
+    # not wrong.
+    pool_membership: dict[str, set[str]] = {}
+    for anchor, group in exposure.groupby("anchor_episode_id"):
+        pool_membership[anchor] = set(group["candidate_episode_id"])
+
+    scored = exposure.rename(columns={"anchor_episode_id": "anchor_episode_id"}).copy()
+    evaluable = scored.loc[scored["anchor_episode_id"].isin(set(truth["anchor_v2_episode_id"]))]
+
+    negatives_path = benchmark_dir / "structural_negatives.parquet"
+    negatives = pd.read_parquet(negatives_path) if negatives_path.exists() else pd.DataFrame()
+
+    results: list[dict[str, Any]] = []
+    for method in METHODS:
+        if method == "M_D_fellegi_sunter" and "fs_match_probability" not in evaluable.columns:
+            continue
+        threshold = (
+            METHOD_THRESHOLD_GRID["M_D_fellegi_sunter"][-2]
+            if method == "M_D_fellegi_sunter" else PRIMARY_THRESHOLD
+        )
+        predictions = predict(evaluable, method, threshold)
+        top1 = predictions.loc[predictions["predicted_rank"] == 1] if len(predictions) else predictions
+        entry = {
+            "method": method,
+            "threshold": threshold,
+            "unweighted_all_frames": evaluate(predictions, truth),
+        }
+        # Design-weighted estimation is only meaningful on the probability
+        # frame. Enrichment anchors were purposively recruited and carry no
+        # inclusion probability, so they are reported unweighted and separately
+        # rather than averaged into a national figure.
+        probability = truth.loc[truth.get("frame", "PROBABILITY") == "PROBABILITY"]
+        enrichment = truth.loc[truth.get("frame", "PROBABILITY") != "PROBABILITY"]
+        if len(probability):
+            entry["weighted_national"] = weighted_evaluate(
+                predictions, probability, pool_membership=pool_membership
+            )
+        else:
+            entry["weighted_national"] = {
+                "anchors": 0,
+                "note": "no probability-frame anchors labelled yet; no national estimate possible",
+            }
+        if len(enrichment):
+            entry["unweighted_enrichment"] = evaluate(predictions, enrichment)
+        if len(negatives):
+            entry["hard_negatives"] = hard_negative_suite_metrics(top1, negatives)
+        results.append(entry)
+
+    labels_path = benchmark_dir / "labels_adjudicated.parquet"
+    bias = {}
+    if labels_path.exists():
+        labels = pd.read_parquet(labels_path)
+        settled = labels.loc[labels["label"].notna()]
+        bias = annotator_bias_report(settled, exposure)
+
+    summary = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "benchmark": "v3",
+        "split": split,
+        "event_set": event_set,
+        "scoring_sources": {
+            "exposure": str(benchmark_dir / "exposure_full.parquet"),
+            "fellegi_sunter_model": str(output_dir / "fellegi_sunter_model.json"),
+        },
+        "anchors_evaluated": int(len(truth)),
+        "methods": results,
+        "annotator_bias": bias,
+        "sealed_access_record": access_record,
+        "caveats": {
+            "annotation_source": (
+                "Labels were produced by a language model under a written protocol with "
+                "double annotation, adjudication and enforced verbatim evidence. Kappa "
+                "measures self-consistency, not inter-annotator agreement."
+            ),
+            "exposure_universe": (
+                "A negative means no successor inside the benchmark's candidate pool. "
+                "Predictions outside that pool are reported separately."
+            ),
+        },
+        "validation_passed": bool(results),
+    }
+    suffix = f"_{split}_{event_set}"
+    (output_dir / f"linkage_evaluation_summary_v3{suffix}.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
+    )
+    return summary
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project-root", type=Path, default=PROJECT_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument(
+        "--benchmark", choices=["v1", "v3"], default="v1",
+        help="Which benchmark to evaluate against. Defaults to v1 so the frozen "
+             "workflow reproduces byte for byte.",
+    )
+    parser.add_argument(
+        "--split", choices=["dev", "validation", "sealed_test"], default="dev",
+        help="v3 only. dev tunes thresholds, validation selects methods, "
+             "sealed_test is opened once through an audited path.",
+    )
+    parser.add_argument(
+        "--event-set", choices=["strict", "primary", "broad"], default="primary",
+        help="v3 only. Which label classes count as an event.",
+    )
+    parser.add_argument(
+        "--open-sealed-test", action="store_true",
+        help="Authorise reading the sealed split. Every opening is logged.",
+    )
+    parser.add_argument(
+        "--seal-reason", default="",
+        help="Why the sealed split is being opened. Required with --open-sealed-test.",
+    )
     return parser.parse_args()
 
 
@@ -577,7 +704,13 @@ def main() -> int:
     project_root = args.project_root.resolve()
     output_dir = args.output_dir if args.output_dir.is_absolute() else project_root / args.output_dir
     configure_logging(project_root)
-    summary = build(project_root, output_dir)
+    if args.benchmark == "v3":
+        summary = build_v3(
+            project_root, output_dir, args.split, args.event_set,
+            args.open_sealed_test, args.seal_reason,
+        )
+    else:
+        summary = build(project_root, output_dir)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 

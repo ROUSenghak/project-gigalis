@@ -5,6 +5,7 @@ from boamp_pipeline.linkage import (
     MIN_GAP_DAYS,
     MISSING,
     classify_buyer_match,
+    compatible_buyer_identifiers,
     cpv_continuity_score,
     evidence_completeness,
     is_digital,
@@ -48,6 +49,23 @@ def test_unknown_buyer_identifiers_never_match_each_other() -> None:
     assert classify_buyer_match("", "", "nantes", "nantes") == "normalized_name"
 
 
+def test_conflicting_verified_buyer_identifiers_block_name_match() -> None:
+    """A shared label cannot override a validated SIREN conflict."""
+    assert compatible_buyer_identifiers("213502388", "213502388") is True
+    assert compatible_buyer_identifiers("213502388", "") is True
+    assert compatible_buyer_identifiers("", "243500139") is True
+    assert compatible_buyer_identifiers("213502388", "243500139") is False
+    assert (
+        classify_buyer_match(
+            "213502388",
+            "243500139",
+            "rennes",
+            "rennes",
+        )
+        == "none"
+    )
+
+
 def test_succession_window_excludes_concurrent_procurement() -> None:
     """The floor keeps parallel lots out; the shortest confirmed link is 139d."""
     assert 0 < MIN_GAP_DAYS < 139
@@ -58,3 +76,14 @@ def test_generic_public_body_prefixes_block_together() -> None:
     assert normalize_buyer_for_blocking("Commune de Nantes") == normalize_buyer_for_blocking("NANTES")
     assert is_digital(["72212000", "45000000"]) is True
     assert is_digital(["45000000"]) is False
+
+
+def test_intercommunal_legal_forms_are_not_removed_from_buyer_blocking() -> None:
+    """A commune and its intercommunal authority are distinct legal buyers."""
+    assert normalize_buyer_for_blocking("Ville de Rennes") == "rennes"
+    assert normalize_buyer_for_blocking("Commune de Rennes") == "rennes"
+    assert normalize_buyer_for_blocking("Mairie de Rennes") == "rennes"
+    assert normalize_buyer_for_blocking("Rennes Métropole") == "rennes metropole"
+    assert normalize_buyer_for_blocking("Nantes Métropole") != normalize_buyer_for_blocking("Ville de Nantes")
+    assert normalize_buyer_for_blocking("Communauté d'agglomération de Saint-Malo") != "saint malo"
+    assert normalize_buyer_for_blocking("Communauté de communes du Pays de Redon") != "pays de redon"

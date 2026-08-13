@@ -63,11 +63,19 @@
   {\normalsize BOAMP Grand Ouest Digital Procurement Pipeline}
 }
 \author{BOAMP Data Science Internship Project}
-\date{12 August 2026}
+\date{13 August 2026\\{\small Current status note; expiry artifacts were generated on 12 August 2026}}
 
 \begin{document}
 
 \maketitle
+
+\noindent\fbox{\parbox{0.94\textwidth}{%
+\textbf{Current scope.} This report documents the Grand Ouest expiry-aware
+sensitivity arm, not the latest national v3 method-selection benchmark. The
+current v3 comparison of \(M_A\), \(M_B\), \(M_C\), and \(M_D\) is reported in
+\pathcode{reports/boamp_methodology_chapter.tex}. The expiry-aware arm remains
+an audit/sensitivity dataset and is not promoted as the primary event
+definition.}}
 
 \begin{abstract}
 This report documents the implemented expiry-aware successor-selection policy for
@@ -843,23 +851,27 @@ prove that every selected link is a renewal.
 
 \section{Recommended Decision and Next Steps}
 
-The expiry-aware method should remain the preferred promotion candidate and v1 should
-remain the reproducible baseline until review is complete. The next work is narrow:
+The consolidated project decision is to retain v1 as the primary analysis and use the
+expiry-aware result as a sensitivity audit. The automated numerical gate is not enough
+to justify promotion: preliminary inspection of the changed cases identifies plausible
+early successors that fail the hard conjunction of text and CPV requirements. Expiry
+evidence is informative, but the current rule is not reliable enough to redefine the
+event automatically.
 
 \begin{enumerate}
-  \item Review all 42 changed anchors in
-  \pathcode{data/processed/boamp_v2/expiry_link_review.csv}.
-  \item Assign one label: correct removal, incorrect removal, correct replacement,
-  incorrect replacement, or insufficient evidence.
-  \item Promote only if review supports the early-evidence gate. If genuine early
-  successors are frequently removed, revise the boundary or gate and rerun the same
-  parallel evaluation.
-  \item If promoted, rerun Kaplan--Meier, Cox, parametric, and watchlist outputs using
-  the expiry-aware survival dataset while retaining v1 as sensitivity evidence.
+  \item Report the 547-link v1 result as primary and the 507-link expiry result as a
+  sensitivity analysis.
+  \item Retain
+  \pathcode{data/processed/boamp_v2/expiry_link_review.csv} as an auditable record of
+  every changed event definition; it is not an input to the survival pipeline.
+  \item If future work revisits the rule, formally label the 42 cases as correct
+  removal, incorrect removal, correct replacement, incorrect replacement, or
+  insufficient evidence before estimating another threshold.
+  \item Do not add another linkage or machine-learning model for the final project.
 \end{enumerate}
 
-No additional machine-learning model is recommended before this review. The highest
-value next labels are the 42 cases where the policy changes the event definition.
+This decision preserves a single reproducible primary analysis while showing how much
+the time-to-event results depend on a stricter interpretation of expiry evidence.
 
 \section{Further Questions}
 
