@@ -93,8 +93,9 @@ results, and failure analysis so that implementation status can be audited direc
 
 \section{Technical Summary}
 
-The expiry-aware policy is methodologically stronger than the frozen baseline because
-it addresses a documented failure mode: a public buyer can publish many unrelated
+The expiry-aware policy is more conservative and more explicitly aligned with contract
+timing than the frozen baseline because it addresses a documented failure mode: a
+public buyer can publish many unrelated
 procurements while an existing contract is active. The baseline
 \code{M\_B\_text\_ranking} method accepts a same-buyer candidate primarily from text
 similarity, so repeated buyer and administrative language can produce an implausibly
@@ -266,6 +267,10 @@ s_b(a,c) \in \{1.00,0.90,0.70,0.60,0.00\},
 
 in that order. Candidate blocking already requires the same exact buyer key or
 normalised blocking name; this score measures the strength of that identity evidence.
+Simple raw case variants such as \code{Ville de Paris} and \code{VILLE DE PARIS}
+normalise to the same name. Organisational suffixes remain distinct unless a shared
+validated SIREN or the blocking-name rule provides continuity; this is formatting
+normalisation, not complete buyer entity resolution.
 
 \paragraph{Text evidence.}
 Text is normalised to lowercase accent-free alphanumeric tokens. For each anchor

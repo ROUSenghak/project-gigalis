@@ -106,21 +106,26 @@
 This chapter documents the methodology used to estimate when a French public digital
 contract is likely to generate a new, observable purchasing need.  Each stage is
 described with what it does, the reasoning behind its design, and formal notation.
-Every quantity is taken directly from a materialised artifact in the project
-repository; nothing is quoted from an earlier iteration of the pipeline.
+Every numerical result is taken from a current v2 summary artifact or an executed
+notebook in the project repository; nothing is quoted from the superseded pre-v2
+session report. Where a notebook-derived standalone export is absent from the current
+checkout, that limitation is stated explicitly.
 
 The central difficulty is that BOAMP publishes no field linking a contract to its
 renewal.  The link must be inferred, and because a wrong link fabricates both a
 survival event and its event time, the inference is evaluated against a manually
-reviewed benchmark rather than assumed correct.  Four linkage methods are compared,
+reviewed benchmark rather than assumed correct.  Four v1 linkage methods are compared,
 including a classical probabilistic model whose weights are estimated rather than
-chosen.  The methodology is deliberately conservative: the accepted linkage policy
-abstains on most contracts, and the resulting survival estimates are reported as
-lower bounds throughout.
+chosen; a fifth expiry-aware policy is retained as a parallel sensitivity arm.  The
+methodology is deliberately conservative: the accepted linkage policy abstains on
+most contracts, but absolute survival estimates remain policy-dependent rather than
+formal statistical lower bounds.
 
 Two diagrams are included.  Figure~\ref{fig:pipeline} gives a coloured overview of
-the thirteen implemented stages; Figure~\ref{fig:mathpipeline} shows the
-mathematical transformation chain from the raw corpus to the operational output.
+the thirteen analytical stages; Figure~\ref{fig:mathpipeline} shows the mathematical
+transformation chain from the raw corpus to the operational output.  Stage~13 is
+executed inside Notebook~13, but its standalone watchlist CSV is not present in the
+current checkout.
 
 \paragraph{A note on terminology.}
 Throughout this chapter an inferred link is called an \emph{observable successor
@@ -214,7 +219,7 @@ subsections that follow describe each stage in turn.
 
   %% ── Right column: Stages 8--13 ────────────────────────────────────────────
   \node[model, right=2.5cm of s7]  (s8)  {8.\enspace Comparison Scoring};
-  \node[model, below=0.45cm of s8] (s9)  {9.\enspace Four Linkage Methods};
+  \node[model, below=0.45cm of s8] (s9)  {9.\enspace Linkage Methods + Expiry Arm};
   \node[model, below=0.45cm of s9] (s10) {10.\enspace Benchmark Evaluation};
   \node[model, below=0.45cm of s10](s11) {11.\enspace Survival Dataset};
   \node[model, below=0.45cm of s11](s12) {12.\enspace Survival Analysis};
@@ -238,7 +243,8 @@ subsections that follow describe each stage in turn.
   \textcolor{orange!80!black}{\rule[0.5ex]{1.2em}{0.7ex}}~Linkage and survival
     modelling (Stages~7--12).
   \textcolor{gray!65}{\rule[0.5ex]{1.2em}{0.7ex}}~Operational output (Stage~13).
-  Every stage corresponds to materialised artifacts in the repository.
+  Stages~1--12 have materialised data artifacts; Stage~13 is retained as executed
+  notebook output, while its standalone CSV export is currently absent.
 }
 \label{fig:pipeline}
 \end{figure}
@@ -314,14 +320,28 @@ missing for the large majority of records; an earlier iteration of this project 
 a place-of-performance fallback and produced a materially different, less defensible
 regional corpus.  Second, provenance is recorded for every derived field, so a
 downstream analysis can distinguish a validated SIREN from a name-only match instead
-of treating all buyer identifiers as equally trustworthy---a distinction that
-Section~\ref{sec:fs} shows to be worth several doublings of the odds.
+of treating all buyer identifiers as equally trustworthy. The linkage stage therefore
+treats identifier-backed records as stronger evidence without assuming that name-only
+and identifier-backed records are equivalent.
 
 \paragraph{Evidence coverage.}
 Completeness varies sharply by field, and the analysis is built around this rather
 than against it: buyer name is present for essentially every notice, buyer geography
 for $97.9\%$, CPV for $82.6\%$, a typed amount candidate for $39.9\%$, a validated
 buyer identifier for $32.2\%$, and a typed duration for $28.1\%$.
+
+\paragraph{Raw labels versus standardised buyers.}
+The raw EDA intentionally counts the buyer-name field literally. Consequently,
+\code{Ville de Paris} ($6{,}888$ notices) and \code{VILLE DE PARIS} ($3{,}492$)
+appear as separate bars. The v2 formatter case-folds and normalises punctuation, so
+both simple variants become \code{ville de paris}; candidate blocking further maps
+that simple name to \code{paris}. This corrects formatting variation, not every entity
+resolution problem: labels such as \code{Ville de Paris - DEVE} retain their
+organisational suffix and require a shared validated SIREN or other evidence to be
+connected. Likewise, the earlier raw Grand Ouest extract contains $226{,}314$ notices
+because it used service/publication department fields, whereas the v2 count of
+$209{,}502$ uses contracting-buyer postal geography. The difference is definitional,
+not row loss during standardisation.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{Procurement Episode Reconstruction}
@@ -382,10 +402,12 @@ recursive extraction of \code{cbc:ID} is deliberately not restored.
 
 \paragraph{What is done.}
 \pathcode{notebooks/10\_standardized\_notice\_and\_episode\_evidence\_audit.ipynb}
-verifies the notice and episode layers before any inference is attempted, exporting
-metrics and a review queue of $3{,}344$ suspicious episodes---overwhelmingly
-procedure-reference conflicts, plus a small number of unusually large or long-spanning
-components.
+verifies the notice and episode layers before any inference is attempted. Its executed
+output reports $3{,}344$ suspicious episodes---overwhelmingly procedure-reference
+conflicts, plus a small number of unusually large or long-spanning components. The
+standalone audit-metrics JSON and review CSV named by that notebook are not present in
+the current checkout, so the notebook is the available evidence and completed manual
+adjudication of that queue is not claimed.
 
 \paragraph{Why this is reasonable.}
 The audit is a gate, not decoration.  Every downstream quantity inherits the episode
@@ -776,6 +798,16 @@ fabricates both a survival event and its event time}.  $M_B$ at $\theta = 0.70$ 
 frozen as the primary policy.  This choice draws on the locked split, which as noted
 was never a clean holdout.
 
+\paragraph{Repository evidence note.}
+The free-text \code{selection\_rule} retained in the frozen v1
+\pathcode{linkage_evaluation_summary.json} contains legacy figures of 628 minimum
+events, 0.70 precision, and 0.019 false-positive rate. They conflict with that same
+artifact's current structured fields and must not be used as metrics. The structured
+cohort application gives a minimum of 300 events across the compared operating points,
+547 for the selected policy, and the all-benchmark evaluation gives precision 0.800
+and negative-anchor false-positive rate 0.000. This report uses those structured values;
+the frozen v1 output has not been silently rewritten.
+
 \paragraph{The adoption rule for the probabilistic model.}
 Because an automatic argmax had already selected the wrong method once, the rule for
 $M_D$ was fixed \emph{before} the model was fitted:
@@ -799,6 +831,19 @@ This negative result is more informative than a positive one would have been.  I
 establishes \emph{why} the transparent rule is appropriate rather than merely
 asserting it: unsupervised probabilistic linkage requires the match/non-match split to
 be the dominant structure in the comparison space, and in this corpus it is not.
+
+\subsubsection{Parallel expiry-aware sensitivity}
+
+A subsequent fifth policy, $M_E$, leaves the $868{,}527$ candidate pairs unchanged and
+modifies selection only. Candidates published more than 365 days before the best
+observable expected end require $s_t\geq0.85$ and positive CPV continuity; all other
+candidates retain the $M_B$ text floor of $0.70$. It accepts 507 links instead of 547,
+retains 505 baseline pairs, removes 42, and selects 2 replacements. Its available
+benchmark metrics equal $M_B$ (precision $0.800$, recall $0.364$, negative-anchor FPR
+$0.000$), which demonstrates no observed benchmark degradation but not superiority.
+It remains a parallel sensitivity arm until the 42 changed anchors are manually
+adjudicated; the complete specification is in
+\pathcode{reports/expiry_aware_successor_selection_v1.tex}.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{Survival Dataset Construction}
@@ -833,8 +878,9 @@ survival analysis is the right framework here.
 If links were found mainly where records are well documented, the observed events
 would be a biased sample.  Completeness differs by under three percentage points
 between linked and unlinked contracts on both validated SIREN and reliable duration.
-Framework agreements are linked about eight points more often, which is substantive
-rather than artefactual---framework agreements exist to be renewed.
+Framework agreements are linked about eight points more often. This is a descriptive
+association that may reflect recurrent purchasing, different documentation, or
+linkage behavior; it is not evidence that framework status causes re-procurement.
 
 % ─────────────────────────────────────────────────────────────────────────────
 \subsection{Survival Analysis}
@@ -845,9 +891,11 @@ rather than artefactual---framework agreements exist to be renewed.
 
 The Kaplan--Meier estimator gives the probability that a contract has no observable
 successor by time $t$, using every contract's follow-up including the censored ones.
-Fitted values are $S(12) = 0.954$, $S(24) = 0.932$ and $S(48) = 0.844$; the median time
-to an observable successor is approximately 32 months, and the curve shows a distinct
-shoulder at 40--50 months corresponding to the four-year renewal cycle.  All four
+Fitted values are $S(12) = 0.954$, $S(24) = 0.932$ and $S(48) = 0.844$. Because fewer
+than half the contracts have an accepted event, the Kaplan--Meier median survival time
+is not reached; 32.07 months is instead the median observed delay among accepted
+events. The curve shows a shoulder at 40--50 months that is descriptively compatible
+with, but does not prove, a four-year procurement cycle.  All four
 digital segments clear the guideline's 30-event minimum, and a multivariate log-rank
 test separates them at $p = 1.7 \times 10^{-5}$.
 
@@ -971,10 +1019,12 @@ between segments, not about calibrated rates.
 \paragraph{What is done.}
 For every contract with no accepted successor, the segment-stratified Kaplan--Meier
 curve supplies $P(\text{successor within 12 months} \mid \text{age}, \text{segment})$
-via Equation~\eqref{eq:conditional}.  The watchlist
-(\pathcode{data/processed/boamp\_v2/renewal\_watchlist\_top20.csv}) reports the five
-nearest-term contracts in each of the four digital segments, restricted to awards from
-the last five years.
+via Equation~\eqref{eq:conditional}. The executed notebook computes a 20-row watchlist
+containing the five nearest-term contracts in each of the four digital segments,
+restricted to awards from the last five years. The intended export path is
+\pathcode{data/processed/boamp\_v2/renewal\_watchlist\_top20.csv}, but that standalone
+CSV is not present in the current checkout; the table currently exists only in the
+executed output of Notebook~13.
 
 \paragraph{Why it is stratified, and what it cannot do.}
 The probability is a function of segment and contract age alone, so an unstratified
@@ -1074,10 +1124,11 @@ that is not defensible.
 \subsubsection{Limitations that bound every reported number}
 
 \begin{enumerate}
-  \item \textbf{Linkage incompleteness.}  The policy accepts links for $15.5\%$ of the
-        cohort and recovers roughly four in ten of the successors that exist.  All
-        survival quantities are therefore \emph{lower bounds} on real re-procurement,
-        not renewal rates.
+  \item \textbf{Linkage incompleteness.}  The policy accepts links for $14.4\%$ of the
+        3,800-contract cohort and recovers roughly four in ten reviewed successors at
+        rank one. Missing links tend to lower event estimates, while false links can
+        raise them, so the resulting survival quantities are conservative,
+        policy-dependent estimates rather than formal lower bounds or renewal rates.
   \item \textbf{Benchmark limitations.}  Measured recall is optimistic because the
         review was conditioned on the predecessor ranker, and no clean holdout exists.
         The strongest single result---zero false positives in 52 reviewed
@@ -1100,39 +1151,43 @@ that is not defensible.
 \caption{Implemented pipeline stages, driving artifacts, and outputs.}
 \label{tab:summary}
 \small
-\begin{tabularx}{\textwidth}{p{0.3cm}p{4.1cm}p{3.9cm}X}
+\begin{tabularx}{\textwidth}{
+  >{\centering\arraybackslash}p{0.45cm}
+  >{\raggedright\arraybackslash}p{3.75cm}
+  >{\raggedright\arraybackslash}p{4.1cm}
+  >{\raggedright\arraybackslash}X}
 \toprule
 \textbf{\#} & \textbf{Stage} & \textbf{Driving artifact} & \textbf{Primary output} \\
 \midrule
 1  & Data Acquisition
-   & \code{download\_boamp.py}
+   & \pathcode{download_boamp.py}
    & 11 yearly JSONL files \\
 2  & Schema-Aware Standardisation
-   & \code{build\_standardized\_notices.py}
+   & \pathcode{build_standardized_notices.py}
    & 1{,}620{,}712 notices, 91 fields \\
 3  & Episode Reconstruction
-   & \code{build\_procurement\_episodes.py}
+   & \pathcode{build_procurement_episodes.py}
    & 1{,}103{,}632 episodes \\
 4  & Evidence Audit
    & Notebook 10
-   & Audit metrics; 3{,}344-case review queue \\
+   & Executed audit; standalone metrics/review exports absent \\
 5  & Benchmark Remapping
-   & \code{remap\_benchmark\_to\_v2\_episodes.py}
+   & \pathcode{remap_benchmark_to_v2_episodes.py}
    & Benchmark on current episode IDs \\
 6  & Study Cohort Definition
-   & \code{build\_survival\_cohort.py}
+   & \pathcode{build_survival_cohort.py}
    & 3{,}800 contracts; quality summary \\
 7  & Candidate Generation
-   & \code{build\_linkage\_candidates.py}
+   & \pathcode{build_linkage_candidates.py}
    & 868{,}527 scored pairs \\
 8  & Probabilistic Model
-   & \code{fit\_fellegi\_sunter.py}
+   & \pathcode{fit_fellegi_sunter.py}
    & Estimated $m$, $u$, $\lambda$; diagnostics \\
 9  & Method Comparison
-   & \code{evaluate\_linkage.py}
-   & Four methods; frozen config \\
+   & \pathcode{evaluate_linkage.py}
+   & Four v1 methods; frozen config; parallel expiry arm \\
 10 & Survival Dataset
-   & \code{build\_survival\_dataset.py}
+   & \pathcode{build_survival_dataset.py}
    & 547 events, 3{,}253 censored; 4 arms \\
 11 & Cohort and Quality Evidence
    & Notebook 11
@@ -1142,7 +1197,7 @@ that is not defensible.
    & Recall@$K$; comparison; intervals \\
 13 & Survival Evidence and Watchlist
    & Notebook 13
-   & KM, Cox, parametric; watchlist CSV \\
+   & KM, Cox, parametric; watchlist table in notebook output \\
 \bottomrule
 \end{tabularx}
 \end{table}

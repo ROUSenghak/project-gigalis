@@ -31,16 +31,35 @@
 \newcommand{\metric}[1]{\textbf{#1}}
 
 \title{BOAMP Grand Ouest Renewal-Linkage Project\\
-\large Session Documentation, Current Methodology, Metrics, and Next Pipeline}
+\large Historical Session Documentation, Metrics, and Proposed Next Pipeline}
 \author{Prepared for the BOAMP Data Science Internship Project}
 \date{11 August 2026}
 
 \begin{document}
 \maketitle
 
+\section*{Document Status}
+
+\noindent\fbox{\parbox{0.94\textwidth}{%
+\textbf{Superseded historical report.} This document records the project state on
+11 August 2026, before the current v2 standardisation, episode reconstruction,
+full-cohort linkage, Fellegi--Sunter comparison, expiry-aware sensitivity arm, and
+survival analysis were completed. Statements below using ``current'', ``not yet'',
+or ``next'' refer to that historical session and must not be read as the present
+repository state. The current methodology is documented in
+\pathcode{reports/boamp_methodology_chapter.tex}; the expiry extension is documented
+in \pathcode{reports/expiry_aware_successor_selection_v1.tex}.}}
+
+The raw EDA in this historical branch counts literal \code{nomacheteur} strings.
+Consequently \code{Ville de Paris} and \code{VILLE DE PARIS} appear as different
+buyers in its chart. This is a property of the raw source and the exact-string EDA,
+not of the current v2 identity layer, which case-folds both to
+\code{ville de paris}. Longer organisational suffixes still require SIREN or other
+entity-resolution evidence.
+
 \section*{Technical Summary}
 
-This document consolidates the working session on the BOAMP public procurement project. The project objective is to study renewal behavior of digital public procurement contracts in Grand Ouest using BOAMP data. BOAMP does not provide an explicit ground-truth field stating that one contract renews another, so the project requires a record-linkage stage before survival analysis.
+This document consolidates a historical working session on the BOAMP public procurement project. The project objective is to study renewal behavior of digital public procurement contracts in Grand Ouest using BOAMP data. BOAMP does not provide an explicit ground-truth field stating that one contract renews another, so the project requires a record-linkage stage before survival analysis.
 
 The recommended methodological position is conservative:
 
