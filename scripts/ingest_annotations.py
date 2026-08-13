@@ -37,7 +37,7 @@ from boamp_pipeline.annotation_schema import (  # noqa: E402
     validate_batch,
 )
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 
 
 def configure_logging(project_root: Path) -> None:

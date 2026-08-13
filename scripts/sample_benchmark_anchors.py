@@ -52,7 +52,7 @@ from boamp_pipeline.benchmark_frame import (  # noqa: E402
 )
 from boamp_pipeline.exposure import EXHAUSTIVE_MAX, pool_for_anchor  # noqa: E402
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 SAMPLE_VERSION = "boamp_benchmark_anchors_v3.0"
 
 DEFAULT_PROBABILITY_SAMPLE = 400

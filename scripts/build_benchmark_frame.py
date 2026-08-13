@@ -44,7 +44,7 @@ from boamp_pipeline.benchmark_frame import (  # noqa: E402
     eligible_frame,
 )
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 
 #: Headline probability-sample size. Chosen against the annotation budget: at a
 #: renewal base rate near a quarter this yields roughly 100 positive anchors,

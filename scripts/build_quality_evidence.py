@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build quality-evidence tables and plots for the latest v3 linkage benchmark."""
+"""Build quality-evidence tables and plots for the national linkage benchmark."""
 
 from __future__ import annotations
 
@@ -18,12 +18,15 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.evaluate_linkage import (  # noqa: E402
+    evaluate,
     method_a_deterministic,
     method_c_weighted_gated,
+    predict,
 )
+from boamp_pipeline.benchmark_io import load_truth  # noqa: E402
 
-PROCESSED = PROJECT_ROOT / "data/processed/boamp_v2"
-BENCHMARK = PROCESSED / "benchmark_v3"
+PROCESSED = PROJECT_ROOT / "data/processed/boamp"
+BENCHMARK = PROCESSED / "benchmark"
 OUTPUT_DIR = PROCESSED / "quality_evidence"
 FIGURE_DIR = PROJECT_ROOT / "reports/figures"
 
@@ -33,6 +36,8 @@ METHOD_LABELS = {
     "M_C_weighted_gated": "M_C weighted gated",
     "M_D_fellegi_sunter": "M_D Fellegi-Sunter",
 }
+
+M_B_THRESHOLD_GRID = tuple(float(value) for value in range(0, 101))
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -165,6 +170,71 @@ def pair_curve_tables(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, dict
     return pd.DataFrame(rows), curves
 
 
+def threshold_sweep(
+    candidates: pd.DataFrame,
+    truth: pd.DataFrame,
+    thresholds: tuple[float, ...] = M_B_THRESHOLD_GRID,
+) -> pd.DataFrame:
+    """Evaluate the actual top-1 M_B decision over a threshold grid."""
+    rows: list[dict[str, Any]] = []
+    for threshold in thresholds:
+        metrics = evaluate(
+            predict(candidates, "M_B_text_ranking", threshold),
+            truth,
+        )
+        rows.append(
+            {
+                "threshold": threshold / 100.0,
+                "threshold_percent": threshold,
+                "accepted_links": metrics["accepted_links"],
+                "true_positive": metrics["true_positive"],
+                "false_positive_wrong_successor": metrics[
+                    "false_positive_wrong_successor"
+                ],
+                "false_positive_on_no_successor_anchor": metrics[
+                    "false_positive_on_no_successor_anchor"
+                ],
+                "precision": metrics["precision_at_1"],
+                "recall": metrics["recall_at_1"],
+                "false_positive_rate": metrics[
+                    "false_positive_rate_on_negatives"
+                ],
+                "coverage": metrics["coverage"],
+                "positive_anchors": metrics["positive_anchors"],
+                "negative_anchors": metrics["negative_anchors"],
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def assert_frozen_m_b_point(sweep: pd.DataFrame, summary: dict[str, Any]) -> None:
+    """Fail if the plotted 0.70 point diverges from the official evaluator."""
+    frozen = sweep.loc[sweep["threshold_percent"].eq(70.0)]
+    if len(frozen) != 1:
+        raise RuntimeError("threshold sweep must contain exactly one 0.70 row")
+    plotted = frozen.iloc[0]
+    method = next(
+        entry for entry in summary["methods"]
+        if entry["method"] == "M_B_text_ranking"
+    )
+    official = method["unweighted_all_frames"]
+    comparisons = {
+        "accepted_links": official["accepted_links"],
+        "precision": official["precision_at_1"],
+        "recall": official["recall_at_1"],
+        "false_positive_rate": official["false_positive_rate_on_negatives"],
+    }
+    for column, expected in comparisons.items():
+        actual = plotted[column]
+        if pd.isna(actual) and expected is None:
+            continue
+        if not np.isclose(float(actual), float(expected)):
+            raise RuntimeError(
+                f"threshold plot mismatch at 0.70 for {column}: "
+                f"plotted={actual}, official={expected}"
+            )
+
+
 def plot_confusion(confusion: pd.DataFrame, path: Path) -> None:
     event = confusion.loc[confusion["matrix_type"].eq("event_detection")].reset_index(drop=True)
     fig, axes = plt.subplots(1, len(event), figsize=(13.2, 3.4), constrained_layout=True)
@@ -216,9 +286,16 @@ def plot_curves(curves: dict[str, dict[str, Any]], path_roc: Path, path_pr: Path
 
     fig, ax = plt.subplots(figsize=(6.6, 5.0))
     base_rate = next(iter(curves.values()))["positive_pairs"] / (
-        next(iter(curves.values()))["positive_pairs"] + next(iter(curves.values()))["negative_pairs"]
+        next(iter(curves.values()))["positive_pairs"]
+        + next(iter(curves.values()))["negative_pairs"]
     )
-    ax.axhline(base_rate, color="#9AA3AD", linestyle="--", linewidth=1, label=f"Base rate {base_rate:.3f}")
+    ax.axhline(
+        base_rate,
+        color="#9AA3AD",
+        linestyle="--",
+        linewidth=1,
+        label=f"Base rate {base_rate:.3f}",
+    )
     for method, curve in curves.items():
         ax.plot(
             curve["pr_recall"],
@@ -240,6 +317,112 @@ def plot_curves(curves: dict[str, dict[str, Any]], path_roc: Path, path_pr: Path
     plt.close(fig)
 
 
+def plot_threshold_tradeoff(sweep: pd.DataFrame, path: Path) -> None:
+    """Plot the top-1 threshold trade-off without interpolation or smoothing."""
+    visible = sweep.loc[sweep["threshold"].between(0.10, 0.90)].copy()
+    operating = visible.loc[visible["threshold_percent"].isin([50, 60, 70, 75, 80])]
+
+    colors = {
+        "precision": "#2F6B9A",
+        "recall": "#C07A24",
+        "false_positive_rate": "#3B8178",
+        "accepted": "#69727D",
+        "correct": "#2F6B9A",
+    }
+    fig, axes = plt.subplots(1, 3, figsize=(14.2, 4.5), constrained_layout=True)
+
+    ax = axes[0]
+    for metric, label in [
+        ("precision", "Precision"),
+        ("recall", "Recall"),
+        ("false_positive_rate", "FPR"),
+    ]:
+        ax.step(
+            visible["threshold"],
+            visible[metric],
+            where="post",
+            linewidth=2,
+            color=colors[metric],
+            label=label,
+        )
+    ax.axvline(0.70, color="#20262E", linestyle="--", linewidth=1.3)
+    ax.text(0.705, 0.04, "Frozen 0.70", rotation=90, va="bottom", fontsize=8)
+    ax.set_title("Metrics by acceptance threshold", fontsize=11)
+    ax.set_xlabel("Minimum text similarity")
+    ax.set_ylabel("Rate")
+    ax.set_xlim(0.10, 0.90)
+    ax.set_ylim(0, 1.02)
+    ax.grid(alpha=0.22)
+    ax.legend(frameon=False, fontsize=8, loc="upper right")
+
+    ax = axes[1]
+    valid = visible.dropna(subset=["precision"])
+    ax.plot(
+        valid["recall"],
+        valid["precision"],
+        color="#69727D",
+        linewidth=1.5,
+        marker="o",
+        markersize=2.5,
+    )
+    for row in operating.itertuples(index=False):
+        if pd.isna(row.precision):
+            continue
+        ax.scatter(row.recall, row.precision, color="#C07A24", s=28, zorder=3)
+        ax.annotate(
+            f"{row.threshold:.2f}",
+            (row.recall, row.precision),
+            xytext=(4, 5),
+            textcoords="offset points",
+            fontsize=8,
+        )
+    frozen = sweep.loc[sweep["threshold_percent"].eq(70)].iloc[0]
+    ax.scatter(
+        frozen["recall"], frozen["precision"],
+        facecolor="white", edgecolor="#20262E", linewidth=1.5, s=80, zorder=4,
+    )
+    ax.set_title("Precision-recall operating points", fontsize=11)
+    ax.set_xlabel("Recall")
+    ax.set_ylabel("Precision")
+    ax.set_xlim(0, 0.75)
+    ax.set_ylim(0, 1.02)
+    ax.grid(alpha=0.22)
+
+    ax = axes[2]
+    ax.step(
+        visible["threshold"], visible["accepted_links"], where="post",
+        color=colors["accepted"], linewidth=2, label="Accepted links",
+    )
+    ax.step(
+        visible["threshold"], visible["true_positive"], where="post",
+        color=colors["correct"], linewidth=2, label="Correct successors",
+    )
+    ax.axvline(0.70, color="#20262E", linestyle="--", linewidth=1.3)
+    ax.set_title("Decision volume by threshold", fontsize=11)
+    ax.set_xlabel("Minimum text similarity")
+    ax.set_ylabel("Validation anchors")
+    ax.set_xlim(0.10, 0.90)
+    ax.set_ylim(bottom=0)
+    ax.grid(alpha=0.22)
+    ax.legend(frameon=False, fontsize=8)
+
+    fig.suptitle(
+        "M_B top-1 threshold trade-off on the internal validation reference",
+        fontsize=13,
+    )
+    fig.text(
+        0.5,
+        -0.035,
+        "60 anchors (22 with a labelled successor). Empirical steps only; no smoothing. "
+        "Bootstrap labels are development evidence, not independent validation.",
+        ha="center",
+        fontsize=8.5,
+        color="#4A535E",
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(path, dpi=180, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
 def markdown_table(frame: pd.DataFrame, columns: list[str]) -> str:
     view = frame[columns].copy()
     lines = ["| " + " | ".join(columns) + " |", "| " + " | ".join(["---"] * len(columns)) + " |"]
@@ -254,7 +437,11 @@ def markdown_table(frame: pd.DataFrame, columns: list[str]) -> str:
     return "\n".join(lines)
 
 
-def write_quality_markdown(validation_confusion: pd.DataFrame, validation_pair_metrics: pd.DataFrame) -> Path:
+def write_quality_markdown(
+    validation_confusion: pd.DataFrame,
+    validation_pair_metrics: pd.DataFrame,
+    validation_threshold_sweep: pd.DataFrame,
+) -> Path:
     event = validation_confusion.loc[
         validation_confusion["matrix_type"].eq("event_detection")
     ].copy()
@@ -266,16 +453,27 @@ def write_quality_markdown(validation_confusion: pd.DataFrame, validation_pair_m
     pair = validation_pair_metrics[
         ["method", "pair_roc_auc", "pair_average_precision", "positive_pairs", "negative_pairs"]
     ].copy()
+    operating = validation_threshold_sweep.loc[
+        validation_threshold_sweep["threshold_percent"].isin([50, 55, 60, 65, 70, 75, 80]),
+        [
+            "threshold", "accepted_links", "true_positive", "precision", "recall",
+            "false_positive_rate", "coverage",
+        ],
+    ].copy()
 
     path = PROJECT_ROOT / "QUALITY_EVIDENCE.md"
     path.write_text(
         "# Linkage Quality Evidence\n\n"
         "Generated from the held-out split of the current national development reference. These labels come from deterministic bootstrap rules, not independent specialist review.\n\n"
+        "## Academic Basis And Evidence Boundary\n\n"
+        "The metric choice is supported by [Davis and Goadrich (2006)](https://doi.org/10.1145/1143844.1143874), who analyse the relationship between ROC and precision-recall curves for skewed binary decisions, and [Saito and Rehmsmeier (2015)](https://doi.org/10.1371/journal.pone.0118432), who show why precision-recall analysis is more informative for imbalanced data. The classical probabilistic linkage comparator follows [Fellegi and Sunter (1969)](https://doi.org/10.1080/01621459.1969.10501049). These sources justify methods and diagnostics; they do not validate this project's labels, numerical results, or `0.70` threshold.\n\n"
+        "The figures below are generated from this project's data and code. Generic web or presentation illustrations are explanatory aids only and are not used as academic evidence.\n\n"
         "## What Each Diagnostic Means\n\n"
         "- **Confusion matrix:** anchor-level evidence, matching the actual pipeline decision: one accepted successor or abstention.\n"
         "- **Exact-successor accounting:** stricter project metric; a wrong successor is both a false accepted link and a missed true successor.\n"
         "- **ROC curve:** pair-level score-ranking diagnostic over exposed candidate pairs. Useful, but less important than precision-recall because positives are rare.\n"
-        "- **Precision-recall curve:** pair-level score-ranking diagnostic. This is the better curve for this project because validation has only 62 positive pairs out of 1,754 candidate pairs.\n\n"
+        "- **Precision-recall curve:** pair-level score-ranking diagnostic. This is the better curve for this project because validation has only 62 positive pairs out of 1,763 candidate pairs.\n"
+        "- **Threshold trade-off:** anchor-level sweep of the actual `M_B` top-1 decision. It shows how strict acceptance changes precision, recall, false-positive rate, and link volume.\n\n"
         "## Held-Out Internal Event-Detection Confusion Matrix\n\n"
         "Rows are actual anchor status; columns are predicted link/abstention. Here, a wrong candidate on a positive anchor still counts as detecting that the anchor has a successor.\n\n"
         f"{markdown_table(event, ['method', 'threshold', 'tp', 'fp', 'fn', 'tn'])}\n\n"
@@ -284,12 +482,16 @@ def write_quality_markdown(validation_confusion: pd.DataFrame, validation_pair_m
         f"{markdown_table(exact, ['method', 'threshold', 'tp', 'fp', 'fn', 'tn'])}\n\n"
         "## Held-Out Internal Pair-Level ROC and Precision-Recall Metrics\n\n"
         f"{markdown_table(pair, ['method', 'pair_roc_auc', 'pair_average_precision', 'positive_pairs', 'negative_pairs'])}\n\n"
+        "## M_B Anchor-Level Threshold Trade-Off\n\n"
+        f"{markdown_table(operating, ['threshold', 'accepted_links', 'true_positive', 'precision', 'recall', 'false_positive_rate', 'coverage'])}\n\n"
+        "At `0.60`, the internal validation split has 8 correct successors among 9 accepted links (precision `0.8889`) and recall `0.3636`. At the frozen `0.70`, it has 4 correct successors among 5 accepted links (precision `0.8000`) and recall `0.1818`. Thus `0.60` empirically dominates `0.70` on this particular validation sample. The development evidence points the other way: `0.70` has precision `0.8750` and FPR `0.0345`, compared with precision `0.8000` and FPR `0.0575` at `0.60`. The production-link diagnostic at `0.70` also confirmed only 14 of 20 links conservatively. Therefore `0.70` is retained as the previously frozen conservative baseline, not described as optimal; `0.60` remains a required sensitivity arm. Promoting the unreviewed lower threshold after observing four favourable incremental validation cases would be post-hoc tuning.\n\n"
         "## Interpretation\n\n"
-        "Within this bootstrap reference, `M_B_text_ranking @ 0.70` has the strongest precision-first profile. It remains a provisional operating baseline, not an independently validated model: pass A and pass B were generated by the same deterministic annotation rules, so these metrics can support development comparisons but cannot establish external accuracy.\n\n"
+        "`M_B_text_ranking @ 0.70` is the frozen conservative operating baseline, not a claim of threshold optimality. Its role is to provide one reproducible primary event definition while `0.60`, `0.80`, `M_C`, and expiry-aware variants quantify sensitivity. The bootstrap labels support development comparisons but cannot establish external accuracy.\n\n"
         "## Plot Files\n\n"
-        "- `reports/figures/benchmark_v3_validation_confusion_matrices.png`\n"
-        "- `reports/figures/benchmark_v3_validation_pair_roc.png`\n"
-        "- `reports/figures/benchmark_v3_validation_pair_precision_recall.png`\n",
+        "- `reports/figures/benchmark_validation_confusion_matrices.png`\n"
+        "- `reports/figures/benchmark_validation_pair_roc.png`\n"
+        "- `reports/figures/benchmark_validation_pair_precision_recall.png`\n"
+        "- `reports/figures/benchmark_validation_m_b_threshold_tradeoff.png`\n",
         encoding="utf-8",
     )
     return path
@@ -298,30 +500,47 @@ def write_quality_markdown(validation_confusion: pd.DataFrame, validation_pair_m
 def build(split: str) -> dict[str, Any]:
     if split not in {"dev", "validation"}:
         raise ValueError("split must be dev or validation")
-    summary = load_json(PROCESSED / f"linkage_evaluation_summary_v3_{split}_primary.json")
-    modeling = pd.read_parquet(BENCHMARK / "modeling" / f"benchmark_v3_modeling_{split}.parquet")
+    summary = load_json(PROCESSED / f"linkage_evaluation_{split}.json")
+    modeling = pd.read_parquet(BENCHMARK / "modeling" / f"modeling_{split}.parquet")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     FIGURE_DIR.mkdir(parents=True, exist_ok=True)
 
     confusion = anchor_confusion(summary)
     pair_metrics, curves = pair_curve_tables(modeling)
-    confusion_path = OUTPUT_DIR / f"benchmark_v3_{split}_anchor_confusion.csv"
-    pair_metrics_path = OUTPUT_DIR / f"benchmark_v3_{split}_pair_curve_metrics.csv"
+    truth, _ = load_truth(
+        BENCHMARK,
+        split,
+        "primary",
+        project_root=PROJECT_ROOT,
+        allow_sealed=False,
+        seal_reason="",
+    )
+    sweep = threshold_sweep(modeling, truth)
+    assert_frozen_m_b_point(sweep, summary)
+    confusion_path = OUTPUT_DIR / f"{split}_anchor_confusion.csv"
+    pair_metrics_path = OUTPUT_DIR / f"{split}_pair_curve_metrics.csv"
+    sweep_path = OUTPUT_DIR / f"{split}_m_b_threshold_sweep.csv"
     confusion.to_csv(confusion_path, index=False)
     pair_metrics.to_csv(pair_metrics_path, index=False)
+    sweep.to_csv(sweep_path, index=False)
 
     if split == "validation":
-        plot_confusion(confusion, FIGURE_DIR / "benchmark_v3_validation_confusion_matrices.png")
+        plot_confusion(confusion, FIGURE_DIR / "benchmark_validation_confusion_matrices.png")
         plot_curves(
             curves,
-            FIGURE_DIR / "benchmark_v3_validation_pair_roc.png",
-            FIGURE_DIR / "benchmark_v3_validation_pair_precision_recall.png",
+            FIGURE_DIR / "benchmark_validation_pair_roc.png",
+            FIGURE_DIR / "benchmark_validation_pair_precision_recall.png",
+        )
+        plot_threshold_tradeoff(
+            sweep,
+            FIGURE_DIR / "benchmark_validation_m_b_threshold_tradeoff.png",
         )
 
     return {
         "split": split,
         "confusion_csv": str(confusion_path),
         "pair_curve_metrics_csv": str(pair_metrics_path),
+        "m_b_threshold_sweep_csv": str(sweep_path),
         "pair_curve_metrics": pair_metrics.to_dict(orient="records"),
     }
 
@@ -329,12 +548,19 @@ def build(split: str) -> dict[str, Any]:
 def main() -> int:
     dev_output = build("dev")
     validation_output = build("validation")
-    validation_confusion = pd.read_csv(OUTPUT_DIR / "benchmark_v3_validation_anchor_confusion.csv")
-    validation_pair_metrics = pd.read_csv(OUTPUT_DIR / "benchmark_v3_validation_pair_curve_metrics.csv")
-    markdown_path = write_quality_markdown(validation_confusion, validation_pair_metrics)
+    validation_confusion = pd.read_csv(OUTPUT_DIR / "validation_anchor_confusion.csv")
+    validation_pair_metrics = pd.read_csv(OUTPUT_DIR / "validation_pair_curve_metrics.csv")
+    validation_threshold_sweep = pd.read_csv(
+        OUTPUT_DIR / "validation_m_b_threshold_sweep.csv"
+    )
+    markdown_path = write_quality_markdown(
+        validation_confusion,
+        validation_pair_metrics,
+        validation_threshold_sweep,
+    )
     result = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "benchmark": "v3",
+        "benchmark": "national",
         "event_set": "primary",
         "notes": {
             "confusion_matrix": (
@@ -346,17 +572,22 @@ def main() -> int:
                 "Pair-level score diagnostics over exposed candidate pairs. They do "
                 "not replace top-1 anchor-level precision, recall, and FPR."
             ),
+            "threshold_tradeoff": (
+                "Anchor-level top-1 M_B sweep. The 0.70 row is asserted against the "
+                "frozen validation summary; points are empirical and unsmoothed."
+            ),
         },
         "outputs": [dev_output, validation_output],
         "figures": [
-            str(FIGURE_DIR / "benchmark_v3_validation_confusion_matrices.png"),
-            str(FIGURE_DIR / "benchmark_v3_validation_pair_roc.png"),
-            str(FIGURE_DIR / "benchmark_v3_validation_pair_precision_recall.png"),
+            str(FIGURE_DIR / "benchmark_validation_confusion_matrices.png"),
+            str(FIGURE_DIR / "benchmark_validation_pair_roc.png"),
+            str(FIGURE_DIR / "benchmark_validation_pair_precision_recall.png"),
+            str(FIGURE_DIR / "benchmark_validation_m_b_threshold_tradeoff.png"),
         ],
         "markdown_report": str(markdown_path),
         "validation_passed": True,
     }
-    summary_path = OUTPUT_DIR / "benchmark_v3_quality_evidence_summary.json"
+    summary_path = OUTPUT_DIR / "quality_evidence_summary.json"
     summary_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0

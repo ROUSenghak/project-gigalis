@@ -1,9 +1,9 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.3.16)  13 AUG 2026 22:14
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.3.16)  14 AUG 2026 00:18
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
-**reports/boamp_methodology_chapter.tex
-(./reports/boamp_methodology_chapter.tex
+**boamp_methodology_chapter.tex
+(./boamp_methodology_chapter.tex
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-02-20>
 (/usr/local/texlive/2024/texmf-dist/tex/latex/base/article.cls
@@ -432,7 +432,7 @@ File: l3backend-pdftex.def 2024-02-20 L3 backend support: PDF output (pdfTeX)
 \l__color_backend_stack_int=\count297
 \l__pdf_internal_box=\box58
 )
-(reports/boamp_methodology_chapter.aux)
+(./boamp_methodology_chapter.aux)
 \openout1 = `boamp_methodology_chapter.aux'.
 
 LaTeX Font Info:    Checking defaults for OML/cmm/m/it on input line 20.
@@ -532,12 +532,13 @@ e
 ))
 Package hyperref Info: Link coloring ON on input line 20.
 
-(reports/boamp_methodology_chapter.out) (reports/boamp_methodology_chapter.out)
+(./boamp_methodology_chapter.out) (./boamp_methodology_chapter.out)
 \@outlinefile=\write3
 \openout3 = `boamp_methodology_chapter.out'.
 
 LaTeX Font Info:    Trying to load font information for OT1+lmr on input line 2
 3.
+
 (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ot1lmr.fd
 File: ot1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
 )
@@ -609,57 +610,65 @@ Underfull \hbox (badness 10000) in alignment at lines 225--225
  []
 
 [3]
-<figures/benchmark_v3_dev_method_metrics.png, id=96, 656.051pt x 323.609pt>
-File: figures/benchmark_v3_dev_method_metrics.png Graphic file (type png)
-<use figures/benchmark_v3_dev_method_metrics.png>
-Package pdftex.def Info: figures/benchmark_v3_dev_method_metrics.png  used on i
-nput line 231.
+<figures/benchmark_dev_method_metrics.png, id=100, 656.051pt x 323.609pt>
+File: figures/benchmark_dev_method_metrics.png Graphic file (type png)
+<use figures/benchmark_dev_method_metrics.png>
+Package pdftex.def Info: figures/benchmark_dev_method_metrics.png  used on inpu
+t line 231.
 (pdftex.def)             Requested size: 418.82375pt x 206.59549pt.
 
 Underfull \hbox (badness 10000) in alignment at lines 260--260
 [][][][][][][] 
  []
 
-<figures/benchmark_v3_validation_method_metrics.png, id=98, 656.051pt x 323.609
-pt>
-File: figures/benchmark_v3_validation_method_metrics.png Graphic file (type png
-)
-<use figures/benchmark_v3_validation_method_metrics.png>
-Package pdftex.def Info: figures/benchmark_v3_validation_method_metrics.png  us
-ed on input line 266.
+<figures/benchmark_validation_method_metrics.png, id=102, 656.051pt x 323.609pt
+>
+File: figures/benchmark_validation_method_metrics.png Graphic file (type png)
+<use figures/benchmark_validation_method_metrics.png>
+Package pdftex.def Info: figures/benchmark_validation_method_metrics.png  used 
+on input line 266.
 (pdftex.def)             Requested size: 418.82375pt x 206.59549pt.
-[4 <reports/figures/benchmark_v3_dev_method_metrics.png>]
-<figures/benchmark_v3_modeling_counts.png, id=107, 583.781pt x 295.504pt>
-File: figures/benchmark_v3_modeling_counts.png Graphic file (type png)
-<use figures/benchmark_v3_modeling_counts.png>
-Package pdftex.def Info: figures/benchmark_v3_modeling_counts.png  used on inpu
-t line 294.
+[4 <./figures/benchmark_dev_method_metrics.png>]
+<figures/benchmark_validation_m_b_threshold_tradeoff.png, id=113, 1034.264pt x 
+349.305pt>
+File: figures/benchmark_validation_m_b_threshold_tradeoff.png Graphic file (typ
+e png)
+<use figures/benchmark_validation_m_b_threshold_tradeoff.png>
+Package pdftex.def Info: figures/benchmark_validation_m_b_threshold_tradeoff.pn
+g  used on input line 297.
+(pdftex.def)             Requested size: 450.69417pt x 152.21294pt.
+ [5 <./figures/benchmark_validation_method_metrics.png> <./figures/benchmark_va
+lidation_m_b_threshold_tradeoff.png>]
+<figures/benchmark_modeling_counts.png, id=123, 583.781pt x 295.504pt>
+File: figures/benchmark_modeling_counts.png Graphic file (type png)
+<use figures/benchmark_modeling_counts.png>
+Package pdftex.def Info: figures/benchmark_modeling_counts.png  used on input l
+ine 335.
 (pdftex.def)             Requested size: 391.51021pt x 198.18504pt.
- [5 <reports/figures/benchmark_v3_validation_method_metrics.png>]
+ [6 <./figures/benchmark_modeling_counts.png>]
 LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 3
-32.
+81.
 
 (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
-) [6{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc} <reports
-/figures/benchmark_v3_modeling_counts.png>] [7] (reports/boamp_methodology_chap
-ter.aux)
+) [7{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}] [8]
+(./boamp_methodology_chapter.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
 L3 programming layer <2024-02-20>
  ***********
 Package rerunfilecheck Info: File `boamp_methodology_chapter.out' has not chang
 ed.
-(rerunfilecheck)             Checksum: 1E15BEC8F07540A288FA935DD3A69379;2352.
+(rerunfilecheck)             Checksum: 8F2B73FD96529BE1DFFC5FF86C957AE8;2558.
  ) 
 Here is how much of TeX's memory you used:
- 13359 strings out of 474116
- 208857 string characters out of 5743682
+ 13373 strings out of 474116
+ 209211 string characters out of 5743682
  1938187 words of memory out of 5000000
- 35347 multiletter control sequences out of 15000+600000
- 625357 words of font info for 153 fonts, out of 8000000 for 9000
+ 35355 multiletter control sequences out of 15000+600000
+ 625523 words of font info for 155 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,9n,79p,1030b,539s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,9n,79p,1022b,527s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/lo
 cal/texlive/2024/texmf-dist/fonts/type1/public/lm/lmbx12.pfb></usr/local/texliv
 e/2024/texmf-dist/fonts/type1/public/lm/lmex10.pfb></usr/local/texlive/2024/tex
@@ -672,11 +681,10 @@ xlive/2024/texmf-dist/fonts/type1/public/lm/lmr8.pfb></usr/local/texlive/2024/t
 exmf-dist/fonts/type1/public/lm/lmri10.pfb></usr/local/texlive/2024/texmf-dist/
 fonts/type1/public/lm/lmsy10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type
 1/public/lm/lmtt10.pfb>
-Output written on reports/boamp_methodology_chapter.pdf (7 pages, 405244 bytes)
-.
+Output written on boamp_methodology_chapter.pdf (8 pages, 538567 bytes).
 PDF statistics:
- 212 PDF objects out of 1000 (max. 8388607)
- 167 compressed objects within 2 object streams
- 36 named destinations out of 1000 (max. 500000)
- 38016 words of extra memory for PDF output out of 42996 (max. 10000000)
+ 231 PDF objects out of 1000 (max. 8388607)
+ 183 compressed objects within 2 object streams
+ 39 named destinations out of 1000 (max. 500000)
+ 38029 words of extra memory for PDF output out of 42996 (max. 10000000)
 

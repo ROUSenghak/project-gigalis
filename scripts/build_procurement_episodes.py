@@ -37,7 +37,7 @@ from boamp_pipeline.episodes import (
 )
 
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 BATCH_SIZE = 5_000
 METHOD_BITS = {"contractfolderid": 1, "explicit_linked_notice": 2, "exact_reference_same_buyer": 4}
 

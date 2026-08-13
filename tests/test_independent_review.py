@@ -42,6 +42,7 @@ def test_generated_review_sample_is_blinded_and_balanced() -> None:
     }
     assert "source_stratum" not in review.columns
     assert "selection_text_component" not in review.columns
+    assert "reviewer_id" not in review.columns
     for column in [
         "same_legal_buyer_Y_N_UNCERTAIN",
         "relationship_label",

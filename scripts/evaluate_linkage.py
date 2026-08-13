@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate successor linkage against the manually reviewed benchmark.
+"""Apply and evaluate successor linkage under one canonical workflow.
 
 Four methods are compared, then one is frozen:
 
@@ -24,19 +24,10 @@ Four methods are compared, then one is frozen:
 Every method may abstain: an anchor with no candidate clearing its rule
 returns *no automatic successor* rather than its best guess.
 
-Two honesty constraints are enforced in the reporting:
-
-* Thresholds are selected on ``PILOT_DEVELOPMENT`` only.
-* ``LOCKED_TEST`` is reported but is **not** a pristine holdout. Notebook 07
-  inspected locked-test error counts and feature medians before the gated
-  method was designed in notebook 08, so its numbers are labelled
-  already-inspected evaluation evidence.
-
-A further limitation is recorded in the output rather than hidden: the human
-reviewers only ever saw the *old* pipeline's top-25 candidates per anchor, so
-a true successor the old ranker buried was never available to be labelled.
-Recall measured here is therefore optimistic, and "no observed successor" is
-relative to that review, not to BOAMP as a whole.
+Threshold analysis uses the national development split; method comparison uses
+the disjoint national validation split. The sealed test can only be opened
+through the audited loader. Without ``--evaluate-split``, the script applies
+the frozen production policy to the complete study cohort.
 """
 
 from __future__ import annotations
@@ -56,7 +47,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from boamp_pipeline.benchmark_io import load_truth_v1, load_truth_v3
+from boamp_pipeline.benchmark_io import load_truth
 from boamp_pipeline.benchmark_metrics import (
     annotator_bias_report,
     hard_negative_suite_metrics,
@@ -65,14 +56,12 @@ from boamp_pipeline.benchmark_metrics import (
 from boamp_pipeline.fellegi_sunter_scoring import score_with_fitted_model
 from boamp_pipeline.linkage import DEFAULT_WEIGHTS
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
-EVALUATION_VERSION = "boamp_linkage_evaluation_v1.0"
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
+EVALUATION_SCHEMA = "boamp_linkage_evaluation_schema_1.0"
 
 RECALL_AT_K = (1, 5, 10, 20)
 
-#: Threshold grid explored on the pilot split only. Kept deliberately coarse:
-#: with 5 positive pilot anchors, one prediction flip moves precision by 0.2,
-#: so a fine grid would be fitting noise.
+#: Coarse grid used for transparent threshold sensitivity analysis.
 THRESHOLD_GRID = (50.0, 55.0, 60.0, 65.0, 70.0, 75.0, 80.0)
 
 STRONG_BUYER_MATCHES = ("siren", "normalized_name")
@@ -83,24 +72,15 @@ FUZZY_BUYER_MIN_SIMILARITY = 0.82
 #: This is a documented judgement, not an automatic selection, and the
 #: reasoning is recorded here because it must survive into the write-up.
 #:
-#: The pilot split holds 5 positive anchors, so a single prediction change
-#: moves its precision by 0.2. It cannot discriminate between the three
-#: methods, and an automatic "best pilot precision" rule is fitting noise --
-#: it initially selected ``M_C_weighted_gated`` only because an arbitrary
-#: coverage floor of 0.25 excluded the more precise but lower-coverage
-#: methods.
-#:
 #: With event volume not binding, the stated a-priori principle governs: a
 #: false link fabricates both a survival event and its event time, so precision
 #: and the false-positive rate on no-successor anchors take priority over
 #: coverage. The current computed metrics live in the JSON summaries; this
 #: comment deliberately avoids frozen numeric claims.
 #:
-#: Honesty constraint: this choice draws on the locked split, which was
-#: already inspected in notebooks/07 before the present work and therefore
-#: never functioned as an untouched holdout. Every metric reported here is
-#: development evidence, and the true out-of-sample precision is likely
-#: lower than the figures quoted.
+#: The choice remains a frozen conservative baseline rather than a claim that
+#: 0.70 is universally optimal. Development and validation threshold evidence
+#: disagree, so 0.60 is carried as a required sensitivity arm.
 PRIMARY_METHOD = "M_B_text_ranking"
 PRIMARY_THRESHOLD = 70.0
 
@@ -128,21 +108,6 @@ def configure_logging(project_root: Path) -> None:
             logging.FileHandler(log_dir / "evaluate_linkage.log", encoding="utf-8"),
         ],
     )
-
-
-# ---------------------------------------------------------------------------
-# Benchmark truth
-# ---------------------------------------------------------------------------
-
-
-def load_truth(output_dir: Path) -> pd.DataFrame:
-    """One row per evaluable benchmark anchor, mapped onto v2 episode IDs.
-
-    The v1 body now lives in :func:`boamp_pipeline.benchmark_io.load_truth_v1`,
-    moved verbatim so that adding the v3 benchmark cannot change a v1 number.
-    A test asserts the v1 summary still reproduces field for field.
-    """
-    return load_truth_v1(output_dir)
 
 
 # ---------------------------------------------------------------------------
@@ -228,8 +193,17 @@ def predict(candidates: pd.DataFrame, method: str, threshold: float) -> pd.DataF
     accepted = candidates.loc[METHODS[method](candidates, threshold)].copy()
     if accepted.empty:
         return accepted.assign(predicted_rank=pd.Series(dtype=int))
+    sort_columns = ["anchor_episode_id", RANK_COLUMN[method]]
+    ascending = [True, False]
+    for column in ("candidate_origin_date", "candidate_episode_id"):
+        if column in accepted.columns and column not in sort_columns:
+            sort_columns.append(column)
+            ascending.append(True)
     accepted = accepted.sort_values(
-        ["anchor_episode_id", RANK_COLUMN[method]], ascending=[True, False]
+        sort_columns,
+        ascending=ascending,
+        na_position="last",
+        kind="mergesort",
     )
     accepted["predicted_rank"] = accepted.groupby("anchor_episode_id").cumcount() + 1
     return accepted
@@ -251,7 +225,7 @@ def candidate_recall(candidates: pd.DataFrame, truth: pd.DataFrame, ks: tuple[in
     hits = {k: 0 for k in ks}
     ranks: list[int] = []
     for row in positives.itertuples(index=False):
-        ranked = by_anchor.get(row.anchor_v2_episode_id)
+        ranked = by_anchor.get(row.anchor_episode_id)
         if not ranked:
             result["positive_anchors_without_candidates"] += 1
             continue
@@ -300,7 +274,7 @@ def evaluate(predictions: pd.DataFrame, truth: pd.DataFrame) -> dict[str, Any]:
     accepted = 0
 
     for row in truth.itertuples(index=False):
-        anchor = row.anchor_v2_episode_id
+        anchor = row.anchor_episode_id
         prediction = top1.get(anchor)
         if prediction is not None:
             accepted += 1
@@ -342,244 +316,99 @@ def evaluate(predictions: pd.DataFrame, truth: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def build(project_root: Path, output_dir: Path) -> dict[str, Any]:
-    # Prefer the Fellegi-Sunter-scored candidates when they exist, so that
-    # M_D can be evaluated alongside the rule-based methods on identical pairs.
+def apply_primary_linkage(output_dir: Path) -> dict[str, Any]:
+    """Apply the frozen policy and materialise production linkage artifacts."""
     scored_path = output_dir / "linkage_candidates_scored.parquet"
     candidates_path = scored_path if scored_path.exists() else output_dir / "linkage_candidates.parquet"
     candidates = pd.read_parquet(candidates_path)
-    logging.info("Candidates: %s (%s)", f"{len(candidates):,}", candidates_path.name)
-    truth = load_truth(output_dir)
 
-    scored_anchors = set(candidates["anchor_episode_id"].unique())
-    truth["anchor_in_cohort"] = truth["anchor_v2_episode_id"].isin(scored_anchors)
-    evaluable = truth.loc[truth["anchor_in_cohort"] & truth["truth_usable"]].copy()
-    logging.info(
-        "Benchmark anchors: %s total, %s scored in cohort", len(truth), len(evaluable)
+    predictions = predict(candidates, PRIMARY_METHOD, PRIMARY_THRESHOLD)
+    accepted = predictions.loc[predictions["predicted_rank"].eq(1)].copy()
+    accepted.to_parquet(
+        output_dir / "accepted_successor_links.parquet",
+        index=False,
+        compression="zstd",
     )
 
-    pilot = evaluable.loc[evaluable["benchmark_split"] == "PILOT_DEVELOPMENT"]
-    locked = evaluable.loc[evaluable["benchmark_split"] == "LOCKED_TEST"]
-
-    eval_candidates = candidates.loc[
-        candidates["anchor_episode_id"].isin(set(evaluable["anchor_v2_episode_id"]))
-    ].copy()
-
-    retrieval = {
-        "all_evaluable": candidate_recall(eval_candidates, evaluable, RECALL_AT_K),
-        "pilot": candidate_recall(eval_candidates, pilot, RECALL_AT_K),
-        "locked_test": candidate_recall(eval_candidates, locked, RECALL_AT_K),
-    }
-    logging.info("Candidate retrieval (all evaluable): %s", retrieval["all_evaluable"]["recall_at_k"])
-
-    # --- threshold selection on the pilot split only -----------------------
-    grid: list[dict[str, Any]] = []
-    for method in METHODS:
-        if method == "M_D_fellegi_sunter" and "fs_match_probability" not in candidates.columns:
-            continue
-        for threshold in METHOD_THRESHOLD_GRID.get(method, THRESHOLD_GRID):
-            predictions = predict(eval_candidates, method, threshold)
-            pilot_metrics = evaluate(
-                predictions.loc[predictions["anchor_episode_id"].isin(set(pilot["anchor_v2_episode_id"]))],
-                pilot,
-            )
-            grid.append({"method": method, "threshold": threshold, "split": "PILOT_DEVELOPMENT", **pilot_metrics})
-    grid_frame = pd.DataFrame(grid)
-    grid_frame.to_csv(output_dir / "linkage_threshold_grid_pilot.csv", index=False)
-
-    # The frozen policy is a documented judgement (see PRIMARY_METHOD), not an
-    # automatic pick: with 5 positive pilot anchors, any argmax over pilot
-    # precision is fitting noise.
-    selected_method = PRIMARY_METHOD
-    selected_threshold = PRIMARY_THRESHOLD
-    logging.info("Frozen policy: %s at threshold %s", selected_method, selected_threshold)
-
-    # --- report every method once on the locked split ----------------------
-    comparison: list[dict[str, Any]] = []
-    for method in METHODS:
-        if method == "M_D_fellegi_sunter" and "fs_match_probability" not in candidates.columns:
-            continue
-        # The three score-scale methods are compared at the frozen operating
-        # point so the headline table stays anchored to the policy in force.
-        # M_D lives on a probability scale that caps near 0.73, so a threshold
-        # of 70 means something different for it; it gets its own sweep below.
-        method_threshold = (
-            METHOD_THRESHOLD_GRID["M_D_fellegi_sunter"][-2]
-            if method == "M_D_fellegi_sunter" else selected_threshold
-        )
-        predictions = predict(eval_candidates, method, method_threshold)
-        for label, split_truth in (("PILOT_DEVELOPMENT", pilot), ("LOCKED_TEST", locked), ("ALL", evaluable)):
-            subset = predictions.loc[
-                predictions["anchor_episode_id"].isin(set(split_truth["anchor_v2_episode_id"]))
-            ]
-            comparison.append(
-                {"method": method, "threshold": method_threshold, "split": label, **evaluate(subset, split_truth)}
-            )
-    comparison_frame = pd.DataFrame(comparison)
-    comparison_frame.to_csv(output_dir / "linkage_method_comparison.csv", index=False)
-
-    # --- freeze and apply the selected policy to the whole cohort ----------
-    final_predictions = predict(candidates, selected_method, selected_threshold)
-    accepted_links = final_predictions.loc[final_predictions["predicted_rank"] == 1].copy()
-    accepted_links.to_parquet(output_dir / "accepted_successor_links.parquet", index=False, compression="zstd")
-
-    anchors_scored = candidates["anchor_episode_id"].nunique()
-    sensitivity = {}
+    anchors = int(candidates["anchor_episode_id"].nunique())
     arms = (
-        ("strict", selected_method, selected_threshold + 10.0),
-        ("main", selected_method, selected_threshold),
-        ("looser", selected_method, selected_threshold - 10.0),
+        ("strict", PRIMARY_METHOD, PRIMARY_THRESHOLD + 10.0),
+        ("main", PRIMARY_METHOD, PRIMARY_THRESHOLD),
+        ("looser", PRIMARY_METHOD, PRIMARY_THRESHOLD - 10.0),
         ("contrast_high_recall", CONTRAST_METHOD, CONTRAST_THRESHOLD),
     )
-    for label, arm_method, arm_threshold in arms:
-        variant = predict(candidates, arm_method, arm_threshold)
-        variant_top1 = variant.loc[variant["predicted_rank"] == 1] if len(variant) else variant
-        arm_predictions = predict(eval_candidates, arm_method, arm_threshold)
-        locked_subset = arm_predictions.loc[
-            arm_predictions["anchor_episode_id"].isin(set(locked["anchor_v2_episode_id"]))
-        ] if len(arm_predictions) else arm_predictions
+    sensitivity: dict[str, Any] = {}
+    for label, method, threshold in arms:
+        arm = predict(candidates, method, threshold)
+        top1 = arm.loc[arm["predicted_rank"].eq(1)] if len(arm) else arm
         sensitivity[label] = {
-            "method": arm_method,
-            "threshold": arm_threshold,
-            "accepted_links": int(len(variant_top1)),
-            "cohort_link_rate": round(len(variant_top1) / anchors_scored, 4) if anchors_scored else None,
-            "locked_test_metrics": evaluate(locked_subset, locked),
+            "method": method,
+            "threshold": threshold,
+            "accepted_links": int(len(top1)),
+            "cohort_link_rate": round(len(top1) / anchors, 4) if anchors else None,
         }
-
-    # --- pre-registered adoption test for the probabilistic model -----------
-    # Fixed before the model was fitted: Fellegi-Sunter replaces the incumbent
-    # only if it weakly dominates on the locked split (precision >=, recall >=,
-    # false-positive rate <=). It is swept across its whole grid so the test is
-    # applied to its best available operating point, not an arbitrary one.
-    adoption: dict[str, Any] | None = None
-    if "fs_match_probability" in candidates.columns:
-        incumbent_predictions = predict(eval_candidates, selected_method, selected_threshold)
-        incumbent = evaluate(
-            incumbent_predictions.loc[
-                incumbent_predictions["anchor_episode_id"].isin(set(locked["anchor_v2_episode_id"]))
-            ],
-            locked,
-        )
-        sweep = []
-        for threshold in METHOD_THRESHOLD_GRID["M_D_fellegi_sunter"]:
-            challenger_predictions = predict(eval_candidates, "M_D_fellegi_sunter", threshold)
-            subset = challenger_predictions.loc[
-                challenger_predictions["anchor_episode_id"].isin(set(locked["anchor_v2_episode_id"]))
-            ] if len(challenger_predictions) else challenger_predictions
-            metrics = evaluate(subset, locked)
-            metrics["threshold"] = threshold
-            metrics["weakly_dominates_incumbent"] = bool(
-                (metrics["precision_at_1"] or 0) >= (incumbent["precision_at_1"] or 0)
-                and (metrics["recall_at_1"] or 0) >= (incumbent["recall_at_1"] or 0)
-                and (metrics["false_positive_rate_on_negatives"] or 0)
-                <= (incumbent["false_positive_rate_on_negatives"] or 0)
-            )
-            sweep.append(metrics)
-        adoption = {
-            "rule": (
-                "Fellegi-Sunter replaces the incumbent only if it weakly dominates on the "
-                "locked split: precision >=, recall >=, and false-positive rate <=. Fixed "
-                "before the model was fitted."
-            ),
-            "incumbent": {"method": selected_method, "threshold": selected_threshold, **incumbent},
-            "challenger_locked_sweep": sweep,
-            "any_operating_point_dominates": any(row["weakly_dominates_incumbent"] for row in sweep),
-            "outcome": (
-                "adopted" if any(row["weakly_dominates_incumbent"] for row in sweep) else "incumbent_retained"
-            ),
-        }
-        logging.info("Fellegi-Sunter adoption outcome: %s", adoption["outcome"])
 
     config = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "evaluation_version": EVALUATION_VERSION,
-        "selected_method": selected_method,
-        "selected_threshold": selected_threshold,
+        "evaluation_schema": EVALUATION_SCHEMA,
+        "selected_method": PRIMARY_METHOD,
+        "selected_threshold": PRIMARY_THRESHOLD,
         "contrast_method": CONTRAST_METHOD,
         "contrast_threshold": CONTRAST_THRESHOLD,
         "weights": dict(DEFAULT_WEIGHTS),
         "gate_parameters": M_C_DEFAULTS,
         "selection_rule": (
-            "Documented judgement, not an automatic argmax. The pilot split has 5 positive "
-            "anchors, so its precision moves by 0.2 per prediction and cannot discriminate "
-            "between methods. The a-priori precision-first principle governs: a false "
-            "link fabricates both a survival event and its event time. Current precision, "
-            "recall, false-positive-rate, and event-volume values are reported in the "
-            "structured summary fields generated in the same run. This choice draws on "
-            "the locked split, which was already inspected in notebooks/07 and never "
-            "functioned as an untouched holdout."
+            "Frozen conservative baseline, not an optimal-threshold claim. The national "
+            "development and validation evidence disagree between 0.60 and 0.70, so 0.70 "
+            "defines the primary event while 0.60 remains a required sensitivity arm."
         ),
-        "threshold_grid": list(THRESHOLD_GRID),
     }
-    (output_dir / "linkage_frozen_config.json").write_text(
-        json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    (output_dir / "linkage_config.json").write_text(
+        json.dumps(config, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
     )
 
     summary = {
         **config,
-        "benchmark": {
-            "anchors_in_benchmark": int(len(truth)),
-            "anchors_scored_in_cohort": int(len(evaluable)),
-            "anchors_not_in_cohort": int((~truth["anchor_in_cohort"]).sum()),
-            "pilot_anchors": int(len(pilot)),
-            "locked_test_anchors": int(len(locked)),
-            "pilot_positive_anchors": int(pilot["has_successor"].sum()),
-            "locked_test_positive_anchors": int(locked["has_successor"].sum()),
-        },
-        "candidate_retrieval": retrieval,
-        "method_comparison": comparison,
-        "fellegi_sunter_adoption": adoption,
+        "candidate_source": str(candidates_path),
         "cohort_application": {
-            "cohort_anchors_with_candidates": int(candidates["anchor_episode_id"].nunique()),
-            "accepted_links": int(len(accepted_links)),
-            "link_rate": round(len(accepted_links) / candidates["anchor_episode_id"].nunique(), 4),
+            "anchors_with_candidates": anchors,
+            "accepted_links": int(len(accepted)),
+            "link_rate": round(len(accepted) / anchors, 4) if anchors else None,
         },
         "threshold_sensitivity": sensitivity,
-        "caveats": {
-            "locked_test_is_not_a_clean_holdout": (
-                "notebooks/07 inspected locked-test error counts and per-error-type feature "
-                "medians before the gated method was designed in notebooks/08. Locked-test "
-                "numbers are already-inspected evaluation evidence, not an untouched holdout."
-            ),
-            "benchmark_conditioned_on_previous_ranker": (
-                "Reviewers saw only the previous pipeline's top-25 candidates per anchor "
-                "(review_candidates_exported_n = 25 for 97 of 120 anchors, against a broad "
-                "pool with median 146). Successors that ranker buried were never available "
-                "to label, so recall here is optimistic and 'no observed successor' is "
-                "relative to that review rather than to BOAMP."
-            ),
-            "small_benchmark": (
-                "With a handful of positive pilot anchors, a single prediction change moves "
-                "precision substantially. Metrics rule out clearly bad operating points; "
-                "they do not identify an optimum."
-            ),
-        },
+        "validation_passed": bool(
+            not accepted["anchor_episode_id"].duplicated().any()
+            and not accepted["anchor_episode_id"].eq(accepted["candidate_episode_id"]).any()
+        ),
     }
-    (output_dir / "linkage_evaluation_summary.json").write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    (output_dir / "linkage_application_summary.json").write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
     )
     return summary
 
 
-def build_v3(project_root: Path, output_dir: Path, split: str, event_set: str,
-             open_sealed: bool, seal_reason: str) -> dict[str, Any]:
-    """Evaluate the frozen methods against the national v3 benchmark.
 
-    Reported alongside, never instead of, the v1 result. Three things the v1
-    path could not do happen here: estimates are design-weighted with
-    intervals, a false-positive rate is computed only over anchors whose whole
-    pool was reviewed, and every method is additionally scored on a suite of
-    pairs that are provably not renewals.
-    """
-    benchmark_dir = output_dir / "benchmark_v3"
+def evaluate_benchmark(
+    project_root: Path,
+    output_dir: Path,
+    split: str,
+    event_set: str,
+    open_sealed: bool,
+    seal_reason: str,
+) -> dict[str, Any]:
+    """Evaluate all frozen methods against one national benchmark split."""
+    benchmark_dir = output_dir / "benchmark"
     exposure = pd.read_parquet(benchmark_dir / "exposure_full.parquet")
     exposure = score_with_fitted_model(exposure, output_dir / "fellegi_sunter_model.json")
-    truth, access_record = load_truth_v3(
+    truth, access_record = load_truth(
         benchmark_dir, split, event_set,
         project_root=project_root, allow_sealed=open_sealed, seal_reason=seal_reason,
     )
+    truth = truth.loc[truth["truth_usable"]].copy()
     logging.info(
-        "v3 benchmark: split=%s event_set=%s anchors=%s", split, event_set, len(truth)
+        "benchmark: split=%s event_set=%s anchors=%s", split, event_set, len(truth)
     )
 
     # The benchmark's own universe: a prediction outside it is out of scope,
@@ -588,8 +417,8 @@ def build_v3(project_root: Path, output_dir: Path, split: str, event_set: str,
     for anchor, group in exposure.groupby("anchor_episode_id"):
         pool_membership[anchor] = set(group["candidate_episode_id"])
 
-    scored = exposure.rename(columns={"anchor_episode_id": "anchor_episode_id"}).copy()
-    evaluable = scored.loc[scored["anchor_episode_id"].isin(set(truth["anchor_v2_episode_id"]))]
+    scored = exposure.copy()
+    evaluable = scored.loc[scored["anchor_episode_id"].isin(set(truth["anchor_episode_id"]))]
 
     negatives_path = benchmark_dir / "structural_negatives.parquet"
     negatives = pd.read_parquet(negatives_path) if negatives_path.exists() else pd.DataFrame()
@@ -639,7 +468,7 @@ def build_v3(project_root: Path, output_dir: Path, split: str, event_set: str,
 
     summary = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "benchmark": "v3",
+        "benchmark": "national",
         "split": split,
         "event_set": event_set,
         "scoring_sources": {
@@ -663,8 +492,7 @@ def build_v3(project_root: Path, output_dir: Path, split: str, event_set: str,
         },
         "validation_passed": bool(results),
     }
-    suffix = f"_{split}_{event_set}"
-    (output_dir / f"linkage_evaluation_summary_v3{suffix}.json").write_text(
+    (output_dir / f"linkage_evaluation_{split}.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8"
     )
     return summary
@@ -675,18 +503,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-root", type=Path, default=PROJECT_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument(
-        "--benchmark", choices=["v1", "v3"], default="v1",
-        help="Which benchmark to evaluate against. Defaults to v1 so the frozen "
-             "workflow reproduces byte for byte.",
-    )
-    parser.add_argument(
-        "--split", choices=["dev", "validation", "sealed_test"], default="dev",
-        help="v3 only. dev tunes thresholds, validation selects methods, "
-             "sealed_test is opened once through an audited path.",
+        "--evaluate-split", choices=["dev", "validation", "sealed_test"],
+        help="Evaluate one national benchmark split. Omit to apply the primary "
+             "method to the complete study cohort.",
     )
     parser.add_argument(
         "--event-set", choices=["strict", "primary", "broad"], default="primary",
-        help="v3 only. Which label classes count as an event.",
+        help="Which benchmark label classes count as an event.",
     )
     parser.add_argument(
         "--open-sealed-test", action="store_true",
@@ -704,13 +527,13 @@ def main() -> int:
     project_root = args.project_root.resolve()
     output_dir = args.output_dir if args.output_dir.is_absolute() else project_root / args.output_dir
     configure_logging(project_root)
-    if args.benchmark == "v3":
-        summary = build_v3(
-            project_root, output_dir, args.split, args.event_set,
+    if args.evaluate_split:
+        summary = evaluate_benchmark(
+            project_root, output_dir, args.evaluate_split, args.event_set,
             args.open_sealed_test, args.seal_reason,
         )
     else:
-        summary = build(project_root, output_dir)
+        summary = apply_primary_linkage(output_dir)
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 

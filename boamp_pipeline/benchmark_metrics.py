@@ -124,7 +124,7 @@ def weighted_evaluate(
     rows: list[dict[str, Any]] = []
     out_of_universe = 0
     for record in truth.itertuples(index=False):
-        anchor = record.anchor_v2_episode_id
+        anchor = record.anchor_episode_id
         prediction = top1.get(anchor)
         truths = set(record.true_successors)
         in_pool = True
@@ -135,7 +135,7 @@ def weighted_evaluate(
         accepted = int(prediction is not None and in_pool)
         correct = int(accepted and prediction in truths)
         rows.append({
-            "anchor_v2_episode_id": anchor,
+            "anchor_episode_id": anchor,
             "stratum_id": getattr(record, "stratum_id", "ALL"),
             "design_weight": getattr(record, "design_weight", np.nan),
             "frame": getattr(record, "frame", "PROBABILITY"),
@@ -276,7 +276,7 @@ def annotator_bias_report(
         "interpretation": (
             "A high correlation does not invalidate the benchmark, but it does mean "
             "the labels and a text-ranking method share a source of error. The "
-            "machine-verified hard-negative suite is the part of the evaluation that "
-            "does not."
+            "rule-generated hard-negative challenge suite supplies a different "
+            "stress test, but still requires semantic validation."
         ),
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build modeling-ready benchmark tables from v3 labels and exposure features.
+"""Build modeling-ready tables from the canonical benchmark and exposure features.
 
 The output is intentionally split-aware: dev is for calibration, validation is
 for method selection, and sealed test is not read here.
@@ -23,7 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from boamp_pipeline.annotation_schema import EVENT_SETS  # noqa: E402
 from boamp_pipeline.fellegi_sunter_scoring import score_with_fitted_model  # noqa: E402
 
-DEFAULT_BENCHMARK_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_BENCHMARK_DIR = Path("data/processed/boamp/benchmark")
 
 FEATURE_COLUMNS = [
     "gap_days",
@@ -75,8 +75,8 @@ LABEL_COLUMNS = [
 
 
 def load_split(benchmark_dir: Path, split: str) -> pd.DataFrame:
-    pairs = pd.read_parquet(benchmark_dir / f"benchmark_v3_{split}_pairs.parquet")
-    anchors = pd.read_parquet(benchmark_dir / f"benchmark_v3_{split}.parquet")
+    pairs = pd.read_parquet(benchmark_dir / f"benchmark_{split}_pairs.parquet")
+    anchors = pd.read_parquet(benchmark_dir / f"benchmark_{split}.parquet")
     exposure = pd.read_parquet(benchmark_dir / "exposure_full.parquet")
     exposure = score_with_fitted_model(exposure, benchmark_dir.parent / "fellegi_sunter_model.json")
 
@@ -158,10 +158,10 @@ def build(benchmark_dir: Path, force: bool) -> dict[str, Any]:
     output_dir = benchmark_dir / "modeling"
     output_dir.mkdir(parents=True, exist_ok=True)
     outputs = {
-        "dev": output_dir / "benchmark_v3_modeling_dev.parquet",
-        "validation": output_dir / "benchmark_v3_modeling_validation.parquet",
+        "dev": output_dir / "modeling_dev.parquet",
+        "validation": output_dir / "modeling_validation.parquet",
     }
-    summary_path = output_dir / "benchmark_v3_modeling_summary.json"
+    summary_path = output_dir / "modeling_summary.json"
     existing = [path for path in [*outputs.values(), summary_path] if path.exists()]
     if existing and not force:
         raise FileExistsError(f"modeling outputs already exist; use --force: {existing}")

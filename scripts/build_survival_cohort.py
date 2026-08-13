@@ -42,7 +42,7 @@ from boamp_pipeline.linkage import (
     parse_json_list,
 )
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 COHORT_VERSION = "boamp_survival_cohort_v1.0"
 
 #: Observation cutoff. The corpus ends on 2025-12-31; every episode without an

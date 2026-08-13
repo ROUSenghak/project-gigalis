@@ -1,6 +1,6 @@
 # National Development Reference
 
-Generated: `2026-08-13T22:14:54`
+Generated: `2026-08-14T00:18:33`
 
 ## Purpose
 
@@ -34,10 +34,11 @@ Fellegi-Sunter model when the current benchmark exposure is evaluated.
 
 ## Decision Rule
 
-The incumbent `M_B_text_ranking @ 0.70` remains the provisional primary method
-because it has the strongest precision-first profile within this reference. A replacement should only
-be promoted if it preserves or improves precision and false-positive control
-without an unacceptable recall loss.
+The incumbent `M_B_text_ranking @ 0.70` remains the frozen conservative primary
+event definition, not an empirically optimal threshold. `0.60` performs better
+on this small validation split but worse on development precision and
+false-positive control. A replacement requires a pre-specified selection rule,
+direct review of the incremental links, and fresh evaluation evidence.
 
 ## Caveat
 

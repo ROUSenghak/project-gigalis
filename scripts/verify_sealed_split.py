@@ -20,7 +20,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from boamp_pipeline.sealed_split import verify  # noqa: E402
 
-DEFAULT_SEALED = Path("data/processed/boamp_v2/benchmark_v3/sealed/benchmark_v3_test.parquet")
+DEFAULT_SEALED = Path("data/processed/boamp/benchmark/sealed/benchmark_test.parquet")
 
 
 def main() -> int:

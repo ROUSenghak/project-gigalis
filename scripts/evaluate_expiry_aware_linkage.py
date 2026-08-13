@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Build and evaluate the parallel expiry-aware successor policy.
 
-This script does not change candidate generation or any v1 output. It enriches
-the existing candidate pool with the best observable anchor expiry evidence,
-applies ``M_E_expiry_aware_text``, and writes separate linkage and review
-artifacts.
+This script does not change candidate generation or the primary linkage output.
+It enriches the existing candidate pool with the best observable anchor expiry
+evidence, applies ``M_E_expiry_aware_text``, and writes separate audit artifacts.
+Accuracy comparisons use the same national dev and validation benchmark as the
+four primary linkage methods.
 """
 
 from __future__ import annotations
@@ -34,11 +35,12 @@ from boamp_pipeline.expiry_linkage import (  # noqa: E402
     expiry_aware_eligible,
     select_expiry_aware,
 )
-from scripts.evaluate_linkage import evaluate, load_truth, predict  # noqa: E402
+from boamp_pipeline.benchmark_io import load_truth  # noqa: E402
+from scripts.evaluate_linkage import evaluate, predict  # noqa: E402
 
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
-EXPIRY_LINKAGE_VERSION = "boamp_expiry_aware_linkage_v1.0"
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
+EXPIRY_POLICY_SCHEMA = "boamp_expiry_aware_linkage_schema_1.0"
 
 
 def configure_logging(project_root: Path) -> None:
@@ -54,26 +56,55 @@ def configure_logging(project_root: Path) -> None:
     )
 
 
-def benchmark_metrics(candidates: pd.DataFrame, expiry_predictions: pd.DataFrame, output_dir: Path) -> dict[str, Any]:
-    truth = load_truth(output_dir)
-    scored_anchors = set(candidates["anchor_episode_id"].unique())
-    truth["anchor_in_cohort"] = truth["anchor_v2_episode_id"].isin(scored_anchors)
-    evaluable = truth.loc[truth["anchor_in_cohort"] & truth["truth_usable"]].copy()
-    baseline_predictions = predict(candidates, "M_B_text_ranking", 70.0)
+def _national_expiry_features(index: pd.DataFrame) -> pd.DataFrame:
+    """Adapt the national index's resolved dates to the expiry-policy contract."""
+    columns = [
+        "episode_id",
+        "expected_end_date",
+        "expected_end_source",
+        "explicit_start_date",
+        "explicit_end_date",
+        "explicit_start_date_count",
+        "explicit_end_date_count",
+    ]
+    missing = set(columns) - set(index.columns)
+    if missing:
+        raise RuntimeError(f"national episode index is missing expiry fields: {sorted(missing)}")
+    features = index[columns].copy()
+    features = features.rename(columns={"expected_end_date": "anchor_expected_end_date"})
+    features["expected_end_source"] = features["expected_end_source"].fillna("unavailable")
+    return features
+
+
+def benchmark_metrics(project_root: Path, output_dir: Path) -> dict[str, Any]:
+    """Compare primary and expiry policies on the canonical national benchmark."""
+    benchmark_dir = output_dir / "benchmark"
+    exposure = pd.read_parquet(benchmark_dir / "exposure_full.parquet")
+    national_index = pd.read_parquet(benchmark_dir / "national_episode_index.parquet")
+    enriched = add_expiry_timing(exposure, _national_expiry_features(national_index))
+    baseline_predictions = predict(enriched, "M_B_text_ranking", 70.0)
+    expiry_predictions = select_expiry_aware(enriched)
 
     result: dict[str, Any] = {}
-    for label, split in (
-        ("all", evaluable),
-        ("pilot_development", evaluable.loc[evaluable["benchmark_split"] == "PILOT_DEVELOPMENT"]),
-        ("locked_test", evaluable.loc[evaluable["benchmark_split"] == "LOCKED_TEST"]),
-    ):
-        anchors = set(split["anchor_v2_episode_id"])
-        result[label] = {
+    for split_name in ("dev", "validation"):
+        truth, _ = load_truth(
+            benchmark_dir,
+            split_name,
+            "primary",
+            project_root=project_root,
+        )
+        truth = truth.loc[truth["truth_usable"]].copy()
+        anchors = set(truth["anchor_episode_id"])
+        result[split_name] = {
             "M_B_text_ranking_70": evaluate(
-                baseline_predictions.loc[baseline_predictions["anchor_episode_id"].isin(anchors)], split
+                baseline_predictions.loc[
+                    baseline_predictions["anchor_episode_id"].isin(anchors)
+                ],
+                truth,
             ),
             METHOD_NAME: evaluate(
-                expiry_predictions.loc[expiry_predictions["anchor_episode_id"].isin(anchors)], split
+                expiry_predictions.loc[expiry_predictions["anchor_episode_id"].isin(anchors)],
+                truth,
             ),
         }
     return result
@@ -119,7 +150,7 @@ def build_review(
     candidates: pd.DataFrame,
     episodes: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Describe every v1 link removed or replaced by the expiry-aware rule."""
+    """Describe every primary link removed or replaced by the expiry-aware rule."""
     old_top = baseline_links.set_index("anchor_episode_id")["candidate_episode_id"]
     new_top = expiry_links.set_index("anchor_episode_id")["candidate_episode_id"]
     changed = [anchor for anchor, candidate in old_top.items() if new_top.get(anchor) != candidate]
@@ -180,13 +211,13 @@ def build_review(
 
 
 def promotion_gate(benchmark: dict[str, Any]) -> dict[str, Any]:
-    baseline = benchmark["all"]["M_B_text_ranking_70"]
-    challenger = benchmark["all"][METHOD_NAME]
+    baseline = benchmark["validation"]["M_B_text_ranking_70"]
+    challenger = benchmark["validation"][METHOD_NAME]
     positive_anchors = int(baseline["positive_anchors"])
     allowed_recall_loss = 1 / positive_anchors if positive_anchors else 0.0
     checks = {
         "precision_at_least_0_80": bool((challenger["precision_at_1"] or 0) >= 0.80),
-        "false_positive_rate_no_higher_than_v1": bool(
+        "false_positive_rate_no_higher_than_primary": bool(
             (challenger["false_positive_rate_on_negatives"] or 0)
             <= (baseline["false_positive_rate_on_negatives"] or 0)
         ),
@@ -197,7 +228,7 @@ def promotion_gate(benchmark: dict[str, Any]) -> dict[str, Any]:
     return {
         "criteria": checks,
         "passed": all(checks.values()),
-        "recommendation": "review_then_consider_promotion" if all(checks.values()) else "retain_v1",
+        "recommendation": "review_then_consider_promotion" if all(checks.values()) else "retain_primary",
         "manual_review_required_before_promotion": True,
     }
 
@@ -236,7 +267,7 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
     predictions = select_expiry_aware(enriched)
     links = predictions.loc[predictions["predicted_rank"] == 1].copy()
     links["selection_method"] = METHOD_NAME
-    links["expiry_linkage_version"] = EXPIRY_LINKAGE_VERSION
+    links["expiry_policy_schema"] = EXPIRY_POLICY_SCHEMA
     links.to_parquet(links_path, index=False, compression="zstd")
 
     baseline_links = pd.read_parquet(output_dir / "accepted_successor_links.parquet")
@@ -247,14 +278,14 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
     review = build_review(baseline_links, links, enriched, episodes)
     review.to_csv(review_path, index=False)
 
-    benchmark = benchmark_metrics(enriched, predictions, output_dir)
+    benchmark = benchmark_metrics(project_root, output_dir)
     baseline_description = cohort_description(cohort, baseline_links)
     expiry_description = cohort_description(cohort, links)
     old_pairs = set(zip(baseline_links["anchor_episode_id"], baseline_links["candidate_episode_id"]))
     new_pairs = set(zip(links["anchor_episode_id"], links["candidate_episode_id"]))
     old_by_anchor = baseline_links.set_index("anchor_episode_id")["candidate_episode_id"].to_dict()
     new_by_anchor = links.set_index("anchor_episode_id")["candidate_episode_id"].to_dict()
-    changed_v1_anchors = {
+    changed_primary_anchors = {
         anchor for anchor, candidate in old_by_anchor.items() if new_by_anchor.get(anchor) != candidate
     }
     timing_counts = links["timing_class"].value_counts(dropna=False)
@@ -262,7 +293,7 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
 
     summary = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "expiry_linkage_version": EXPIRY_LINKAGE_VERSION,
+        "expiry_policy_schema": EXPIRY_POLICY_SCHEMA,
         "method": METHOD_NAME,
         "candidate_source": str(candidates_path),
         "candidate_generation_changed": False,
@@ -282,7 +313,7 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
         "expiry_source_counts": {str(key): int(value) for key, value in source_counts.items()},
         "accepted_timing_class_counts": {str(key): int(value) for key, value in timing_counts.items()},
         "cohort_comparison": {
-            "v1": baseline_description,
+            "primary": baseline_description,
             "expiry_aware": expiry_description,
             "retained_pairs": len(old_pairs & new_pairs),
             "removed_pairs": len(old_pairs - new_pairs),
@@ -299,8 +330,8 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
         "validation": {
             "unique_anchor_links": bool(links["anchor_episode_id"].is_unique),
             "no_self_links": bool((links["anchor_episode_id"] != links["candidate_episode_id"]).all()),
-            "review_covers_every_changed_v1_anchor": bool(
-                set(review["anchor_episode_id"]) == changed_v1_anchors
+            "review_covers_every_changed_primary_anchor": bool(
+                set(review["anchor_episode_id"]) == changed_primary_anchors
             ),
         },
     }

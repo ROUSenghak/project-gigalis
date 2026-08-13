@@ -31,7 +31,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from boamp_pipeline.linkage import normalize_buyer_for_blocking
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 
 MUNICIPAL_RE = re.compile(r"\b(commune|ville|mairie)\b", re.IGNORECASE)
 INTERCOMMUNAL_RE = re.compile(

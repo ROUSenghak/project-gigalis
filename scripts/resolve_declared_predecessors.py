@@ -58,7 +58,7 @@ from boamp_pipeline.renewal_language import (  # noqa: E402
 )
 from boamp_pipeline.standardize import normalize_reference  # noqa: E402
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 RESOLUTION_VERSION = "boamp_declared_predecessor_v1.0"
 
 #: How far back a predecessor may sit. Generous: a declaration in 2024 can

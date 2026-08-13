@@ -1,6 +1,6 @@
 # BOAMP Descriptive Trend Analysis
 
-Generated: `2026-08-13T22:14:19`  
+Generated: `2026-08-14T00:18:05`  
 Analysis window: `2015Q2-2025Q4`  
 Unit: awarded Grand Ouest digital procurement episodes
 
@@ -60,8 +60,8 @@ The sharp rise in duration availability in 2025 is a schema/completeness change,
 
 ## Reproducible Outputs
 
-- `data/processed/boamp_v2/trend_quarterly.csv`
-- `data/processed/boamp_v2/trend_breakpoints.csv`
-- `data/processed/boamp_v2/trend_signal_matrix.csv`
-- `data/processed/boamp_v2/trend_analysis_summary.json`
+- `data/processed/boamp/trend_quarterly.csv`
+- `data/processed/boamp/trend_breakpoints.csv`
+- `data/processed/boamp/trend_signal_matrix.csv`
+- `data/processed/boamp/trend_analysis_summary.json`
 - `notebooks/14_data_quality_and_trend_analysis.ipynb`

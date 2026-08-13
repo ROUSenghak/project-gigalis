@@ -1,11 +1,4 @@
-"""A test split that is hard to open by accident, and impossible to open quietly.
-
-The existing study has no clean holdout and says so: notebook 07 inspected
-locked-test error counts and per-error-type feature medians *before* the gated
-method was designed in notebook 08, and the final method choice drew on the
-locked split as well. Both admissions are written into
-``scripts/evaluate_linkage.py`` and into the methodology chapter. The split was
-called locked, but nothing locked it.
+"""Make the final benchmark split hard to open accidentally or silently.
 
 This module makes the sealed split a mechanism rather than an intention:
 

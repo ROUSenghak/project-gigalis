@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import textwrap
 from datetime import datetime
 from pathlib import Path
@@ -14,8 +16,8 @@ import nbformat as nbf
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PROCESSED = PROJECT_ROOT / "data/processed/boamp_v2"
-BENCHMARK = PROCESSED / "benchmark_v3"
+PROCESSED = PROJECT_ROOT / "data/processed/boamp"
+BENCHMARK = PROCESSED / "benchmark"
 REPORTS = PROJECT_ROOT / "reports"
 FIGURES = REPORTS / "figures"
 NOTEBOOK = PROJECT_ROOT / "notebooks/12_successor_linkage_and_evaluation.ipynb"
@@ -23,6 +25,24 @@ NOTEBOOK = PROJECT_ROOT / "notebooks/12_successor_linkage_and_evaluation.ipynb"
 
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def compile_methodology_pdf(tex_path: Path) -> Path:
+    """Compile the generated report so the PDF cannot lag behind the source."""
+    latexmk = shutil.which("latexmk")
+    if latexmk is None:
+        raise RuntimeError("latexmk is required to refresh the methodology PDF")
+    subprocess.run(
+        [latexmk, "-pdf", "-interaction=nonstopmode", "-halt-on-error", tex_path.name],
+        cwd=tex_path.parent,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    pdf_path = tex_path.with_suffix(".pdf")
+    if not pdf_path.exists():
+        raise RuntimeError(f"latexmk completed without creating {pdf_path}")
+    return pdf_path
 
 
 def method_frame(summary: dict[str, Any]) -> pd.DataFrame:
@@ -150,6 +170,7 @@ def write_methodology_report(
     survival = load_json(PROCESSED / "survival_dataset_summary.json")
     buyer_audit = load_json(PROCESSED / "buyer_blocking_legal_form_audit_summary.json")
     expiry = load_json(PROCESSED / "expiry_aware_linkage_summary.json")
+    review_audit = load_json(PROJECT_ROOT / "data/review/review_audit_evaluation.json")
     survival_main = survival["variants"]["main"]
     survival_strict = survival["variants"]["strict"]
     survival_looser = survival["variants"]["looser"]
@@ -202,7 +223,7 @@ months among linked events. The candidate pool is broad:
 The current national development reference contains {labelled_anchors}
 bootstrap-labelled anchors and {labelled_pairs:,} labelled anchor-candidate
 rows. On its held-out internal split, \code{{M\_B\_text\_ranking @ 0.70}}
-has the strongest precision-first profile: precision {m_b.precision:.3f},
+has precision {m_b.precision:.3f},
 recall {m_b.recall:.3f}, false-positive rate {m_b.fpr:.3f}, and
 {int(m_b.accepted_links)} accepted links. These are internal protocol-reference
 estimates, not independently validated accuracy estimates, because both label
@@ -386,7 +407,7 @@ Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 
 \begin{{figure}}[H]
 \centering
-\includegraphics[width=0.92\textwidth]{{figures/benchmark_v3_dev_method_metrics.png}}
+\includegraphics[width=0.92\textwidth]{{figures/benchmark_dev_method_metrics.png}}
 \caption{{Dev split method comparison generated from the current benchmark evaluation JSON.}}
 \end{{figure}}
 
@@ -418,7 +439,7 @@ Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 
 \begin{{figure}}[H]
 \centering
-\includegraphics[width=0.92\textwidth]{{figures/benchmark_v3_validation_method_metrics.png}}
+\includegraphics[width=0.92\textwidth]{{figures/benchmark_validation_method_metrics.png}}
 \caption{{Held-out internal method comparison generated from the development-reference JSON.}}
 \end{{figure}}
 
@@ -438,6 +459,47 @@ anchor-level: choose one successor or abstain. The ROC curve is stepped rather
 than smooth because the held-out reference contains a finite number of
 labelled pairs and many tied or near-tied scores.
 
+The emphasis on precision-recall for rare positive decisions is supported by
+\href{{https://doi.org/10.1145/1143844.1143874}}{{Davis and Goadrich (2006)}}
+and
+\href{{https://doi.org/10.1371/journal.pone.0118432}}{{Saito and Rehmsmeier
+(2015)}}. These sources justify the diagnostic choice; they do not validate the
+bootstrap labels, numerical results, or selected threshold. Generic web
+illustrations are therefore treated as presentation aids only, not as academic
+evidence.
+
+\begin{{figure}}[H]
+\centering
+\includegraphics[width=0.99\textwidth]{{figures/benchmark_validation_m_b_threshold_tradeoff.png}}
+\caption{{Project-specific, unsmoothed anchor-level threshold trade-off for
+\code{{M\_B}}. The figure is empirical evidence from the internal validation
+reference, not an idealised illustration.}}
+\end{{figure}}
+
+At threshold $0.60$, this validation sample contains 8 correct successors
+among 9 accepted links, compared with 4 among 5 at $0.70$. Thus $0.60$
+performs better on this particular sample. Development evidence points in the
+opposite direction: precision is 0.800 and FPR is 0.058 at $0.60$, compared
+with precision 0.875 and FPR 0.035 at $0.70$. The lower threshold is therefore
+reported as a sensitivity arm rather than promoted after inspecting validation.
+
+\section{{Model-Assisted Challenge Review}}
+A separate blinded challenge review sampled 20 current accepted links, 20
+high-similarity structural-negative candidates, and 20 buyer-declared
+relationships. Its provenance is model-assisted rather than independent human
+specialist review. Among the 20 accepted links,
+{review_audit["primary_accepted_links"]["review_counts"]["Y"]} were confirmed,
+{review_audit["primary_accepted_links"]["review_counts"]["N"]} were rejected,
+and {review_audit["primary_accepted_links"]["review_counts"]["UNCERTAIN"]} was
+uncertain. Conservative reviewed precision was
+{review_audit["primary_accepted_links"]["precision_conservative"]["estimate"]:.3f},
+with exact 95\% interval
+[{review_audit["primary_accepted_links"]["precision_conservative"]["ci_95"][0]:.3f},
+{review_audit["primary_accepted_links"]["precision_conservative"]["ci_95"][1]:.3f}].
+This diagnostic falls below the 0.80 point target and exposes useful failure
+modes. It does not establish independent human validation, but it is sufficient
+to justify keeping the current claim narrow and the lower threshold unpromoted.
+
 \section{{Modeling Tables}}
 The modeling-ready tables include strict, primary, broad, and non-match target
 columns, plus observable features. They now include the Fellegi--Sunter columns
@@ -446,7 +508,7 @@ evaluation use the same feature state.
 
 \begin{{figure}}[H]
 \centering
-\includegraphics[width=0.86\textwidth]{{figures/benchmark_v3_modeling_counts.png}}
+\includegraphics[width=0.86\textwidth]{{figures/benchmark_modeling_counts.png}}
 \caption{{Current benchmark modeling table sizes and label support.}}
 \end{{figure}}
 
@@ -470,15 +532,23 @@ linkage rule: {survival_strict["validation"]["events"]:,} events under
 linkage-conditioned descriptive evidence, not as exact renewal probabilities.
 
 \section{{Defensible Decision}}
-The current defensible decision is to keep \code{{M\_B\_text\_ranking @ 0.70}}
-as the provisional primary observable-successor baseline and use the stricter, looser,
-weighted-gated, and expiry-aware variants as sensitivity analyses. This is a
-precision-first design. Low recall is accepted as an explicit trade-off, but the
+The final project decision is to keep \code{{M\_B\_text\_ranking @ 0.70}}
+as the frozen conservative observable-successor baseline and use the stricter,
+looser, weighted-gated, and expiry-aware variants as required sensitivity
+analyses. The threshold is not claimed to be optimal: $0.60$ performs better
+on the small bootstrap validation split, while $0.70$ has better precision and
+false-positive control on development evidence. Moreover, the completed
+model-assisted review confirmed only 14 of 20 sampled production links at
+$0.70$ conservatively, so lowering an unreviewed threshold would not support a
+stronger accuracy claim. This is a precision-first design. Low recall is
+accepted as an explicit trade-off, but the
 observed event rate is not a mathematical lower bound: missed successors push it
 downward while residual false links can push it upward. It is therefore a
 linkage-conditioned indicator whose absolute value must be read with the strict,
 looser, weighted-gated, and expiry-aware sensitivity results.
-Independent specialist review is required before claiming validated precision.
+Independent specialist review is required only before claiming externally
+validated precision or promoting a new threshold, not to complete this
+linkage-conditioned descriptive study.
 If that review shows weaker precision, the claim should be narrowed further
 rather than forcing a more complex model.
 
@@ -512,14 +582,16 @@ false positive links would create artificial survival events.
 
 \section{{Current Source Files}}
 \begin{{itemize}}
-\item \pathcode{{data/processed/boamp\_v2/linkage\_evaluation\_summary\_v3\_dev\_primary.json}}
-\item \pathcode{{data/processed/boamp\_v2/linkage\_evaluation\_summary\_v3\_validation\_primary.json}}
-\item \pathcode{{data/processed/boamp\_v2/benchmark\_v3/modeling/benchmark\_v3\_modeling\_summary.json}}
-\item \pathcode{{data/processed/boamp\_v2/benchmark\_v3/benchmark\_v3\_manifest.json}}
-\item \pathcode{{data/processed/boamp\_v2/survival\_dataset\_summary.json}}
-\item \pathcode{{data/processed/boamp\_v2/linkage\_candidates\_summary.json}}
+\item \pathcode{{data/processed/boamp/linkage\_evaluation\_dev.json}}
+\item \pathcode{{data/processed/boamp/linkage\_evaluation\_validation.json}}
+\item \pathcode{{data/processed/boamp/benchmark/modeling/modeling\_summary.json}}
+\item \pathcode{{data/processed/boamp/benchmark/benchmark\_manifest.json}}
+\item \pathcode{{data/processed/boamp/survival\_dataset\_summary.json}}
+\item \pathcode{{data/processed/boamp/linkage\_candidates\_summary.json}}
 \item \pathcode{{DATA\_QUALITY\_REPORT.md}}
 \item \pathcode{{TREND\_ANALYSIS\_REPORT.md}}
+\item \pathcode{{PROJECT\_WORK\_PROTOCOL.md}}
+\item \pathcode{{REVIEW\_AUDIT\_RESULTS.md}}
 \end{{itemize}}
 
 \section{{Methodological References}}
@@ -528,8 +600,9 @@ documentation. CPV interpretation follows Commission Regulation (EC) No
 213/2008. TF--IDF cosine similarity follows the standard vector-space
 definition. Record linkage, survival estimation, proportional-hazards
 diagnostics, and change-point detection are supported by the original
-Fellegi--Sunter (1969), Kaplan--Meier (1958), Cox (1972), Grambsch--Therneau
-(1994), and PELT (Killick et al., 2012) methods. Full URLs and the specific
+Fellegi--Sunter (1969), Davis--Goadrich (2006), Saito--Rehmsmeier (2015),
+Kaplan--Meier (1958), Cox (1972), Grambsch--Therneau (1994), and PELT
+(Killick et al., 2012) methods. Full URLs and the specific
 design implications are recorded in \pathcode{{METHODOLOGICAL\_REFERENCES.md}}.
 \begin{{itemize}}
 \item \href{{https://www.data.gouv.fr/dataservices/api-bulletin-officiel-des-annonces-des-marches-publics-boamp}}{{Official BOAMP API (DILA)}}.
@@ -538,6 +611,8 @@ design implications are recorded in \pathcode{{METHODOLOGICAL\_REFERENCES.md}}.
 \item \href{{https://eur-lex.europa.eu/eli/reg/2008/213/oj}}{{Commission Regulation (EC) No 213/2008 on CPV}} and
 \href{{https://eur-lex.europa.eu/eli/dir/2014/24/oj}}{{Directive 2014/24/EU, Article 33}}.
 \item \href{{https://scikit-learn.org/stable/modules/metrics.html\#cosine-similarity}}{{Cosine similarity documentation}}.
+\item \href{{https://doi.org/10.1145/1143844.1143874}}{{Davis--Goadrich (2006)}} and
+\href{{https://doi.org/10.1371/journal.pone.0118432}}{{Saito--Rehmsmeier (2015)}} on ROC and precision-recall evaluation for skewed binary decisions.
 \item \href{{https://doi.org/10.1080/01621459.1969.10501049}}{{Fellegi--Sunter (1969)}},
 \href{{https://doi.org/10.1080/01621459.1958.10501452}}{{Kaplan--Meier (1958)}}, and
 \href{{https://doi.org/10.1111/j.2517-6161.1972.tb00899.x}}{{Cox (1972)}}.
@@ -562,6 +637,9 @@ def write_status_files(
     validation_frame = method_frame(validation)
     labelled_anchors = manifest["anchor_totals"]["anchors"]
     labelled_pairs = manifest["anchor_totals"]["labelled_pairs"]
+    application = load_json(PROCESSED / "linkage_application_summary.json")
+    survival = load_json(PROCESSED / "survival_dataset_summary.json")["variants"]["main"]
+    expiry = load_json(PROCESSED / "expiry_aware_linkage_summary.json")
     m_b = validation_frame.loc[validation_frame["method"].eq("M_B_text_ranking")].iloc[0]
     final_pipeline = f"""# Final Defensible Pipeline
 
@@ -569,7 +647,8 @@ Generated: `{generated_at}`
 
 ## Current Decision
 
-The current primary method remains `M_B_text_ranking @ 0.70`.
+The final primary event definition is `M_B_text_ranking @ 0.70`. It is a frozen
+conservative baseline, not a claim that `0.70` is the optimal threshold.
 
 On the held-out split of the current national development reference it gives:
 
@@ -581,6 +660,12 @@ On the held-out split of the current national development reference it gives:
 These are internal bootstrap-reference estimates, not independent validation
 results. Both annotation passes were generated by the deterministic rules in
 `scripts/auto_annotate_wave1a.py`.
+
+Threshold `0.60` performs better on this particular validation sample, but
+development evidence favours `0.70` for precision and false-positive control.
+The completed production-link diagnostic at `0.70` confirmed only `14/20`
+sampled links conservatively, so the unreviewed lower threshold is not promoted
+post hoc. It remains a required survival sensitivity arm.
 
 `M_C_weighted_gated` has higher recall but also higher false-positive risk.
 `M_D_fellegi_sunter` is evaluated on the current benchmark, but it does not outperform `M_B`.
@@ -609,23 +694,34 @@ renewal.
 - validation: `{modeling["outputs"]["validation"]["anchors"]}` anchors and `{modeling["outputs"]["validation"]["rows"]:,}` pair rows;
 - sealed test: not used for method selection.
 
-## Current Source of Truth
+## Current Study State
 
-- `data/processed/boamp_v2/linkage_evaluation_summary_v3_dev_primary.json`
-- `data/processed/boamp_v2/linkage_evaluation_summary_v3_validation_primary.json`
-- `data/processed/boamp_v2/benchmark_v3/modeling/benchmark_v3_modeling_summary.json`
+- cohort episodes: `{survival["validation"]["rows"]:,}`;
+- candidate pairs: `{load_json(PROCESSED / "linkage_candidates_summary.json")["candidate_pairs"]:,}`;
+- primary accepted links: `{application["cohort_application"]["accepted_links"]}`;
+- primary cohort event rate: `{survival["description"]["event_rate"]:.4f}`;
+- expiry-aware accepted links: `{expiry["cohort_comparison"]["expiry_aware"]["accepted_links"]}`;
+- expiry-aware changed primary anchors: `{expiry["cohort_comparison"]["changed_anchors_for_review"]}`.
+
+## Canonical Outputs
+
+- `data/processed/boamp/`
+- `data/processed/boamp/benchmark/`
+- `data/processed/boamp/linkage_evaluation_dev.json`
+- `data/processed/boamp/linkage_evaluation_validation.json`
+- `data/processed/boamp/benchmark/modeling/modeling_summary.json`
 - `reports/boamp_methodology_chapter.pdf`
-- `reports/current_project_readiness_report.html`
 - `notebooks/12_successor_linkage_and_evaluation.ipynb`
 - `DATA_QUALITY_REPORT.md`
 - `TREND_ANALYSIS_REPORT.md`
 - `INTERNSHIP_GUIDE_COMPLIANCE.md`
 - `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`
+- `PROJECT_WORK_PROTOCOL.md`
 
 ## Refresh Command
 
 ```bash
-PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-current-benchmark-evaluation
+PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-notebooks --with-tests
 ```
 
 Use `--force` only when intentionally rebuilding all materialised stages.
@@ -670,10 +766,11 @@ Fellegi-Sunter model when the current benchmark exposure is evaluated.
     national += """
 ## Decision Rule
 
-The incumbent `M_B_text_ranking @ 0.70` remains the provisional primary method
-because it has the strongest precision-first profile within this reference. A replacement should only
-be promoted if it preserves or improves precision and false-positive control
-without an unacceptable recall loss.
+The incumbent `M_B_text_ranking @ 0.70` remains the frozen conservative primary
+event definition, not an empirically optimal threshold. `0.60` performs better
+on this small validation split but worse on development precision and
+false-positive control. A replacement requires a pre-specified selection rule,
+direct review of the incremental links, and fresh evaluation evidence.
 
 ## Caveat
 
@@ -704,7 +801,8 @@ def write_notebook(generated_at: str) -> None:
         ),
         nbf.v4.new_markdown_cell(
             "## tl;dr\n\n"
-            "`M_B_text_ranking @ 0.70` remains the primary method. The latest "
+            "`M_B_text_ranking @ 0.70` is the frozen conservative primary event "
+            "definition, not a claim of threshold optimality. The latest "
             "internal held-out comparison includes all four algorithms, including "
             "`M_D_fellegi_sunter`, which is now scored from the fitted model."
         ),
@@ -716,15 +814,15 @@ def write_notebook(generated_at: str) -> None:
             "PROJECT_ROOT = Path.cwd().resolve()\n"
             "while PROJECT_ROOT != PROJECT_ROOT.parent and not (PROJECT_ROOT / 'scripts').exists():\n"
             "    PROJECT_ROOT = PROJECT_ROOT.parent\n"
-            "PROCESSED = PROJECT_ROOT / 'data/processed/boamp_v2'\n"
-            "BENCHMARK = PROCESSED / 'benchmark_v3'\n\n"
+            "PROCESSED = PROJECT_ROOT / 'data/processed/boamp'\n"
+            "BENCHMARK = PROCESSED / 'benchmark'\n\n"
             "def load_json(path):\n"
             "    with open(path, 'r', encoding='utf-8') as f:\n"
             "        return json.load(f)\n\n"
-            "dev = load_json(PROCESSED / 'linkage_evaluation_summary_v3_dev_primary.json')\n"
-            "validation = load_json(PROCESSED / 'linkage_evaluation_summary_v3_validation_primary.json')\n"
-            "modeling = load_json(BENCHMARK / 'modeling/benchmark_v3_modeling_summary.json')\n"
-            "manifest = load_json(BENCHMARK / 'benchmark_v3_manifest.json')\n"
+            "dev = load_json(PROCESSED / 'linkage_evaluation_dev.json')\n"
+            "validation = load_json(PROCESSED / 'linkage_evaluation_validation.json')\n"
+            "modeling = load_json(BENCHMARK / 'modeling/modeling_summary.json')\n"
+            "manifest = load_json(BENCHMARK / 'benchmark_manifest.json')\n"
         ),
         nbf.v4.new_code_cell(
             "def method_frame(summary):\n"
@@ -780,8 +878,13 @@ def write_notebook(generated_at: str) -> None:
             "`M_C_weighted_gated` recovers more true successors, but its false-positive "
             "rate is materially higher. For survival analysis, a false link is more "
             "damaging than an abstention because it fabricates both an event and an "
-            "event time. This is why `M_B_text_ranking @ 0.70` remains the primary "
-            "defensible method."
+            "event time. Threshold `0.60` performs better on the small bootstrap "
+            "validation split but worse on development precision and FPR, so it remains "
+            "a sensitivity arm rather than being promoted post hoc. The use of "
+            "precision-recall evidence for this rare-positive "
+            "decision follows [Davis and Goadrich (2006)](https://doi.org/10.1145/1143844.1143874) "
+            "and [Saito and Rehmsmeier (2015)](https://doi.org/10.1371/journal.pone.0118432). "
+            "Those papers support the diagnostic choice, not this project's numerical results."
         ),
         nbf.v4.new_markdown_cell("## Modeling-Ready Tables"),
         nbf.v4.new_code_cell(
@@ -809,24 +912,25 @@ def write_notebook(generated_at: str) -> None:
 
 def main() -> int:
     generated_at = datetime.now().isoformat(timespec="seconds")
-    dev = load_json(PROCESSED / "linkage_evaluation_summary_v3_dev_primary.json")
-    validation = load_json(PROCESSED / "linkage_evaluation_summary_v3_validation_primary.json")
-    modeling = load_json(BENCHMARK / "modeling/benchmark_v3_modeling_summary.json")
-    manifest = load_json(BENCHMARK / "benchmark_v3_manifest.json")
+    dev = load_json(PROCESSED / "linkage_evaluation_dev.json")
+    validation = load_json(PROCESSED / "linkage_evaluation_validation.json")
+    modeling = load_json(BENCHMARK / "modeling/modeling_summary.json")
+    manifest = load_json(BENCHMARK / "benchmark_manifest.json")
 
     FIGURES.mkdir(parents=True, exist_ok=True)
     plot_method_metrics(
         method_frame(dev),
         "Current dev metrics",
-        FIGURES / "benchmark_v3_dev_method_metrics.png",
+        FIGURES / "benchmark_dev_method_metrics.png",
     )
     plot_method_metrics(
         method_frame(validation),
         "Current internal reference metrics",
-        FIGURES / "benchmark_v3_validation_method_metrics.png",
+        FIGURES / "benchmark_validation_method_metrics.png",
     )
-    plot_modeling_counts(modeling, FIGURES / "benchmark_v3_modeling_counts.png")
+    plot_modeling_counts(modeling, FIGURES / "benchmark_modeling_counts.png")
     report_path = write_methodology_report(dev, validation, modeling, manifest, generated_at)
+    pdf_path = compile_methodology_pdf(report_path)
     write_status_files(dev, validation, modeling, manifest, generated_at)
     write_notebook(generated_at)
 
@@ -835,11 +939,12 @@ def main() -> int:
             {
                 "generated_at": generated_at,
                 "report": str(report_path.relative_to(PROJECT_ROOT)),
+                "report_pdf": str(pdf_path.relative_to(PROJECT_ROOT)),
                 "notebook": str(NOTEBOOK.relative_to(PROJECT_ROOT)),
                 "figures": [
-                    str((FIGURES / "benchmark_v3_dev_method_metrics.png").relative_to(PROJECT_ROOT)),
-                    str((FIGURES / "benchmark_v3_validation_method_metrics.png").relative_to(PROJECT_ROOT)),
-                    str((FIGURES / "benchmark_v3_modeling_counts.png").relative_to(PROJECT_ROOT)),
+                    str((FIGURES / "benchmark_dev_method_metrics.png").relative_to(PROJECT_ROOT)),
+                    str((FIGURES / "benchmark_validation_method_metrics.png").relative_to(PROJECT_ROOT)),
+                    str((FIGURES / "benchmark_modeling_counts.png").relative_to(PROJECT_ROOT)),
                 ],
             },
             indent=2,

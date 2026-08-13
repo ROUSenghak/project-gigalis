@@ -55,7 +55,7 @@ from boamp_pipeline.fellegi_sunter import (
     total_match_weight,
 )
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 MODEL_VERSION = "boamp_fellegi_sunter_v1.0"
 
 #: Expected order of magnitude for the match prior, from the benchmark base

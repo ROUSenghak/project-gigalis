@@ -48,8 +48,8 @@ from boamp_pipeline.exposure import (  # noqa: E402
 )
 from boamp_pipeline.linkage import parse_json_list  # noqa: E402
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
-DOSSIER_VERSION = "boamp_benchmark_v3_dossier_1.0"
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
+DOSSIER_SCHEMA = "boamp_annotation_dossier_schema_1.0"
 BATCH_SIZE = 10
 
 NOTICE_URL = "https://www.boamp.fr/pages/avis/?q=idweb:{}"
@@ -284,7 +284,7 @@ def build(project_root: Path, output_dir: Path, force: bool, pass_id: str,
                 by_episode.loc[candidate_id], detail.get(candidate_id, {}),
             ))
         dossier = {
-            "dossier_version": DOSSIER_VERSION,
+            "dossier_schema": DOSSIER_SCHEMA,
             "dossier_id": f"D-{position:06d}",
             "anchor_episode_id": anchor.episode_id,
             "pass_id": pass_id,
@@ -330,7 +330,7 @@ def build(project_root: Path, output_dir: Path, force: bool, pass_id: str,
     summary_path = output_dir / f"annotation_batches_pass_{pass_id}_summary.json"
     summary = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "dossier_version": DOSSIER_VERSION,
+        "dossier_schema": DOSSIER_SCHEMA,
         "instructions_version": INSTRUCTIONS_VERSION,
         "pass_id": pass_id,
         "wave": wave,

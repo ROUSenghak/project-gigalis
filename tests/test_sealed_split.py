@@ -29,7 +29,7 @@ def sealed(tmp_path):
     (project_root / "logs").mkdir()
     sealed_dir = project_root / "bench" / "sealed"
     sealed_dir.mkdir(parents=True)
-    path = sealed_dir / "benchmark_v3_test.parquet"
+    path = sealed_dir / "benchmark_test.parquet"
     pd.DataFrame({"anchor_episode_id": ["EP-1", "EP-2"], "has_successor_primary": [True, False]}).to_parquet(path)
     write_manifest(path, project_root, {"anchors": 2})
     return project_root, path

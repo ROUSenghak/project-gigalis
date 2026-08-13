@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PROCESSED = Path("data/processed/boamp_v2")
+PROCESSED = Path("data/processed/boamp")
 
 
 @dataclass(frozen=True)
@@ -25,13 +25,13 @@ class Stage:
     accepts_force: bool = False
 
 
-def benchmark_v3_stages() -> tuple[Stage, ...]:
-    """Current national benchmark construction.
+def benchmark_build_stages() -> tuple[Stage, ...]:
+    """National benchmark construction before annotation.
 
     Kept out of the default path on purpose: annotation and sealed-test handling
     are separate from the core Grand Ouest survival refresh.
     """
-    bench = PROCESSED / "benchmark_v3"
+    bench = PROCESSED / "benchmark"
     return (
         Stage("benchmark_national_index", ("scripts/build_national_episode_index.py",),
               (bench / "national_episode_index.parquet",), True),
@@ -50,29 +50,45 @@ def benchmark_v3_stages() -> tuple[Stage, ...]:
     )
 
 
-def benchmark_v3_evaluation_stages() -> tuple[Stage, ...]:
-    """Evaluate current benchmark splits and refresh reader-facing artifacts."""
-    bench = PROCESSED / "benchmark_v3"
+def evidence_stages() -> tuple[Stage, ...]:
+    """Evaluate the frozen benchmark and refresh every reader-facing artifact."""
+    bench = PROCESSED / "benchmark"
     return (
         Stage(
-            "benchmark_evaluate_dev_primary",
-            ("scripts/evaluate_linkage.py", "--benchmark", "v3", "--split", "dev", "--event-set", "primary"),
-            (PROCESSED / "linkage_evaluation_summary_v3_dev_primary.json",),
+            "benchmark_evaluate_dev",
+            ("scripts/evaluate_linkage.py", "--evaluate-split", "dev", "--event-set", "primary"),
+            (PROCESSED / "linkage_evaluation_dev.json",),
         ),
         Stage(
-            "benchmark_evaluate_validation_primary",
-            ("scripts/evaluate_linkage.py", "--benchmark", "v3", "--split", "validation", "--event-set", "primary"),
-            (PROCESSED / "linkage_evaluation_summary_v3_validation_primary.json",),
+            "benchmark_evaluate_validation",
+            ("scripts/evaluate_linkage.py", "--evaluate-split", "validation", "--event-set", "primary"),
+            (PROCESSED / "linkage_evaluation_validation.json",),
         ),
         Stage(
             "benchmark_modeling_tables",
             ("scripts/build_benchmark_modeling_dataset.py",),
             (
-                bench / "modeling" / "benchmark_v3_modeling_dev.parquet",
-                bench / "modeling" / "benchmark_v3_modeling_validation.parquet",
-                bench / "modeling" / "benchmark_v3_modeling_summary.json",
+                bench / "modeling" / "modeling_dev.parquet",
+                bench / "modeling" / "modeling_validation.parquet",
+                bench / "modeling" / "modeling_summary.json",
             ),
             True,
+        ),
+        Stage(
+            "benchmark_quality_evidence",
+            ("scripts/build_quality_evidence.py",),
+            (
+                PROCESSED / "quality_evidence" / "quality_evidence_summary.json",
+                PROCESSED / "quality_evidence" / "validation_anchor_confusion.csv",
+                PROCESSED / "quality_evidence" / "validation_pair_curve_metrics.csv",
+                PROCESSED / "quality_evidence" / "dev_m_b_threshold_sweep.csv",
+                PROCESSED / "quality_evidence" / "validation_m_b_threshold_sweep.csv",
+                Path("QUALITY_EVIDENCE.md"),
+                Path("reports/figures/benchmark_validation_confusion_matrices.png"),
+                Path("reports/figures/benchmark_validation_pair_roc.png"),
+                Path("reports/figures/benchmark_validation_pair_precision_recall.png"),
+                Path("reports/figures/benchmark_validation_m_b_threshold_tradeoff.png"),
+            ),
         ),
         Stage(
             "reader_artifact_refresh",
@@ -82,20 +98,8 @@ def benchmark_v3_evaluation_stages() -> tuple[Stage, ...]:
                 Path("NATIONAL_BENCHMARK_REFERENCE.md"),
                 Path("notebooks/12_successor_linkage_and_evaluation.ipynb"),
                 Path("reports/boamp_methodology_chapter.tex"),
-                Path("reports/figures/benchmark_v3_validation_method_metrics.png"),
-            ),
-        ),
-        Stage(
-            "benchmark_quality_evidence",
-            ("scripts/build_quality_evidence.py",),
-            (
-                PROCESSED / "quality_evidence" / "benchmark_v3_quality_evidence_summary.json",
-                PROCESSED / "quality_evidence" / "benchmark_v3_validation_anchor_confusion.csv",
-                PROCESSED / "quality_evidence" / "benchmark_v3_validation_pair_curve_metrics.csv",
-                Path("QUALITY_EVIDENCE.md"),
-                Path("reports/figures/benchmark_v3_validation_confusion_matrices.png"),
-                Path("reports/figures/benchmark_v3_validation_pair_roc.png"),
-                Path("reports/figures/benchmark_v3_validation_pair_precision_recall.png"),
+                Path("reports/boamp_methodology_chapter.pdf"),
+                Path("reports/figures/benchmark_validation_method_metrics.png"),
             ),
         ),
         Stage(
@@ -122,7 +126,17 @@ def benchmark_v3_evaluation_stages() -> tuple[Stage, ...]:
                 Path("data/review/independent_link_review_sample.csv"),
                 Path("data/review/independent_link_review_audit_key.csv"),
                 Path("data/review/independent_link_review_summary.json"),
+                Path("data/review/review_provenance.json"),
                 Path("INDEPENDENT_LINK_REVIEW_PROTOCOL.md"),
+            ),
+        ),
+        Stage(
+            "completed_review_diagnostic",
+            ("scripts/evaluate_review_audit.py",),
+            (
+                Path("data/review/review_audit_evaluation.json"),
+                Path("data/review/review_audit_findings.csv"),
+                Path("REVIEW_AUDIT_RESULTS.md"),
             ),
         ),
         Stage(
@@ -133,11 +147,15 @@ def benchmark_v3_evaluation_stages() -> tuple[Stage, ...]:
                 Path("reports/current_project_readiness_artifact.json"),
             ),
         ),
+        Stage(
+            "canonical_state_validation",
+            ("scripts/validate_canonical_state.py",),
+            (PROCESSED / "canonical_state_validation.json",),
+        ),
     )
 
 
 def pipeline_stages() -> tuple[Stage, ...]:
-    benchmark = PROCESSED / "benchmark_remap"
     return (
         Stage(
             "acquisition",
@@ -167,16 +185,6 @@ def pipeline_stages() -> tuple[Stage, ...]:
             True,
         ),
         Stage(
-            "benchmark_remap",
-            ("scripts/remap_benchmark_to_v2_episodes.py",),
-            (
-                benchmark / "reference_120_v2_remap.csv",
-                benchmark / "confirmed_successor_links_v2_remap.csv",
-                benchmark / "evaluation_subset_v2_remap.csv",
-                benchmark / "benchmark_v2_remap_summary.json",
-            ),
-        ),
-        Stage(
             "cohort",
             ("scripts/build_survival_cohort.py",),
             (PROCESSED / "survival_cohort.parquet", PROCESSED / "survival_cohort_summary.json"),
@@ -199,8 +207,8 @@ def pipeline_stages() -> tuple[Stage, ...]:
             ("scripts/evaluate_linkage.py",),
             (
                 PROCESSED / "accepted_successor_links.parquet",
-                PROCESSED / "linkage_frozen_config.json",
-                PROCESSED / "linkage_evaluation_summary.json",
+                PROCESSED / "linkage_config.json",
+                PROCESSED / "linkage_application_summary.json",
             ),
         ),
         Stage(
@@ -289,23 +297,16 @@ def write_manifest(statuses: dict[str, str]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "workflow": "current_defensible_pipeline",
+        "workflow": "canonical_boamp_pipeline",
         "primary_method": "M_B_text_ranking @ 0.70",
         "primary_links": str(PROCESSED / "accepted_successor_links.parquet"),
         "primary_survival_dataset": str(PROCESSED / "survival_dataset.parquet"),
         "sensitivity_method": "M_E_expiry_aware_text",
         "sensitivity_role": "audit only; not promoted to the primary event definition",
         "manual_review": str(PROCESSED / "expiry_link_review.csv"),
-        "evaluation_status": (
-            "internal deterministic-bootstrap development reference; "
-            "independent specialist review pending"
-        ),
-        "independent_review_sample": str(
-            PROJECT_ROOT / "data/review/independent_link_review_sample.csv"
-        ),
-        "independent_review_protocol": str(
-            PROJECT_ROOT / "INDEPENDENT_LINK_REVIEW_PROTOCOL.md"
-        ),
+        "evaluation_status": "internal development reference; external accuracy not established",
+        "independent_review_sample": "data/review/independent_link_review_sample.csv",
+        "independent_review_protocol": "INDEPENDENT_LINK_REVIEW_PROTOCOL.md",
         "stage_status": statuses,
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -318,14 +319,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--with-notebooks", action="store_true", help="Execute evidence notebooks 10-14.")
     parser.add_argument("--with-tests", action="store_true", help="Run the test suite after the pipeline.")
     parser.add_argument(
-        "--with-current-benchmark", "--with-benchmark-v3", action="store_true",
-        dest="with_benchmark_v3",
-        help="Build the current national benchmark. Annotation is a separate, manual step.",
-    )
-    parser.add_argument(
-        "--with-current-benchmark-evaluation", "--with-benchmark-v3-evaluation", action="store_true",
-        dest="with_benchmark_v3_evaluation",
-        help="Evaluate labelled current benchmark dev/validation splits and refresh notebooks/reports.",
+        "--rebuild-benchmark-inputs", action="store_true",
+        help="Rebuild pre-annotation benchmark inputs. Existing adjudicated labels remain a frozen input.",
     )
     parser.add_argument("--dry-run", action="store_true", help="Print work without executing commands.")
     return parser.parse_args()
@@ -337,13 +332,12 @@ def main() -> int:
     for stage in pipeline_stages():
         statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
 
-    if args.with_benchmark_v3:
-        for stage in benchmark_v3_stages():
+    if args.rebuild_benchmark_inputs:
+        for stage in benchmark_build_stages():
             statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
 
-    if args.with_benchmark_v3_evaluation:
-        for stage in benchmark_v3_evaluation_stages():
-            statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
+    for stage in evidence_stages():
+        statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
 
     if args.with_notebooks:
         run_notebooks(args.dry_run)

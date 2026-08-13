@@ -25,8 +25,8 @@ from boamp_pipeline.evidence import (  # noqa: E402
     stationarity_diagnostics,
 )
 
-PROCESSED = PROJECT_ROOT / "data/processed/boamp_v2"
-BENCHMARK = PROCESSED / "benchmark_v3"
+PROCESSED = PROJECT_ROOT / "data/processed/boamp"
+BENCHMARK = PROCESSED / "benchmark"
 REPORTS = PROJECT_ROOT / "reports"
 FIGURES = REPORTS / "figures"
 NOTEBOOK = PROJECT_ROOT / "notebooks/14_data_quality_and_trend_analysis.ipynb"
@@ -431,10 +431,10 @@ The sharp rise in duration availability in 2025 is a schema/completeness change,
 
 ## Reproducible Outputs
 
-- `data/processed/boamp_v2/trend_quarterly.csv`
-- `data/processed/boamp_v2/trend_breakpoints.csv`
-- `data/processed/boamp_v2/trend_signal_matrix.csv`
-- `data/processed/boamp_v2/trend_analysis_summary.json`
+- `data/processed/boamp/trend_quarterly.csv`
+- `data/processed/boamp/trend_breakpoints.csv`
+- `data/processed/boamp/trend_signal_matrix.csv`
+- `data/processed/boamp/trend_analysis_summary.json`
 - `notebooks/14_data_quality_and_trend_analysis.ipynb`
 """
     path = PROJECT_ROOT / "TREND_ANALYSIS_REPORT.md"
@@ -466,7 +466,7 @@ def write_notebook() -> None:
             "PROJECT_ROOT = Path.cwd().resolve()\n"
             "while PROJECT_ROOT != PROJECT_ROOT.parent and not (PROJECT_ROOT / 'scripts').exists():\n"
             "    PROJECT_ROOT = PROJECT_ROOT.parent\n"
-            "PROCESSED = PROJECT_ROOT / 'data/processed/boamp_v2'\n"
+            "PROCESSED = PROJECT_ROOT / 'data/processed/boamp'\n"
             "with open(PROCESSED / 'data_quality_profile.json', encoding='utf-8') as f:\n"
             "    quality = json.load(f)\n"
             "with open(PROCESSED / 'trend_analysis_summary.json', encoding='utf-8') as f:\n"

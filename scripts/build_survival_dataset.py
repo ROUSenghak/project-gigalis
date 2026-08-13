@@ -38,7 +38,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.evaluate_linkage import predict  # noqa: E402
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 SURVIVAL_VERSION = "boamp_survival_dataset_v1.0"
 
 DAYS_PER_MONTH = 30.4375
@@ -177,7 +177,7 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
     cohort = pd.read_parquet(output_dir / "survival_cohort.parquet", columns=COHORT_COLUMNS)
     cohort["award_date"] = pd.to_datetime(cohort["award_date"])
     candidates = pd.read_parquet(output_dir / "linkage_candidates.parquet")
-    config = json.loads((output_dir / "linkage_frozen_config.json").read_text(encoding="utf-8"))
+    config = json.loads((output_dir / "linkage_config.json").read_text(encoding="utf-8"))
     method = config["selected_method"]
     threshold = float(config["selected_threshold"])
     logging.info("Applying frozen policy %s at threshold %s", method, threshold)

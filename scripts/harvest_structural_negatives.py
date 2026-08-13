@@ -54,7 +54,7 @@ from boamp_pipeline.linkage import (  # noqa: E402
 )
 from boamp_pipeline.renewal_language import RETENDER_AFTER_FAILURE  # noqa: E402
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 NEGATIVES_VERSION = "boamp_structural_negatives_v3.0"
 
 SAME_PROCUREMENT = "SAME_PROCUREMENT"

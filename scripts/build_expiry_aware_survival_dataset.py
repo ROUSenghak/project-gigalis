@@ -26,7 +26,7 @@ from scripts.build_survival_dataset import (  # noqa: E402
 )
 
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 SURVIVAL_VERSION = "boamp_survival_dataset_expiry_aware_v1.0"
 
 

@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PROCESSED = PROJECT_ROOT / "data/processed/boamp_v2"
-BENCHMARK = PROCESSED / "benchmark_v3"
+PROCESSED = PROJECT_ROOT / "data/processed/boamp"
+BENCHMARK = PROCESSED / "benchmark"
 OUTPUT_DIR = PROJECT_ROOT / "data/review"
 RANDOM_SEED = 20260813
 ROWS_PER_STRATUM = 20
@@ -140,7 +140,6 @@ def enrich_pairs(sample: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     ]
     review = enriched[reviewer_columns].copy()
     for column in [
-        "reviewer_id",
         "same_legal_buyer_Y_N_UNCERTAIN",
         "relationship_label",
         "observable_successor_Y_N_UNCERTAIN",
@@ -166,7 +165,8 @@ def enrich_pairs(sample: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 def write_protocol(row_count: int, strata: dict[str, int]) -> Path:
     text = f"""# Independent Link Review Protocol
 
-Generated: `{datetime.now().isoformat(timespec='seconds')}`  
+Generated: `{datetime.now().isoformat(timespec='seconds')}`
+
 Pairs prepared: `{row_count}`
 
 ## Purpose
@@ -208,6 +208,11 @@ and missing duration must not be replaced with an assumed four-year term.
 
 - Reviewer file: `data/review/independent_link_review_sample.csv`
 - Hidden audit key: `data/review/independent_link_review_audit_key.csv`
+- Review provenance: `data/review/review_provenance.json`
+
+Reviewer identity is not stored row by row. The review source and whether it is
+independent human validation must instead be recorded truthfully in the
+provenance file.
 
 ## Acceptance Rule
 
@@ -241,6 +246,10 @@ def main() -> int:
             "bootstrap_labels_exposed": False,
             "algorithm_scores_exposed": False,
             "sample_stratum_exposed": False,
+        },
+        "review_schema": {
+            "row_level_reviewer_id_stored": False,
+            "provenance_record": str(OUTPUT_DIR / "review_provenance.json"),
         },
         "validation_passed": bool(
             len(review) == len(audit)

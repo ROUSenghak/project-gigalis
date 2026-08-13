@@ -24,7 +24,7 @@ from boamp_pipeline.standardize import PARSER_VERSION, RAW_FIELD_NAMES, standard
 
 START_YEAR = 2015
 END_YEAR = 2025
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 BATCH_SIZE = 2_000
 
 

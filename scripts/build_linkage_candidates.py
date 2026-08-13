@@ -65,7 +65,7 @@ from boamp_pipeline.linkage import (
     weighted_score,
 )
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 CANDIDATE_VERSION = "boamp_linkage_candidates_v1.0"
 
 POOL_COLUMNS = [

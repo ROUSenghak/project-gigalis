@@ -14,6 +14,8 @@ results.
 | [Commission Regulation (EC) No 213/2008](https://eur-lex.europa.eu/eli/reg/2008/213/oj) | CPV is a hierarchical procurement vocabulary; division continuity is a reproducible coarse domain feature | CPV equality does not prove renewal, and four CPV divisions are not a learned technology taxonomy |
 | [Directive 2014/24/EU, Article 33](https://eur-lex.europa.eu/eli/dir/2014/24/oj) | Framework duration is generally limited to four years, subject to justified exceptions | It does not justify imputing four years for contracts with missing duration |
 | [scikit-learn cosine similarity](https://scikit-learn.org/stable/modules/metrics.html#cosine-similarity) | The implemented TF-IDF cosine score is a standard normalized document-similarity measure | A high cosine score does not independently prove a successor relationship |
+| [Davis and Goadrich (2006)](https://doi.org/10.1145/1143844.1143874) | Precision-recall curves are appropriate for highly skewed binary decisions and must not be interpreted through invalid linear interpolation between operating points | The paper does not validate this project's labels, scores, or chosen threshold |
+| [Saito and Rehmsmeier (2015)](https://doi.org/10.1371/journal.pone.0118432) | Precision-recall analysis can reveal performance differences hidden by ROC analysis when positives are rare | It does not establish that `0.70`, or any other threshold, generalises beyond this reference sample |
 | [Fellegi and Sunter (1969)](https://doi.org/10.1080/01621459.1969.10501049) | `M_D` is a recognized probabilistic record-linkage approach based on match/non-match comparison likelihoods | Its assumptions do not guarantee good performance on rare successor events with dependent candidate pairs |
 | [Kaplan and Meier (1958)](https://doi.org/10.1080/01621459.1958.10501452) | Kaplan-Meier estimation handles administrative right-censoring | It cannot correct event misclassification created by linkage errors |
 | [Cox (1972)](https://doi.org/10.1111/j.2517-6161.1972.tb00899.x) | The Cox model estimates covariate associations with the event hazard without specifying a baseline hazard | Hazard ratios are not causal effects without stronger identification assumptions |
@@ -31,7 +33,10 @@ results.
 5. Do not impute missing duration or assume every framework lasts four years.
 6. Treat linkage metrics from deterministic bootstrap labels as development
    diagnostics until the blinded specialist review is completed.
-7. Report survival estimates as linkage-conditioned and non-causal, with event
+7. Use the empirical, unsmoothed anchor-level precision-recall threshold sweep
+   as project evidence. Generic web illustrations may explain intuition in a
+   presentation but are not academic evidence.
+8. Report survival estimates as linkage-conditioned and non-causal, with event
    definition sensitivity.
-8. Treat PELT breaks and recent slopes as exploratory signals requiring domain
+9. Treat PELT breaks and recent slopes as exploratory signals requiring domain
    corroboration.

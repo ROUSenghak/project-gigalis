@@ -18,7 +18,7 @@ from typing import Any, Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SOURCE_DIR = Path(
-    "data/processed/boamp_v2/benchmark_v3/dossiers/pass_A"
+    "data/processed/boamp/benchmark/dossiers/pass_A"
 )
 DEFAULT_OUTPUT_DIR = Path("scratchpad/w1a/assignments")
 

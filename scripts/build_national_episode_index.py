@@ -59,7 +59,7 @@ from boamp_pipeline.linkage import (  # noqa: E402
 )
 from boamp_pipeline.standardize import normalize_name  # noqa: E402
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 INDEX_VERSION = "boamp_national_episode_index_v1.0"
 
 AWARD_NATURE = "ATTRIBUTION"

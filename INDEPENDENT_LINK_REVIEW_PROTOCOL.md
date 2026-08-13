@@ -1,6 +1,7 @@
 # Independent Link Review Protocol
 
-Generated: `2026-08-13T22:04:50`  
+Generated: `2026-08-13T23:10:59`
+
 Pairs prepared: `60`
 
 ## Purpose
@@ -44,6 +45,11 @@ and missing duration must not be replaced with an assumed four-year term.
 
 - Reviewer file: `data/review/independent_link_review_sample.csv`
 - Hidden audit key: `data/review/independent_link_review_audit_key.csv`
+- Review provenance: `data/review/review_provenance.json`
+
+Reviewer identity is not stored row by row. The review source and whether it is
+independent human validation must instead be recorded truthfully in the
+provenance file.
 
 ## Acceptance Rule
 

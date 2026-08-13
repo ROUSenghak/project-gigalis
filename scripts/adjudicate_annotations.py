@@ -39,7 +39,7 @@ from boamp_pipeline.annotation_schema import (  # noqa: E402
     cohen_kappa,
 )
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 
 #: Gate G5. Below these the class definitions are not reproducible enough to
 #: label at scale, and the instructions need revising before the full run.

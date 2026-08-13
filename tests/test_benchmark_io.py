@@ -1,9 +1,4 @@
-"""Benchmark I/O and weighted metric safeguards.
-
-The v1 benchmark evidence must keep loading the same truth rows while the
-current linkage summaries reflect intentional methodology fixes, such as the
-buyer-identity correction that excludes conflicting validated SIRENs.
-"""
+"""Canonical benchmark I/O and weighted metric safeguards."""
 
 import json
 from pathlib import Path
@@ -13,48 +8,42 @@ import pandas as pd
 import pytest
 
 from boamp_pipeline.annotation_schema import EVENT_SETS
-from boamp_pipeline.benchmark_io import TRUTH_COLUMNS, load_truth_v1
+from boamp_pipeline.benchmark_io import TRUTH_COLUMNS, load_truth
 from boamp_pipeline.benchmark_metrics import (
     hard_negative_suite_metrics,
     stratified_ratio_estimate,
     weighted_evaluate,
 )
 
-PROCESSED = Path("data/processed/boamp_v2")
-SUMMARY = PROCESSED / "linkage_evaluation_summary.json"
+PROCESSED = Path("data/processed/boamp")
+SUMMARY = PROCESSED / "linkage_application_summary.json"
+BENCHMARK = PROCESSED / "benchmark"
 
 
 # ---------------------------------------------------------------------------
-# v1/current summary checks
+# Canonical application and benchmark checks
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not SUMMARY.exists(), reason="v1 evaluation summary not built")
-def test_current_headline_numbers_match_corrected_buyer_identity_rule() -> None:
-    """The primary summary reflects the current, defensible linkage rule."""
+@pytest.mark.skipif(not SUMMARY.exists(), reason="linkage application summary not built")
+def test_primary_application_uses_the_frozen_policy() -> None:
     summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
 
     assert summary["selected_method"] == "M_B_text_ranking"
     assert summary["selected_threshold"] == 70.0
     assert summary["cohort_application"]["accepted_links"] == 544
-    main = summary["threshold_sensitivity"]["main"]["locked_test_metrics"]
-    assert main["precision_at_1"] == 0.875
-    assert main["recall_at_1"] == 0.4118
-    assert main["false_positive_rate_on_negatives"] == 0.0
-    assert summary["benchmark"]["anchors_scored_in_cohort"] == 85
+    assert summary["validation_passed"]
 
 
-@pytest.mark.skipif(
-    not (PROCESSED / "benchmark_remap" / "evaluation_subset_v2_remap.csv").exists(),
-    reason="v1 benchmark remap not built",
-)
-def test_v1_loader_still_yields_22_positive_anchors() -> None:
-    """The evidence base the whole study rests on, and the reason v3 exists."""
-    truth = load_truth_v1(PROCESSED)
+@pytest.mark.skipif(not BENCHMARK.exists(), reason="canonical benchmark not built")
+def test_canonical_validation_loader_has_one_truth_contract() -> None:
+    truth, access_record = load_truth(BENCHMARK, "validation", "primary")
 
-    assert set(TRUTH_COLUMNS) - {"benchmark_split"} <= set(truth.columns)
-    evaluable = truth.loc[truth["truth_usable"]]
-    assert int(evaluable["has_successor"].sum()) == 24  # before cohort restriction
+    assert set(TRUTH_COLUMNS) <= set(truth.columns)
+    assert truth["benchmark_split"].eq("validation").all()
+    assert truth["anchor_episode_id"].is_unique
+    assert access_record is None
+    assert truth["truth_usable"].any()
 
 
 # ---------------------------------------------------------------------------
@@ -66,7 +55,7 @@ def sample_frame(n: int = 60, seed: int = 3) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     strata = rng.choice(["A", "B", "C"], n)
     return pd.DataFrame({
-        "anchor_v2_episode_id": [f"EP-{i}" for i in range(n)],
+        "anchor_episode_id": [f"EP-{i}" for i in range(n)],
         "stratum_id": strata,
         "design_weight": np.where(strata == "A", 10.0, np.where(strata == "B", 20.0, 40.0)),
         "frame": "PROBABILITY",
@@ -77,7 +66,7 @@ def sample_frame(n: int = 60, seed: int = 3) -> pd.DataFrame:
 
 
 def test_a_ratio_estimate_comes_with_an_interval() -> None:
-    """A point estimate alone invites the over-reading v1 suffered."""
+    """A national point estimate should include sampling uncertainty."""
     result = stratified_ratio_estimate(sample_frame(), "correct", "one")
 
     assert 0.0 <= result["estimate"] <= 1.0
@@ -121,7 +110,7 @@ def test_weights_recover_the_population_total() -> None:
 
 def truth_frame() -> pd.DataFrame:
     return pd.DataFrame({
-        "anchor_v2_episode_id": ["EP-1", "EP-2", "EP-3", "EP-4"],
+        "anchor_episode_id": ["EP-1", "EP-2", "EP-3", "EP-4"],
         "true_successors": [["EP-S1"], [], [], []],
         "has_successor": [True, False, False, False],
         "stratum_id": ["A", "A", "A", "A"],
@@ -152,7 +141,7 @@ def test_censored_anchors_are_excluded_from_the_false_positive_rate() -> None:
 
 
 def test_only_exhaustively_reviewed_negatives_can_be_false_positives() -> None:
-    """v1's negatives all meant 'not in the 25 I was shown'."""
+    """Only exhaustive negatives support a false-positive-rate denominator."""
     result = weighted_evaluate(predictions_frame(), truth_frame())
 
     assert result["verified_negative_anchors"] == 1  # EP-2 only

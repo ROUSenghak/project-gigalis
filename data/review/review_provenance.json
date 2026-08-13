@@ -1,0 +1,10 @@
+{
+  "schema_version": "boamp_link_review_v1.1",
+  "row_level_reviewer_id_stored": false,
+  "reviewed_file": "data/review/independent_link_review_sample_reviewed.csv",
+  "label_provenance": "model-assisted specialist-style diagnostic",
+  "independent_human_specialist_review": false,
+  "provenance_note": "The uploaded reviewed file originally declared CLAUDE-OPUS-5 for all 60 rows. The row-level reviewer_id column was removed by explicit project-owner request; provenance is retained here so the labels are not misrepresented as independent human validation.",
+  "permitted_use": "diagnostic challenge review and failure-mode analysis",
+  "not_permitted_as": "independent human validation or externally validated accuracy evidence"
+}

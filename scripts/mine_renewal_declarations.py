@@ -54,7 +54,7 @@ from boamp_pipeline.renewal_language import (  # noqa: E402
     objet_is_advisory,
 )
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 MINING_VERSION = "boamp_renewal_declarations_v1.0"
 
 NOTICE_BATCH = 100_000

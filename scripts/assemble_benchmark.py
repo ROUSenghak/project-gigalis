@@ -38,8 +38,9 @@ from boamp_pipeline.annotation_schema import (  # noqa: E402
 )
 from boamp_pipeline.sealed_split import write_manifest  # noqa: E402
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
-BENCHMARK_VERSION = "boamp_benchmark_v3.0"
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
+# Schema identifiers may evolve without creating parallel project versions.
+BENCHMARK_SCHEMA = "boamp_national_benchmark_schema_1.0"
 
 SPLIT_SALT = "boamp-benchmark-v3-split"
 SPLIT_SHARES = (("dev", 50), ("validation", 25), ("sealed_test", 25))
@@ -49,7 +50,7 @@ STUDY_CUTOFF = pd.Timestamp("2025-12-31")
 
 #: A contract whose expected end falls near or after the cutoff cannot have had
 #: time to show a successor, so counting it as a confirmed negative would reward
-#: under-linking on recent anchors -- the same error as v1's corpus-relative
+#: under-linking on recent anchors -- the same error as a corpus-relative
 #: negatives, in a new disguise.
 CENSORING_MARGIN_DAYS = 180
 
@@ -62,7 +63,7 @@ def configure_logging(project_root: Path) -> None:
         format="%(asctime)s %(levelname)s %(message)s",
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler(log_dir / "assemble_benchmark_v3.log", encoding="utf-8"),
+            logging.FileHandler(log_dir / "assemble_benchmark.log", encoding="utf-8"),
         ],
     )
 
@@ -81,7 +82,7 @@ def split_for_block(buyer_block_key: str) -> str:
 
 def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
     sealed_dir = output_dir / "sealed"
-    manifest_path = output_dir / "benchmark_v3_manifest.json"
+    manifest_path = output_dir / "benchmark_manifest.json"
     if manifest_path.exists() and not force:
         raise FileExistsError(f"{manifest_path} already exists. Use --force to rebuild.")
 
@@ -149,7 +150,7 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
         anchor_level[f"has_successor_{name}"] = anchor_level["anchor_episode_id"].map(
             lambda episode: len(positives.get(episode, [])) > 0
         )
-    anchor_level["benchmark_version"] = BENCHMARK_VERSION
+    anchor_level["benchmark_schema"] = BENCHMARK_SCHEMA
     anchor_level["schema_version"] = SCHEMA_VERSION
 
     outputs: dict[str, Any] = {}
@@ -158,11 +159,11 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
         subset = anchor_level.loc[anchor_level["split"] == split]
         pairs = settled.loc[settled["split"] == split]
         if split == "sealed_test":
-            path = sealed_dir / "benchmark_v3_test.parquet"
-            pairs_path = sealed_dir / "benchmark_v3_test_pairs.parquet"
+            path = sealed_dir / "benchmark_test.parquet"
+            pairs_path = sealed_dir / "benchmark_test_pairs.parquet"
         else:
-            path = output_dir / f"benchmark_v3_{split}.parquet"
-            pairs_path = output_dir / f"benchmark_v3_{split}_pairs.parquet"
+            path = output_dir / f"benchmark_{split}.parquet"
+            pairs_path = output_dir / f"benchmark_{split}_pairs.parquet"
         subset.to_parquet(path, index=False, compression="zstd")
         pairs.to_parquet(pairs_path, index=False, compression="zstd")
         outputs[split] = {
@@ -173,11 +174,11 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
         }
         logging.info("%s: %s anchors, %s pairs", split, len(subset), len(pairs))
 
-    sealed_path = sealed_dir / "benchmark_v3_test.parquet"
+    sealed_path = sealed_dir / "benchmark_test.parquet"
     sealed_manifest = write_manifest(
         sealed_path, project_root,
         {
-            "benchmark_version": BENCHMARK_VERSION,
+            "benchmark_schema": BENCHMARK_SCHEMA,
             "split_salt": SPLIT_SALT,
             "anchors": outputs["sealed_test"]["anchors"],
             "note": (
@@ -189,7 +190,7 @@ def build(project_root: Path, output_dir: Path, force: bool) -> dict[str, Any]:
 
     manifest = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "benchmark_version": BENCHMARK_VERSION,
+        "benchmark_schema": BENCHMARK_SCHEMA,
         "schema_version": SCHEMA_VERSION,
         "split_rule": (
             "Assigned on buyer_block_key, not on the anchor: a buyer's notices share "

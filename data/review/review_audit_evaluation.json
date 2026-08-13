@@ -1,0 +1,99 @@
+{
+  "created_at": "2026-08-14T00:18:07",
+  "status": "model_assisted_diagnostic_complete_human_validation_pending",
+  "provenance": {
+    "schema_version": "boamp_link_review_v1.1",
+    "row_level_reviewer_id_stored": false,
+    "reviewed_file": "data/review/independent_link_review_sample_reviewed.csv",
+    "label_provenance": "model-assisted specialist-style diagnostic",
+    "independent_human_specialist_review": false,
+    "provenance_note": "The uploaded reviewed file originally declared CLAUDE-OPUS-5 for all 60 rows. The row-level reviewer_id column was removed by explicit project-owner request; provenance is retained here so the labels are not misrepresented as independent human validation.",
+    "permitted_use": "diagnostic challenge review and failure-mode analysis",
+    "not_permitted_as": "independent human validation or externally validated accuracy evidence"
+  },
+  "primary_accepted_links": {
+    "rows": 20,
+    "review_counts": {
+      "Y": 14,
+      "N": 5,
+      "UNCERTAIN": 1
+    },
+    "precision_excluding_uncertain": {
+      "successes": 14,
+      "trials": 19,
+      "estimate": 0.7368421052631579,
+      "ci_95": [
+        0.48797065465412726,
+        0.9085342150927965
+      ],
+      "interval_method": "Clopper-Pearson exact binomial"
+    },
+    "precision_conservative": {
+      "successes": 14,
+      "trials": 20,
+      "estimate": 0.7,
+      "ci_95": [
+        0.4572108177235281,
+        0.8810684095942724
+      ],
+      "interval_method": "Clopper-Pearson exact binomial"
+    },
+    "target": 0.8,
+    "point_estimate_target_met": false
+  },
+  "structural_negative_challenge": {
+    "rows": 20,
+    "review_counts": {
+      "Y": 1,
+      "N": 19,
+      "UNCERTAIN": 0
+    },
+    "reviewed_negative_share": {
+      "successes": 19,
+      "trials": 20,
+      "estimate": 0.95,
+      "ci_95": [
+        0.7512672372279723,
+        0.998734910502044
+      ],
+      "interval_method": "Clopper-Pearson exact binomial"
+    },
+    "contradiction_share": {
+      "successes": 1,
+      "trials": 20,
+      "estimate": 0.05,
+      "ci_95": [
+        0.0012650894979560339,
+        0.24873276277202772
+      ],
+      "interval_method": "Clopper-Pearson exact binomial"
+    },
+    "use": "failure-mode diagnostic only; not ground truth or a national FPR denominator"
+  },
+  "buyer_declared_challenge": {
+    "rows": 20,
+    "review_counts": {
+      "Y": 6,
+      "N": 14,
+      "UNCERTAIN": 0
+    },
+    "reviewed_successor_yield": {
+      "successes": 6,
+      "trials": 20,
+      "estimate": 0.3,
+      "ci_95": [
+        0.11893159040572766,
+        0.5427891822764719
+      ],
+      "interval_method": "Clopper-Pearson exact binomial"
+    },
+    "use": "positive-case recruitment diagnostic only; not a recall denominator"
+  },
+  "decision": "Keep M_B @ 0.70 frozen and provisional. The diagnostic accepted-link precision does not meet the 0.80 point target. Because these are not independent human labels, obtain human specialist review before recalibration or external accuracy claims.",
+  "input_validation": {
+    "rows": 60,
+    "evidence_columns_unchanged": true,
+    "labels_complete_and_valid": true,
+    "relationship_event_consistency": true
+  }
+}

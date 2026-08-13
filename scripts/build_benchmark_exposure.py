@@ -74,7 +74,7 @@ from boamp_pipeline.linkage import (  # noqa: E402
     weighted_score,
 )
 
-DEFAULT_OUTPUT_DIR = Path("data/processed/boamp_v2/benchmark_v3")
+DEFAULT_OUTPUT_DIR = Path("data/processed/boamp/benchmark")
 EXPOSURE_VERSION = "boamp_benchmark_exposure_v3.0"
 
 #: Ideal gap for the CPV+time retriever, in days. Four years is the French
