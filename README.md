@@ -78,6 +78,7 @@ all materialised outputs from their inputs.
 - `QUALITY_EVIDENCE.md`: confusion matrices and threshold/curve evidence.
 - `DATA_QUALITY_REPORT.md`: completeness, identity, and integrity checks.
 - `TREND_ANALYSIS_REPORT.md`: descriptive temporal analysis.
+- `SURVIVAL_ANALYSIS_REPORT.md`: current KM, Cox, parametric, prediction, censoring, and linkage-sensitivity evidence.
 - `REVIEW_AUDIT_RESULTS.md`: independent-link-review diagnostic.
 - `METHODOLOGICAL_REFERENCES.md`: primary external methodological sources.
 - `INTERNSHIP_GUIDE_COMPLIANCE.md`: mapping to the internship requirements.

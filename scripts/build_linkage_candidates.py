@@ -16,9 +16,10 @@ Blocking rule -- a candidate is retrieved when all of the following hold:
   buyer name.
 
 The candidate pool is deliberately *not* restricted to digital or award-bearing
-episodes. Only 23 of the 28 manually confirmed successors carry a digital CPV
-and only 20 carry an award notice, so filtering the pool the same way the
-anchor cohort is filtered would cap achievable recall at 16/28. A renewed
+episodes. In the archived supplied reference cases, only 23 of 28 successor
+records carry a digital CPV and only 20 carry an award notice, so filtering the
+pool the same way the anchor cohort is filtered would cap reference-case recall
+at 16/28. A renewed
 purchasing need is announced by a tender, so a successor is timed by its first
 notice.
 

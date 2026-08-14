@@ -120,6 +120,24 @@ def evidence_stages() -> tuple[Stage, ...]:
             ),
         ),
         Stage(
+            "survival_evidence",
+            ("scripts/build_survival_evidence.py",),
+            (
+                PROCESSED / "survival_analysis_summary.json",
+                PROCESSED / "survival_km_horizons.csv",
+                PROCESSED / "survival_segment_summary.csv",
+                PROCESSED / "survival_conditional_probabilities.csv",
+                PROCESSED / "survival_selection_diagnostic.csv",
+                PROCESSED / "survival_selection_by_category.csv",
+                PROCESSED / "survival_cox_results.csv",
+                PROCESSED / "survival_ph_diagnostics.csv",
+                PROCESSED / "survival_linkage_sensitivity.csv",
+                PROCESSED / "survival_cox_linkage_sensitivity.csv",
+                PROCESSED / "survival_parametric_comparison.csv",
+                Path("SURVIVAL_ANALYSIS_REPORT.md"),
+            ),
+        ),
+        Stage(
             "independent_link_review_queue",
             ("scripts/prepare_independent_link_review.py",),
             (

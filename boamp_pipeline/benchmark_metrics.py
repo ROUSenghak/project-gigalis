@@ -196,9 +196,9 @@ def hard_negative_suite_metrics(
     """How often a method accepts a pair that is provably not a renewal.
 
     Unweighted by design: this suite has no inclusion probability. It is the
-    part of the evaluation that owes nothing to the annotator, which matters
-    because the annotator is a language model reading the same text the methods
-    read.
+    part of the evaluation that owes nothing to the bootstrap label generator,
+    which matters because those deterministic rules use some of the same text
+    and CPV evidence as the methods under evaluation.
     """
     accepted_pairs = set(
         zip(predictions["anchor_episode_id"], predictions["candidate_episode_id"])
@@ -238,10 +238,9 @@ def annotator_bias_report(
 ) -> dict[str, Any]:
     """Correlation between the annotator's labels and the incumbent text score.
 
-    Published as a number rather than argued away. A model annotator reading the
-    same text the methods read will drift toward agreeing with a text-similarity
-    method, and the size of that drift is something a reader needs in order to
-    discount the benchmark appropriately.
+    Published as a number rather than argued away. Deterministic bootstrap rules
+    that inspect the same text used by a linkage method can favor that method;
+    the size of this association helps a reader discount the benchmark.
     """
     merged = labels.merge(
         exposure[["anchor_episode_id", "candidate_episode_id", "text_component",

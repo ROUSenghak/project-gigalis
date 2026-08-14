@@ -32,6 +32,7 @@ def build() -> dict[str, Any]:
         PROCESSED / "linkage_config.json",
         PROCESSED / "survival_dataset.parquet",
         PROCESSED / "survival_dataset_summary.json",
+        PROCESSED / "survival_analysis_summary.json",
         PROCESSED / "accepted_successor_links_expiry_aware.parquet",
         PROCESSED / "expiry_aware_linkage_summary.json",
         PROCESSED / "expiry_link_review.csv",
@@ -44,6 +45,7 @@ def build() -> dict[str, Any]:
         BENCHMARK / "benchmark_validation.parquet",
         BENCHMARK / "modeling/modeling_summary.json",
         PROJECT_ROOT / "FINAL_PIPELINE.md",
+        PROJECT_ROOT / "SURVIVAL_ANALYSIS_REPORT.md",
         PROJECT_ROOT / "reports/boamp_methodology_chapter.pdf",
     ]
     missing = [relative(path) for path in required if not path.exists()]
@@ -67,6 +69,25 @@ def build() -> dict[str, Any]:
     dev_evaluation = load_json(PROCESSED / "linkage_evaluation_dev.json")
     validation_evaluation = load_json(PROCESSED / "linkage_evaluation_validation.json")
     modeling = load_json(BENCHMARK / "modeling/modeling_summary.json")
+
+    metadata_files = [path for path in PROCESSED.rglob("*.json") if path != OUTPUT]
+    # Version identifiers inside schemas are data-contract labels, not paths.
+    # Only legacy directory references make an artifact non-canonical.
+    legacy_tokens = (
+        "data/processed/" + "boamp_v2",
+        "/benchmark_" + "v3/",
+    )
+    stale_metadata = {
+        relative(path): token
+        for path in metadata_files
+        for token in legacy_tokens
+        if token in path.read_text(encoding="utf-8", errors="ignore")
+    }
+
+    evaluation_provenance = [
+        evaluation.get("caveats", {}).get("annotation_source", "")
+        for evaluation in (dev_evaluation, validation_evaluation)
+    ]
 
     main_summary = survival_summary["variants"]["main"]
     checks = {
@@ -108,6 +129,13 @@ def build() -> dict[str, Any]:
             "/data/processed/boamp/benchmark/" in payload["file"]
             for payload in manifest["outputs"].values()
         ),
+        "materialized_metadata_has_no_legacy_paths": not stale_metadata,
+        "benchmark_provenance_is_truthful": all(
+            "deterministic bootstrap rules" in note
+            and "independent" in note
+            and "language model" not in note
+            for note in evaluation_provenance
+        ),
         "no_legacy_processed_tree": not (
             PROJECT_ROOT / "data/processed" / ("boamp_" + "v2")
         ).exists(),
@@ -130,6 +158,7 @@ def build() -> dict[str, Any]:
             "benchmark_labelled_pairs": int(manifest["anchor_totals"]["labelled_pairs"]),
         },
         "checks": checks,
+        "stale_metadata": stale_metadata,
         "validation_passed": all(checks.values()),
     }
     OUTPUT.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

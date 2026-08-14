@@ -47,3 +47,14 @@ def test_active_sources_do_not_route_to_legacy_artifacts() -> None:
             if token in text or token in path.name:
                 violations.append(f"{path.relative_to(PROJECT_ROOT)}: {token}")
     assert not violations, "legacy artifact references remain:\n" + "\n".join(violations)
+
+
+def test_materialized_json_metadata_uses_canonical_paths() -> None:
+    forbidden = ("data/processed/boamp_v2", "/benchmark_v3/")
+    violations = []
+    for path in CANONICAL_PROCESSED.rglob("*.json"):
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for token in forbidden:
+            if token in text:
+                violations.append(f"{path.relative_to(PROJECT_ROOT)}: {token}")
+    assert not violations, "legacy metadata references remain:\n" + "\n".join(violations)

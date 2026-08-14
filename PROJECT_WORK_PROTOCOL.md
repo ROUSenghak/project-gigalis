@@ -176,7 +176,7 @@ validated at episode grain.
 | Main observed event rate | `14.32%` | Linkage-conditioned, not legal renewal prevalence |
 | Median successor time | `31.82 months` | Median among accepted events only |
 | Expiry-aware accepted links | `504` | Sensitivity result |
-| Expiry-aware changed anchors | `42` | Existing audit queue |
+| Expiry-aware changed anchors | `41` | Existing audit queue |
 
 Event-definition sensitivity is material:
 
@@ -272,7 +272,7 @@ required to complete the minimum specialist audit.
 | Benchmark buyer-level split isolation | Passed |
 | Sealed-split protection | Passed |
 | Evidence notebooks execute | Passed |
-| Automated test suite | `161 passed` |
+| Automated test suite | `168 passed` |
 | Model-assisted linkage diagnostic | Complete; `14/20` conservatively confirmed |
 | Independent specialist linkage validity | Not established; required for stronger external accuracy claims, not for the current descriptive scope |
 
@@ -324,6 +324,7 @@ current internship analysis.
 - `DATA_QUALITY_REPORT.md`
 - `QUALITY_EVIDENCE.md`
 - `TREND_ANALYSIS_REPORT.md`
+- `SURVIVAL_ANALYSIS_REPORT.md`
 - `INTERNSHIP_GUIDE_COMPLIANCE.md`
 - `METHODOLOGICAL_REFERENCES.md`
 - `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`

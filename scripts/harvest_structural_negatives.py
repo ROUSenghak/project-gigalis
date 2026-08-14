@@ -6,8 +6,8 @@ ones that matter most: pairs with high text similarity that a text-ranking
 method will happily accept. Because they need no human judgement, they can be
 generated in bulk and scored as a separate suite -- one that penalises a
 pure-text method without any annotator involvement, which is a useful
-counterweight given that the annotator here is a language model reading the
-same text the methods read.
+counterweight given that the active bootstrap label generator uses some of the
+same text and CPV evidence as the methods under evaluation.
 
 Five sources, each carrying how strongly it is established:
 

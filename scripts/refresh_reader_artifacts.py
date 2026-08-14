@@ -710,6 +710,8 @@ renewal.
 - `data/processed/boamp/linkage_evaluation_dev.json`
 - `data/processed/boamp/linkage_evaluation_validation.json`
 - `data/processed/boamp/benchmark/modeling/modeling_summary.json`
+- `data/processed/boamp/survival_analysis_summary.json`
+- `SURVIVAL_ANALYSIS_REPORT.md`
 - `reports/boamp_methodology_chapter.pdf`
 - `notebooks/12_successor_linkage_and_evaluation.ipynb`
 - `DATA_QUALITY_REPORT.md`

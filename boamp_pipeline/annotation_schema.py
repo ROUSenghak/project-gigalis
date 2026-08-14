@@ -12,13 +12,12 @@ enforced at ingest and a batch that fails is rejected rather than recorded with
 a warning, because a schema that permits empty adjudication columns is how v1
 ended up with empty adjudication columns.
 
-The labels themselves are produced by a language model. That is disclosed in
-the datasheet rather than disguised, and two mitigations are built in here: a
-label must quote verbatim evidence from both sides of the pair, which forces
-decisions onto specific facts -- dates, supplier names, reference numbers --
-rather than an impression of similarity; and confidence must vary within a
-label class, so a model cannot satisfy the schema by grading every positive
-HIGH.
+The active labels were produced by the deterministic bootstrap rules in
+``scripts/auto_annotate_wave1a.py``. That provenance is disclosed in the
+datasheet rather than disguised. Two audit safeguards are retained here: a
+label must quote verbatim evidence from the source records, and confidence must
+vary within a label class. These safeguards make rule outputs inspectable; they
+do not turn the bootstrap labels into independent human ground truth.
 """
 
 from __future__ import annotations

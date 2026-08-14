@@ -1,6 +1,6 @@
 # Internship Guide Compliance
 
-Assessment date: `2026-08-13`  
+Assessment date: `2026-08-14`
 Overall status: **ready for final reporting within the narrowed descriptive scope; not full guide compliance**
 
 ## Scope Decision
@@ -20,7 +20,7 @@ validated predictive system, or a completed supervised technology-taxonomy model
 |---|---|---|---|
 | L1 Data quality report | Ready with caveats | `DATA_QUALITY_REPORT.md`, notebooks 10/11/14, structural tests | Independent semantic audit of a sample of reconstructed episodes and buyer matches would strengthen it |
 | L2 Annotated corpus + NLP classifier | Not implemented | CPV divisions define digital scope; TF-IDF is used for successor linkage | No 300-500 independently annotated technology corpus, taxonomy classifier, macro-F1, or classifier confusion matrix |
-| L3 Survival analysis | Mostly ready | `notebooks/13_survival_analysis.ipynb`, KM, Cox, PH checks, parametric comparison, temporal discrimination | Current events are linkage-conditioned; no active Gigalis portfolio for defensible contract-level 12/24-month operational predictions |
+| L3 Survival analysis | Ready within descriptive scope | `SURVIVAL_ANALYSIS_REPORT.md`, notebook 13, materialised KM/Cox/PH/parametric/sensitivity tables | Current events are linkage-conditioned; no active Gigalis portfolio and temporal C-index is only 0.518, so individualized prediction is not validated |
 | L4 Trend report | Partial but usable | `TREND_ANALYSIS_REPORT.md`, notebook 14, quarterly counts, PELT sensitivity, signal matrix | No validated monetary series, HMM regime model, or stakeholder-confirmed explanations for breaks |
 | L5 Final methodological report | Ready with caveats | `reports/boamp_methodology_chapter.pdf` integrates data, linkage, evaluation, survival, trends, limitations, and references | Final presentation should retain the same claim boundaries |
 | L6 Documented reproducible pipeline | Ready | scripts, tests, README, requirements, final pipeline runner | Environment pinning could be made stricter with a lock file, but this is not a current blocker |

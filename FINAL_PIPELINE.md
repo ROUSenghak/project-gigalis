@@ -1,6 +1,6 @@
 # Final Defensible Pipeline
 
-Generated: `2026-08-14T00:18:33`
+Generated: `2026-08-14T10:16:43`
 
 ## Current Decision
 
@@ -67,6 +67,8 @@ renewal.
 - `data/processed/boamp/linkage_evaluation_dev.json`
 - `data/processed/boamp/linkage_evaluation_validation.json`
 - `data/processed/boamp/benchmark/modeling/modeling_summary.json`
+- `data/processed/boamp/survival_analysis_summary.json`
+- `SURVIVAL_ANALYSIS_REPORT.md`
 - `reports/boamp_methodology_chapter.pdf`
 - `notebooks/12_successor_linkage_and_evaluation.ipynb`
 - `DATA_QUALITY_REPORT.md`

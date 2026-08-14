@@ -215,7 +215,7 @@ def predict(candidates: pd.DataFrame, method: str, threshold: float) -> pd.DataF
 
 
 def candidate_recall(candidates: pd.DataFrame, truth: pd.DataFrame, ks: tuple[int, ...]) -> dict[str, Any]:
-    """Does the ranked candidate list contain the manually confirmed successor?"""
+    """Does the ranked candidate list contain the reference-labelled successor?"""
     positives = truth.loc[truth["has_successor"] & truth["truth_usable"]]
     by_anchor = {
         anchor: group.sort_values("linkage_score", ascending=False)["candidate_episode_id"].tolist()
@@ -481,9 +481,10 @@ def evaluate_benchmark(
         "sealed_access_record": access_record,
         "caveats": {
             "annotation_source": (
-                "Labels were produced by a language model under a written protocol with "
-                "double annotation, adjudication and enforced verbatim evidence. Kappa "
-                "measures self-consistency, not inter-annotator agreement."
+                "Labels were produced by deterministic bootstrap rules in "
+                "scripts/auto_annotate_wave1a.py. Pass A and pass B repeat the same "
+                "rules under reordered framing, so kappa measures rule repeatability, "
+                "not independent inter-annotator agreement."
             ),
             "exposure_universe": (
                 "A negative means no successor inside the benchmark's candidate pool. "
