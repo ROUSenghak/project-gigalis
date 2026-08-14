@@ -21,9 +21,12 @@ if str(PROJECT_ROOT) not in sys.path:
 from boamp_pipeline.evidence import (  # noqa: E402
     build_quarterly_panel,
     recent_trend_signal,
+    regime_diagnostics,
     stable_breaks,
     stationarity_diagnostics,
 )
+
+REGIME_SEGMENTS = ("Overall", "CPV-72", "CPV-32")
 
 PROCESSED = PROJECT_ROOT / "data/processed/boamp"
 BENCHMARK = PROCESSED / "benchmark"
@@ -152,16 +155,21 @@ def data_quality_profile(cohort: pd.DataFrame) -> dict[str, Any]:
     }
 
 
-def build_trend_outputs(panel: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any]]:
+def build_trend_outputs(
+    panel: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, Any], dict[str, Any]]:
     breakpoint_rows: list[dict[str, Any]] = []
     signal_rows: list[dict[str, Any]] = []
     diagnostics: dict[str, Any] = {}
+    regimes: dict[str, Any] = {}
     for segment, group in panel.groupby("segment", sort=False):
         group = group.sort_values("quarter_start").reset_index(drop=True)
         values = group["episode_count"].astype(float).to_numpy()
         break_result = stable_breaks(values)
         trend = recent_trend_signal(values)
         diagnostics[str(segment)] = stationarity_diagnostics(values)
+        if str(segment) in REGIME_SEGMENTS:
+            regimes[str(segment)] = regime_diagnostics(values)
         for multiplier, indices in break_result["break_indices_by_penalty_multiplier"].items():
             for index in indices:
                 breakpoint_rows.append(
@@ -183,9 +191,13 @@ def build_trend_outputs(panel: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame
                 "last_stable_break": group.loc[stable[-1], "quarter"] if stable else None,
                 "central_break_count": len(central),
                 "stable_break_count": len(stable),
+                "hmm_current_regime": regimes.get(str(segment), {}).get("current_regime"),
+                "hmm_current_regime_probability": regimes.get(str(segment), {}).get(
+                    "current_regime_probability"
+                ),
             }
         )
-    return pd.DataFrame(breakpoint_rows), pd.DataFrame(signal_rows), diagnostics
+    return pd.DataFrame(breakpoint_rows), pd.DataFrame(signal_rows), diagnostics, regimes
 
 
 def plot_missingness(profile: dict[str, Any], path: Path) -> None:
@@ -373,6 +385,37 @@ def write_trend_report(
             f"| {row.segment} | {row.state} | {row.slope_episodes_per_quarter:.2f} | "
             f"{row.p_value:.3f} | {last_stable_break} |"
         )
+
+    stationarity_rows = []
+    for segment, diag in summary["stationarity"].items():
+        if not diag.get("available"):
+            stationarity_rows.append(f"| {segment} | n/a | n/a | {diag.get('reason', '')} |")
+            continue
+        adf = diag["adf"]
+        kpss_diag = diag["kpss"]
+        kpss_text = (
+            f"stat={kpss_diag['statistic']:.3f}, p={kpss_diag['p_value']:.3f}"
+            if kpss_diag.get("available", True)
+            else "n/a"
+        )
+        stationarity_rows.append(
+            f"| {segment} | ADF stat={adf['statistic']:.3f}, p={adf['p_value']:.3f} "
+            f"| KPSS {kpss_text} | |"
+        )
+
+    regime_rows = []
+    for segment, regime in summary["regimes"].items():
+        if not regime.get("available"):
+            regime_rows.append(f"| {segment} | n/a | n/a | {regime.get('reason', '')} |")
+            continue
+        regime_rows.append(
+            f"| {segment} | {regime['current_regime']} | "
+            f"{regime['current_regime_probability']:.3f} | "
+            f"decline={regime['mean_change_by_regime']['decline']:.1f}, "
+            f"plateau={regime['mean_change_by_regime']['plateau']:.1f}, "
+            f"growth={regime['mean_change_by_regime']['growth']:.1f} |"
+        )
+
     text = rf"""# BOAMP Descriptive Trend Analysis
 
 Generated: `{summary['generated_at']}`  
@@ -394,6 +437,43 @@ The results are descriptive signals only. Breaks are not automatically attribute
 `stable_or_uncertain` means the 12-quarter slope is not distinguishable from zero at the pre-declared exploratory level α = 0.10. These p-values are descriptive and are not corrected for multiple testing.
 
 ![Quarterly episode counts](reports/figures/trend_quarterly_episode_counts.png)
+
+## Stationarity (ADF/KPSS)
+
+| Segment | ADF (H0: unit root) | KPSS (H0: level stationary) | Note |
+|---|---|---|---|
+{chr(10).join(stationarity_rows)}
+
+ADF and KPSS test opposite null hypotheses, so they are read together rather than
+individually. A series that rejects the ADF unit-root null while failing to reject
+the KPSS stationarity null is consistent with level stationarity around a constant
+or slowly varying mean; disagreement between the two tests indicates the series is
+not cleanly classified as stationary or non-stationary over this short window. These
+diagnostics describe the fitted quarterly series; they are not used to justify or
+rule out forecasting, which remains out of scope.
+
+## Regime Detection (HMM)
+
+A 3-state Gaussian hidden Markov model is fit on the quarter-over-quarter change in
+episode count (not the level) for the overall cohort and the two highest-volume CPV
+segments, so the three states describe typical period-over-period direction —
+`decline`, `plateau`, `growth` — rather than the segment's absolute activity level. A
+segment can hold a high or low count while still sitting in a `plateau` regime if its
+recent changes are small. The reported probability is the model's posterior
+probability of the current-quarter regime, not a forecast, and a detected regime is
+not a causal explanation of any prior shift.
+
+| Segment | Current regime | Probability | Mean quarterly change by regime |
+|---|---|---:|---|
+{chr(10).join(regime_rows)}
+
+Because the model is fit on noisy, low-count quarterly series, the `plateau` state is
+a data-driven middle tier rather than a change centered exactly at zero; its mean
+change should be read alongside `decline` and `growth` rather than interpreted as
+"no change." The HMM's current-regime label and the 12-quarter OLS slope above are
+complementary, not identical: the OLS slope summarizes the last 12 quarters, while
+the HMM regime reflects the model's belief about the most recent quarter's state and
+can differ from the OLS signal without either being wrong.
 
 ## Method
 
@@ -528,7 +608,7 @@ def main() -> int:
     write_json(profile_path, profile)
 
     panel = build_quarterly_panel(cohort)
-    breakpoints, signal_matrix, diagnostics = build_trend_outputs(panel)
+    breakpoints, signal_matrix, diagnostics, regimes = build_trend_outputs(panel)
     panel.to_csv(PROCESSED / "trend_quarterly.csv", index=False)
     breakpoints.to_csv(PROCESSED / "trend_breakpoints.csv", index=False)
     signal_matrix.to_csv(PROCESSED / "trend_signal_matrix.csv", index=False)
@@ -542,8 +622,13 @@ def main() -> int:
             "penalty_multipliers": [0.5, 1.0, 2.0],
             "stable_break_tolerance_quarters": 1,
             "recent_trend": "OLS slope over latest 12 quarters; alpha=0.10",
+            "regime_detection": (
+                "3-state Gaussian HMM on quarter-over-quarter change in episode "
+                "count, for Overall and the two highest-volume CPV segments"
+            ),
         },
         "stationarity": diagnostics,
+        "regimes": regimes,
         "amount_series_available": False,
         "amount_omission_reason": "no validated canonical awarded amount at episode grain",
         "causal_interpretation": False,

@@ -1,6 +1,6 @@
 # BOAMP Data Quality Report
 
-Generated: `2026-08-14T00:18:05`  
+Generated: `2026-08-14T11:16:50`  
 Data through: `2025-12-31`  
 Assessment: **Share with caveats**
 

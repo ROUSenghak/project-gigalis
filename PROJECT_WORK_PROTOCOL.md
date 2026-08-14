@@ -160,9 +160,14 @@ definitions are retained as sensitivity analyses.
 Quarterly awarded-episode counts are analysed from `2015Q2` through `2025Q4`.
 The partial `2015Q1` extract is excluded. PELT identifies candidate change
 points under penalty sensitivity, while 12-quarter linear slopes describe
-recent direction. Neither method supplies a causal explanation. Monetary trend
-analysis is omitted because no canonical awarded-amount field has been
-validated at episode grain.
+recent direction. ADF/KPSS stationarity diagnostics are computed per segment,
+and a 3-state Gaussian HMM fit on the quarter-over-quarter change in episode
+count gives a current growth/plateau/decline regime label with posterior
+probability for the overall series and the two highest-volume CPV segments.
+Neither PELT, the HMM, nor the OLS slope supplies a causal explanation, and the
+HMM's current-regime read is not forced to agree with the PELT/OLS signals.
+Monetary trend analysis is omitted because no canonical awarded-amount field
+has been validated at episode grain.
 
 ## 4. Current Materialised Results
 
@@ -318,6 +323,7 @@ current internship analysis.
 
 ## 10. Current Sources Of Truth
 
+- `EXECUTIVE_SUMMARY.md`
 - `FINAL_PIPELINE.md`
 - `reports/current_project_readiness_report.html`
 - `reports/boamp_methodology_chapter.pdf`

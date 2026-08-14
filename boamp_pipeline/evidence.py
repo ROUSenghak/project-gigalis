@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import ruptures as rpt
+from hmmlearn.hmm import GaussianHMM
 from scipy.stats import linregress
 from statsmodels.tsa.stattools import adfuller, kpss
 from statsmodels.tools.sm_exceptions import InterpolationWarning
@@ -183,6 +184,76 @@ def stationarity_diagnostics(values: Iterable[float]) -> dict[str, Any]:
             "null": "unit_root_nonstationary",
         },
         "kpss": kpss_payload,
+    }
+
+
+def regime_diagnostics(
+    values: Iterable[float],
+    *,
+    min_observations: int = 16,
+    random_state: int = 0,
+) -> dict[str, Any]:
+    """Label growth/plateau/decline regimes with a 3-state Gaussian HMM.
+
+    The model is fit on the quarter-over-quarter change, not the level, so the
+    three states describe typical period-over-period direction rather than the
+    segment's absolute activity level. A segment can sit at a high or low count
+    while still being in a "plateau" regime if its recent changes are small. This
+    is a descriptive regime label with a current-quarter posterior probability;
+    it is not a forecast and a detected regime is not a causal explanation.
+    """
+
+    array = np.asarray(list(values), dtype=float)
+    if len(array) < min_observations or not np.isfinite(array).all():
+        return {
+            "available": False,
+            "reason": f"requires at least {min_observations} finite observations",
+        }
+    diffs = np.diff(array)
+    mean_diff = float(diffs.mean())
+    std_diff = float(diffs.std(ddof=0))
+    if std_diff == 0:
+        return {
+            "available": False,
+            "reason": "quarter-over-quarter change is constant",
+        }
+    standardized = ((diffs - mean_diff) / std_diff).reshape(-1, 1)
+
+    model = GaussianHMM(
+        n_components=3,
+        covariance_type="diag",
+        n_iter=200,
+        random_state=random_state,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        model.fit(standardized)
+        state_sequence = model.predict(standardized)
+        posteriors = model.predict_proba(standardized)
+
+    state_means_original = model.means_.reshape(-1) * std_diff + mean_diff
+    order = np.argsort(state_means_original)
+    regime_by_state = {
+        int(order[0]): "decline",
+        int(order[1]): "plateau",
+        int(order[2]): "growth",
+    }
+
+    current_state = int(state_sequence[-1])
+    current_regime = regime_by_state[current_state]
+    current_probability = float(posteriors[-1, current_state])
+
+    return {
+        "available": True,
+        "fit_on": "quarter_over_quarter_change_in_episode_count",
+        "mean_change_by_regime": {
+            regime_by_state[int(state)]: float(state_means_original[state])
+            for state in range(3)
+        },
+        "transition_matrix_rows_from_columns_to": model.transmat_.tolist(),
+        "current_regime": current_regime,
+        "current_regime_probability": current_probability,
+        "quarters_used": int(len(state_sequence)),
     }
 
 

@@ -8,6 +8,7 @@ from boamp_pipeline.evidence import (
     build_quarterly_panel,
     pelt_break_indices,
     recent_trend_signal,
+    regime_diagnostics,
     stable_breaks,
     stationarity_diagnostics,
 )
@@ -71,3 +72,29 @@ def test_recent_trend_signal_distinguishes_direction() -> None:
 def test_stationarity_diagnostics_handles_constant_series() -> None:
     result = stationarity_diagnostics([1.0] * 20)
     assert result["available"] is False
+
+
+def test_regime_diagnostics_requires_minimum_length() -> None:
+    result = regime_diagnostics(range(10))
+    assert result["available"] is False
+    assert "16" in result["reason"]
+
+
+def test_regime_diagnostics_handles_constant_change_series() -> None:
+    result = regime_diagnostics(range(20))
+    assert result["available"] is False
+
+
+def test_regime_diagnostics_returns_valid_regime_labels_and_probabilities() -> None:
+    values = [20.0] * 10 + [20.0 + 10.0 * step for step in range(1, 11)]
+    result = regime_diagnostics(values, min_observations=16)
+    assert result["available"] is True
+    means = result["mean_change_by_regime"]
+    assert set(means) == {"decline", "plateau", "growth"}
+    assert means["decline"] <= means["plateau"] <= means["growth"]
+    assert result["current_regime"] in {"decline", "plateau", "growth"}
+    assert 0.0 <= result["current_regime_probability"] <= 1.0
+    matrix = result["transition_matrix_rows_from_columns_to"]
+    assert len(matrix) == 3 and all(len(row) == 3 for row in matrix)
+    for row in matrix:
+        assert pytest.approx(sum(row), abs=1e-6) == 1.0

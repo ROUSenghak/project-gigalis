@@ -155,6 +155,133 @@ def latex_method_rows(frame: pd.DataFrame) -> str:
     return "\n".join(rows)
 
 
+def latex_cox_rows(frame: pd.DataFrame) -> str:
+    rows = []
+    for record in frame.to_dict("records"):
+        rows.append(
+            " & ".join(
+                [
+                    latex_escape(record["covariate"]),
+                    f"{record['exp(coef)']:.3f}",
+                    f"[{record['exp(coef) lower 95%']:.3f}, {record['exp(coef) upper 95%']:.3f}]",
+                    f"{record['p']:.3g}",
+                ]
+            )
+            + r" \\"
+        )
+    return "\n".join(rows)
+
+
+def latex_ph_rows(frame: pd.DataFrame) -> str:
+    rows = []
+    for record in frame.to_dict("records"):
+        flag = r"\textbf{violated}" if record["p"] < 0.05 else "ok"
+        rows.append(
+            " & ".join(
+                [
+                    latex_escape(record["covariate"]),
+                    f"{record['test_statistic']:.3f}",
+                    f"{record['p']:.3g}",
+                    flag,
+                ]
+            )
+            + r" \\"
+        )
+    return "\n".join(rows)
+
+
+def latex_parametric_rows(frame: pd.DataFrame) -> str:
+    rows = []
+    for record in frame.to_dict("records"):
+        rows.append(
+            " & ".join(
+                [
+                    latex_escape(record["model"]),
+                    str(int(record["parameters"])),
+                    f"{record['log_likelihood']:.1f}",
+                    f"{record['aic']:.1f}",
+                    f"{record['bic']:.1f}",
+                ]
+            )
+            + r" \\"
+        )
+    return "\n".join(rows)
+
+
+def latex_cox_sensitivity_rows(frame: pd.DataFrame) -> str:
+    pivot_hr = frame.pivot(index="covariate", columns="arm", values="hazard_ratio")
+    pivot_robust = frame.pivot(index="covariate", columns="arm", values="robustness_assessment")
+    rows = []
+    for covariate in pivot_hr.index:
+        robustness = pivot_robust.loc[covariate, "main"]
+        rows.append(
+            " & ".join(
+                [
+                    latex_escape(covariate),
+                    f"{pivot_hr.loc[covariate, 'strict']:.3f}",
+                    f"{pivot_hr.loc[covariate, 'main']:.3f}",
+                    f"{pivot_hr.loc[covariate, 'looser']:.3f}",
+                    f"{pivot_hr.loc[covariate, 'contrast_high_recall']:.3f}",
+                    latex_escape(robustness.replace("_", " ").title()),
+                ]
+            )
+            + r" \\"
+        )
+    return "\n".join(rows)
+
+
+def latex_trend_signal_rows(signal_matrix: pd.DataFrame) -> str:
+    rows = []
+    for row in signal_matrix.itertuples(index=False):
+        last_stable = "--" if pd.isna(row.last_stable_break) else latex_escape(str(row.last_stable_break))
+        regime = (
+            "--"
+            if pd.isna(getattr(row, "hmm_current_regime", None))
+            else latex_escape(str(row.hmm_current_regime))
+        )
+        rows.append(
+            " & ".join(
+                [
+                    latex_escape(row.segment),
+                    latex_escape(row.state),
+                    f"{row.slope_episodes_per_quarter:.2f}",
+                    f"{row.p_value:.3f}",
+                    last_stable,
+                    regime,
+                ]
+            )
+            + r" \\"
+        )
+    return "\n".join(rows)
+
+
+def latex_stationarity_rows(diagnostics: dict[str, Any]) -> str:
+    rows = []
+    for segment, diag in diagnostics.items():
+        if not diag.get("available"):
+            rows.append(f"{latex_escape(segment)} & -- & -- & {latex_escape(diag.get('reason', ''))}" + r" \\")
+            continue
+        adf = diag["adf"]
+        kpss_diag = diag["kpss"]
+        kpss_text = (
+            f"stat={kpss_diag['statistic']:.3f}, p={kpss_diag['p_value']:.3f}"
+            if kpss_diag.get("available", True)
+            else "n/a"
+        )
+        rows.append(
+            " & ".join(
+                [
+                    latex_escape(segment),
+                    f"stat={adf['statistic']:.3f}, p={adf['p_value']:.3f}",
+                    kpss_text,
+                    "",
+                ]
+            )
+            + r" \\"
+        )
+    return "\n".join(rows)
+
+
 def write_methodology_report(
     dev: dict[str, Any],
     validation: dict[str, Any],
@@ -179,6 +306,17 @@ def write_methodology_report(
     m_c = validation_frame.loc[validation_frame["method"].eq("M_C_weighted_gated")].iloc[0]
     m_d = validation_frame.loc[validation_frame["method"].eq("M_D_fellegi_sunter")].iloc[0]
 
+    survival_summary = load_json(PROCESSED / "survival_analysis_summary.json")
+    cox_results = pd.read_csv(PROCESSED / "survival_cox_results.csv")
+    ph_diagnostics = pd.read_csv(PROCESSED / "survival_ph_diagnostics.csv")
+    parametric_comparison = pd.read_csv(PROCESSED / "survival_parametric_comparison.csv")
+    cox_sensitivity = pd.read_csv(PROCESSED / "survival_cox_linkage_sensitivity.csv")
+    km_horizons = pd.read_csv(PROCESSED / "survival_km_horizons.csv").set_index("months")
+    trend_summary = load_json(PROCESSED / "trend_analysis_summary.json")
+    trend_signal_matrix = pd.read_csv(PROCESSED / "trend_signal_matrix.csv")
+    ph_violations = survival_summary["cox"]["ph_violations_p_lt_0_05"]
+    temporal = survival_summary["cox"]["temporal_validation"]
+
     tex = rf"""
 \documentclass[11pt,a4paper]{{article}}
 \usepackage[utf8]{{inputenc}}
@@ -196,12 +334,14 @@ def write_methodology_report(
 \hypersetup{{colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black}}
 \newcommand{{\code}}[1]{{\texttt{{#1}}}}
 \newcommand{{\pathcode}}[1]{{\texttt{{\small #1}}}}
-\title{{BOAMP Successor Linkage Methodology\\\large Current Evidence State}}
+\title{{BOAMP Digital Procurement Study\\\large Successor Linkage, Survival, and Trend Methodology}}
 \author{{BOAMP Data Science Internship Project}}
 \date{{{generated_at}}}
 \begin{{document}}
 \sloppy
 \maketitle
+\tableofcontents
+\newpage
 
 \section*{{Technical Summary}}
 This report states the current defensible BOAMP successor-linkage pipeline. The
@@ -234,6 +374,36 @@ passes were generated by the deterministic bootstrap rules in
 (FPR {m_c.fpr:.3f}). This trade-off is important because a false positive in a
 survival dataset creates both a false event and a false event time, while an
 abstained link is handled conservatively as right-censoring.
+
+\section{{Context}}
+Gigalis is the digital central purchasing body (\emph{{centrale d'achat
+num\'erique}}) for public institutions in the Pays de la Loire region and beyond.
+It designs pooled framework agreements in cloud, cybersecurity, digital
+infrastructure, and artificial intelligence, and its strategic relevance depends
+on anticipating members' future needs. The internship's central question is:
+using historical public digital procurement data, how can the probability that a
+contract or technological segment generates an identifiable purchasing need
+within the next 12--24 months be estimated, and how can that estimate inform
+Gigalis's central purchasing strategy?
+
+This decomposes into three sub-problems: a \emph{{lifetime problem}} (survival
+analysis: how long between a digital procurement episode and its successor?), a
+\emph{{trend problem}} (change-point detection: which technological segments are
+growing, plateauing, or declining?), and a \emph{{text-signal problem}} (NLP:
+extracting a contract's technological theme automatically). This project answers
+the first two in depth; the NLP sub-problem is addressed with a reproducible
+coarse substitute rather than a trained classifier (\S\ref{{sec:nlp-scope}}).
+
+BOAMP does not encode legal contract renewal as an explicit field, so the study
+cannot certify legal renewals. It instead constructs and evaluates a proxy: an
+\emph{{observable successor procurement}}, a later BOAMP episode from the same
+buyer that is sufficiently similar to, and temporally plausible relative to, an
+earlier awarded digital procurement episode. Every downstream result --
+survival curves, hazard ratios, trend segments -- is conditioned on this proxy,
+not on certified legal ground truth. The strongest defensible framing is:
+because legal renewal status is not directly observed, the study measures
+observable successor procurements under a precision-first linkage rule, then
+assesses how sensitive its descriptive conclusions are to that rule.
 
 \section{{What The Pipeline Measures}}
 Let \(i\) index an earlier awarded procurement episode and \(j\) index a later
@@ -305,6 +475,7 @@ pairs, with a median of {candidates["candidates_per_anchor"]["median"]:.0f}
 candidates per anchor.
 
 \section{{Current National Development Reference}}
+\label{{sec:linkage-caveat}}
 The current reference is national rather than Grand Ouest-only. It samples awarded
 digital procurement episodes across French region groups and CPV divisions.
 The dev split has {modeling["outputs"]["dev"]["anchors"]} anchors and
@@ -390,6 +561,114 @@ arm accepts {expiry["cohort_comparison"]["expiry_aware"]["accepted_links"]:,} li
 {survival_main["validation"]["events"]:,} under the main method. It is retained
 as an audit/sensitivity check, not promoted, because observed market behaviour
 shows many declared successors can be published before expected expiry.
+
+\section{{Survival Modeling}}
+The accepted-link decision from \(M_B\) defines the survival event. For episode
+\(i\), \(\tau_i\) is the time from award date \(A_i\) to the accepted successor's
+publication date if \(Y_i=1\), or to the study cutoff (2025-12-31) if
+\(Y_i=0\) (administrative right-censoring). \(Y_i=0\) means no accepted
+observable successor was found before the cutoff; it is not proof of
+abandonment.
+
+\paragraph{{Kaplan--Meier.}} The non-parametric survivor function
+\(S(t)=P(T>t)\) is estimated by
+\href{{https://doi.org/10.1080/01621459.1958.10501452}}{{Kaplan and Meier
+(1958)}}'s product-limit estimator, stratified by CPV segment, buyer type, and
+other covariates of interest. Group differences use the log-rank test.
+
+\paragraph{{Cox proportional hazards.}} The semi-parametric model is
+\[
+h(t\mid X)=h_0(t)\exp(\beta_1X_1+\cdots+\beta_pX_p),
+\]
+with covariates selected for substantive relevance and data quality rather than
+automated search: CPV digital segment, buyer region, framework-agreement flag,
+validated-SIREN availability, and centered award year. The rule of one
+covariate per ten observed events (Van Belle et al., 2002) is respected with
+{survival_summary["cox"]["events"]:,} events supporting
+{survival_summary["cox"]["covariates"]} covariates. The proportional-hazards
+assumption is tested with Schoenfeld residuals (Grambsch and Therneau, 1994);
+violations are reported and interpreted descriptively rather than silently
+dropped or used to discard the model.
+
+\paragraph{{Parametric models.}} Exponential, Weibull, log-logistic, log-normal,
+and generalized-gamma models are compared by log-likelihood, AIC, and BIC, and
+checked graphically against the Kaplan--Meier curve, because parametric models
+allow probability extrapolation (e.g. 12/24-month successor probability) that
+the semi-parametric Cox model does not directly provide.
+
+\paragraph{{Temporal validation.}} The model is fit on episodes awarded
+2015--2021 and evaluated on 2022--2025, reporting Harrell's concordance index
+\(C\) on each split to assess discrimination and out-of-time stability, not to
+target a specific value.
+
+\paragraph{{Linkage sensitivity.}} Because the event is linkage-conditioned, the
+same Kaplan--Meier and Cox analyses are repeated under the strict
+(\(M_B@0.80\)), main (\(M_B@0.70\)), looser (\(M_B@0.60\)), and high-recall
+contrast (\(M_C@0.70\)) event definitions. A conclusion is reported as robust
+only when it is stable in sign and approximate magnitude across these arms.
+
+\section{{Trend And Change-Point Detection}}
+Quarterly awarded-episode counts \(N_{{s,q}}\) are built for the overall cohort
+and each CPV digital segment from 2015Q2 (the first complete quarter) through
+2025Q4, including zero-count quarters.
+
+\paragraph{{Change-point detection (PELT).}}
+\href{{https://doi.org/10.1080/01621459.2012.737745}}{{Killick, Fearnhead and
+Eckley (2012)}}'s PELT algorithm minimizes a penalized segmentation objective on
+the z-standardized series with penalty \(\beta=\lambda\log(n)\); the central
+result uses \(\lambda=1\) with sensitivity at \(0.5\) and \(2.0\), and a break
+is called stable only if it lies within one quarter under all three penalties.
+
+\paragraph{{Stationarity.}} Augmented Dickey--Fuller (unit-root null) and KPSS
+(level-stationary null) tests are run on each segment's series. The two tests
+have opposite null hypotheses and are read together, not individually.
+
+\paragraph{{Regime detection (HMM).}} A 3-state Gaussian hidden Markov model is
+fit on the quarter-over-quarter \emph{{change}} in episode count -- not the
+level -- for the overall cohort and the two highest-volume CPV segments, so
+states describe typical period-over-period direction (decline, plateau,
+growth) rather than absolute activity level. The Viterbi-decoded state
+sequence gives the current-quarter regime and its posterior probability. This
+complements PELT (which finds discrete historical breaks) with a continuously
+updated regime read; the two are not required to agree, and disagreement is
+reported honestly rather than reconciled.
+
+\paragraph{{Recent direction.}} An OLS slope over the latest 12 quarters gives
+an \texttt{{increasing}}/\texttt{{decreasing}}/\texttt{{stable\_or\_uncertain}}
+label at exploratory \(\alpha=0.10\), uncorrected for multiple testing. None of
+these methods forecasts future values or identifies the cause of a break;
+causal attribution requires documentary or stakeholder evidence not available
+in BOAMP alone. Monetary and duration trend series are omitted because no
+canonical awarded-amount field is validated at episode grain, and 2025's
+duration-field completeness jump is a measurement change, not a genuine shift
+in contract durations.
+
+\section{{Technology Segmentation}}
+\label{{sec:nlp-scope}}
+The internship guide's L2 deliverable specifies a supervised technology
+taxonomy: 300--500 manually annotated contracts across 8--12 classes, a
+TF--IDF+logistic-regression/SVM baseline evaluated by macro-F1 and confusion
+matrix, and an optional CamemBERT comparison. \textbf{{This was not built.}} Two
+independent annotators with a Cohen's kappa agreement statistic are required for
+a defensible L2 corpus, and no second qualified annotator was available within
+this session's scope; producing single-pass AI-assisted labels and calling
+their agreement "kappa" would repeat exactly the self-consistency problem this
+project has documented for the successor-linkage benchmark
+(\S\ref{{sec:linkage-caveat}}) instead of avoiding it.
+
+Every technology segment referenced in this report -- cohort selection, Cox
+covariates, quarterly trend series -- therefore uses CPV divisions 32
+(telecommunications equipment), 35 (security), 48 (software), and 72 (IT
+services) as a reproducible substitute. This is a real scope reduction, not a
+disguised classifier: CPV divisions are official, zero-missingness EU
+categories under Regulation 213/2008, but they are coarser than a learned
+taxonomy and cannot distinguish sub-themes such as cloud versus on-premise
+infrastructure within a division. A future session with a second qualified
+annotator could complete L2 using the same blinded-sample-plus-adjudication
+scaffolding already built for linkage review
+(\pathcode{{scripts/prepare\_independent\_link\_review.py}},
+\pathcode{{scripts/ingest\_annotations.py}},
+\pathcode{{scripts/adjudicate\_annotations.py}}).
 
 \section{{Dev Results}}
 \begin{{table}}[H]
@@ -516,20 +795,172 @@ evaluation use the same feature state.
 The survival dataset uses the main accepted links as events and all other
 episodes as right-censored observations at the study cutoff. The main variant
 contains {survival_main["validation"]["events"]:,} events and
-{survival_main["validation"]["censored"]:,} censored observations. Segment
+{survival_main["validation"]["censored"]:,} censored observations
+({survival_summary["cohort"]["event_rate"] * 100:.3f}\% event rate). Segment
 event rates are {survival_main["description"]["by_digital_segment"]["CPV-32"]["event_rate"]:.3f}
 for CPV-32, {survival_main["description"]["by_digital_segment"]["CPV-35"]["event_rate"]:.3f}
 for CPV-35, {survival_main["description"]["by_digital_segment"]["CPV-48"]["event_rate"]:.3f}
 for CPV-48, and {survival_main["description"]["by_digital_segment"]["CPV-72"]["event_rate"]:.3f}
 for CPV-72. CPV-35 has the highest observed successor rate in the main arm.
 
-Sensitivity checks show that absolute event rates depend strongly on the
-linkage rule: {survival_strict["validation"]["events"]:,} events under
-\code{{M\_B @ 0.80}}, {survival_main["validation"]["events"]:,} under
-\code{{M\_B @ 0.70}}, {survival_looser["validation"]["events"]:,} under
-\code{{M\_B @ 0.60}}, and {survival_contrast["validation"]["events"]:,} under
-\code{{M\_C @ 0.70}}. Therefore the survival estimates should be interpreted as
-linkage-conditioned descriptive evidence, not as exact renewal probabilities.
+\paragraph{{Kaplan--Meier.}} The estimated probability of an observable
+successor is {km_horizons.loc[12, 'cumulative_successor_probability'] * 100:.3f}\%
+by 12 months,
+{km_horizons.loc[24, 'cumulative_successor_probability'] * 100:.3f}\% by 24
+months, and
+{km_horizons.loc[60, 'cumulative_successor_probability'] * 100:.3f}\% by 60
+months. The Kaplan--Meier median survival time is
+\textbf{{{survival_summary["km"]["median_status"].replace('_', ' ')}}}: the curve
+never falls below 0.5 within the observation window, so no median is reported.
+This is distinct from the {survival_main["description"]["median_time_to_successor_months"]:.2f}-month
+median delay \emph{{among linked events only}}, which conditions on the event
+having occurred. A multivariate log-rank test across CPV segments gives
+statistic {survival_summary["logrank"]["test_statistic"]:.2f}
+(\(p={survival_summary["logrank"]["p_value"]:.3g}\)).
+
+\paragraph{{Cox model.}} The parsimonious model
+({survival_summary["cox"]["covariates"]} covariates,
+{survival_summary["cox"]["events"]:,} events) gives:
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{lrlr}}
+\toprule
+Covariate & HR & 95\% CI & p \\
+\midrule
+{latex_cox_rows(cox_results)}
+\bottomrule
+\end{{tabularx}}
+\caption{{Cox hazard ratios, main linkage arm. In-sample C-index
+{survival_summary["cox"]["in_sample_c_index"]:.3f}.}}
+\end{{table}}
+Framework-agreement episodes and CPV-35 carry the largest hazard ratios among
+substantively interpretable covariates. These are descriptive associations with
+the observed hazard, not causal effects.
+
+\paragraph{{Proportional-hazards diagnostic.}}
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{lrrl}}
+\toprule
+Covariate & Test statistic & p & PH assumption \\
+\midrule
+{latex_ph_rows(ph_diagnostics)}
+\bottomrule
+\end{{tabularx}}
+\caption{{Schoenfeld-residual proportional-hazards tests.}}
+\end{{table}}
+The assumption is rejected (\(p<0.05\)) for
+\code{{{latex_escape(', '.join(ph_violations))}}}. These coefficients are
+therefore reported as time-averaged associations rather than constant hazard
+ratios; stratification or time-interaction terms would be the next refinement
+if individualized prediction were required.
+
+\paragraph{{Temporal validation.}} Training on
+{temporal["train_years"]} ({temporal["train_contracts"]:,} episodes,
+{temporal["train_events"]:,} events) and evaluating on
+{temporal["test_years"]} ({temporal["test_contracts"]:,} episodes,
+{temporal["test_events"]:,} events) gives C-index
+{temporal["train_c_index"]:.3f} in-sample versus
+{temporal["test_c_index"]:.3f} out-of-time. This gap indicates the model is not
+validated for individualized operational prediction; it is retained as a
+descriptive risk-factor summary.
+
+\paragraph{{Parametric models.}}
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{lrrrr}}
+\toprule
+Model & Parameters & Log-likelihood & AIC & BIC \\
+\midrule
+{latex_parametric_rows(parametric_comparison)}
+\bottomrule
+\end{{tabularx}}
+\caption{{Parametric survival model comparison.}}
+\end{{table}}
+\code{{{survival_summary["parametric"]["selected_model"]}}} has the lowest AIC
+and BIC and was checked graphically against the Kaplan--Meier curve before
+selection; it is used for the exported 12/24-month conditional successor
+probabilities (\pathcode{{survival\_conditional\_probabilities.csv}}), each with
+a 500-draw episode-bootstrap interval. These are estimated probabilities of an
+\emph{{identifiable observable successor procurement}}, not certified renewal
+probabilities, and no active Gigalis portfolio was available to score, so
+predictions cover the study cohort rather than a live deployment set.
+
+\paragraph{{Detectability and selection diagnostic.}} Comparing linked and
+censored episodes on standardized mean differences, the largest gap is
+\code{{{latex_escape(survival_summary["selection_diagnostic"]["largest_absolute_smd"]["variable"])}}}
+(SMD {survival_summary["selection_diagnostic"]["largest_absolute_smd"]["absolute_smd"]:.3f}).
+This indicates possible differential detectability across episode
+characteristics, not proof of causal linkage bias; it cannot be fully separated
+from genuine heterogeneity in renewal behaviour using BOAMP alone.
+
+\paragraph{{Linkage sensitivity.}} Event counts range from
+{survival_summary["sensitivity"]["minimum_events"]:,} to
+{survival_summary["sensitivity"]["maximum_events"]:,} across the four retained
+linkage arms, so absolute probabilities are linkage-sensitive by construction.
+Cox effects under the same four arms:
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{lrrrrl}}
+\toprule
+Covariate & Strict & Main & Looser & High-recall & Robustness \\
+\midrule
+{latex_cox_sensitivity_rows(cox_sensitivity)}
+\bottomrule
+\end{{tabularx}}
+\caption{{Cox hazard ratios across linkage-definition sensitivity arms.}}
+\end{{table}}
+Framework flag, CPV-35, and centered award year are the most robust
+associations; buyer-region and CPV-72 effects are linkage-sensitive and should
+not be over-interpreted.
+
+\section{{Trend Results}}
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{lrrrll}}
+\toprule
+Segment & Direction & Slope/qtr & p & Last stable PELT break & HMM regime \\
+\midrule
+{latex_trend_signal_rows(trend_signal_matrix)}
+\bottomrule
+\end{{tabularx}}
+\caption{{Current trend signal matrix: OLS 12-quarter slope, PELT breaks, and
+HMM current regime (Overall and top-2 segments only).}}
+\end{{table}}
+CPV-48 is the only segment with a statistically distinguishable 12-quarter
+decline at the exploratory \(\alpha=0.10\) level; the rest are
+\code{{stable\_or\_uncertain}} by this signal.
+
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{lXXl}}
+\toprule
+Segment & ADF (H0: unit root) & KPSS (H0: level stationary) & Note \\
+\midrule
+{latex_stationarity_rows(trend_summary["stationarity"])}
+\bottomrule
+\end{{tabularx}}
+\caption{{Stationarity diagnostics per segment.}}
+\end{{table}}
+ADF and KPSS test opposite null hypotheses and are read jointly; disagreement
+between them means the series is not cleanly classified as stationary or
+non-stationary over this 43-quarter window.
+
+The HMM regime column above reports each covered segment's current-quarter
+regime and posterior probability, fit on the quarter-over-quarter change in
+episode count rather than its level. Because the model is fit on noisy,
+low-count quarterly data, the \code{{plateau}} state is a data-driven middle
+tier rather than a change centered exactly at zero, and it is read alongside
+\code{{decline}}/\code{{growth}} rather than as "no change." The HMM's
+current-quarter regime and the 12-quarter OLS slope are complementary
+diagnostics computed over different windows; they are not required to agree,
+and this report does not adjust either to match the other.
 
 \section{{Defensible Decision}}
 The final project decision is to keep \code{{M\_B\_text\_ranking @ 0.70}}
@@ -566,7 +997,55 @@ The selected threshold should not be over-tuned and its accuracy remains provisi
 legal-form audit is retained to catch name-only and cross-legal-form cases.
 \item Missing duration and expiry fields are not imputed. This avoids creating
 false timing certainty.
+\item The 3-state HMM regime labels are fit on noisy, short (43-quarter) count
+series; state-count and window choices are not exhaustively validated, and a
+`plateau` label is a relative middle tier rather than a change centered at
+zero.
+\item Technology segmentation uses CPV divisions, not a learned taxonomy
+(\S\ref{{sec:nlp-scope}}); this is a real scope reduction, disclosed rather
+than concealed.
 \end{{itemize}}
+
+\section{{Perspectives}}
+\subsection{{Causal Inference (Outline Only)}}
+\label{{sec:causal-inference}}
+The internship guide frames a distinct causal question, separate from this
+report's descriptive linkage/survival/trend results: does a Gigalis pooled
+framework agreement actually change member purchasing behaviour (amounts,
+frequency, segments), or does Gigalis simply capture demand that would have
+existed anyway? \textbf{{This question is not answered here, and no causal
+estimate is computed in this repository.}} Answering it requires data this
+project's BOAMP-only corpus does not contain: which buyers are Gigalis
+members, and when each joined. Attempting a substitute causal claim from
+BOAMP alone -- for example treating CPV-segment membership or region as a
+proxy treatment -- would confound procurement domain and geography with
+Gigalis adoption, and this project has consistently avoided exactly this kind
+of unsupported inferential leap elsewhere (survival hazard ratios are reported
+as associations, not effects, for the same reason).
+
+If Gigalis-internal membership and adoption-date data were joined to this
+corpus, the natural identification strategy is a \textbf{{staggered-adoption
+difference-in-differences}} design
+(\href{{https://doi.org/10.1016/j.jeconom.2020.12.001}}{{Callaway and
+Sant'Anna, 2021}}), because members join the central purchasing body at
+different calendar dates rather than simultaneously -- the specific setting
+that motivates that estimator over classical two-period DiD. The parallel-trends
+assumption (comparable purchasing trajectories absent Gigalis membership)
+would need to be assessed with pre-adoption trend plots per member cohort.
+Propensity-score matching
+(\href{{https://www.jstor.org/stable/j.ctvcm4j72}}{{Angrist and Pischke,
+2009}}) is a secondary candidate if adoption is not sharply timed but depends
+on observable buyer characteristics (size, budget, sector); regression
+discontinuity would apply only if a hard eligibility threshold (e.g. a
+population cutoff) determines Gigalis access, which is not currently known to
+be the case. Any of these designs should state its identifying assumptions as
+an explicit causal graph
+(\href{{https://www.wiley.com/en-us/Causal+Inference+in+Statistics\%3A+A+Primer-p-9781119186847}}{{Pearl,
+Glymour and Jewell, 2016}}) before estimation, not after.
+
+This section is a design outline for future work conditional on Gigalis
+supplying membership data, not a promise that such data will become available
+within this internship.
 
 \section{{Recommended Reporting Position}}
 The technical report should defend the project as a reproducible measurement
@@ -588,10 +1067,19 @@ false positive links would create artificial survival events.
 \item \pathcode{{data/processed/boamp/benchmark/benchmark\_manifest.json}}
 \item \pathcode{{data/processed/boamp/survival\_dataset\_summary.json}}
 \item \pathcode{{data/processed/boamp/linkage\_candidates\_summary.json}}
+\item \pathcode{{data/processed/boamp/survival\_analysis\_summary.json}}
+\item \pathcode{{data/processed/boamp/survival\_cox\_results.csv}}
+\item \pathcode{{data/processed/boamp/survival\_ph\_diagnostics.csv}}
+\item \pathcode{{data/processed/boamp/survival\_parametric\_comparison.csv}}
+\item \pathcode{{data/processed/boamp/survival\_cox\_linkage\_sensitivity.csv}}
+\item \pathcode{{data/processed/boamp/trend\_analysis\_summary.json}}
+\item \pathcode{{data/processed/boamp/trend\_signal\_matrix.csv}}
 \item \pathcode{{DATA\_QUALITY\_REPORT.md}}
 \item \pathcode{{TREND\_ANALYSIS\_REPORT.md}}
+\item \pathcode{{SURVIVAL\_ANALYSIS\_REPORT.md}}
 \item \pathcode{{PROJECT\_WORK\_PROTOCOL.md}}
 \item \pathcode{{REVIEW\_AUDIT\_RESULTS.md}}
+\item \pathcode{{EXECUTIVE\_SUMMARY.md}}
 \end{{itemize}}
 
 \section{{Methodological References}}
@@ -602,7 +1090,12 @@ definition. Record linkage, survival estimation, proportional-hazards
 diagnostics, and change-point detection are supported by the original
 Fellegi--Sunter (1969), Davis--Goadrich (2006), Saito--Rehmsmeier (2015),
 Kaplan--Meier (1958), Cox (1972), Grambsch--Therneau (1994), and PELT
-(Killick et al., 2012) methods. Full URLs and the specific
+(Killick et al., 2012) methods. Regime detection follows the Markov-switching
+framework of Hamilton (1989). The causal-inference outline in
+\S\ref{{sec:causal-inference}} draws on Angrist and Pischke (2009), Pearl, Glymour
+and Jewell (2016), Athey and Imbens (2017), and Callaway and Sant'Anna (2021).
+None of these sources validates this project's own labels, numerical results,
+or thresholds; they justify method choices only. Full URLs and the specific
 design implications are recorded in \pathcode{{METHODOLOGICAL\_REFERENCES.md}}.
 \begin{{itemize}}
 \item \href{{https://www.data.gouv.fr/dataservices/api-bulletin-officiel-des-annonces-des-marches-publics-boamp}}{{Official BOAMP API (DILA)}}.
@@ -618,6 +1111,15 @@ design implications are recorded in \pathcode{{METHODOLOGICAL\_REFERENCES.md}}.
 \href{{https://doi.org/10.1111/j.2517-6161.1972.tb00899.x}}{{Cox (1972)}}.
 \item \href{{https://doi.org/10.1093/biomet/81.3.515}}{{Grambsch--Therneau (1994)}} and
 \href{{https://doi.org/10.1080/01621459.2012.737745}}{{Killick et al. (2012)}}.
+\item \href{{https://doi.org/10.2307/1912559}}{{Hamilton (1989)}} on Markov-switching
+regime models, the framework underlying the trend HMM.
+\item \href{{https://www.jstor.org/stable/j.ctvcm4j72}}{{Angrist and Pischke
+(2009)}}, \href{{https://www.wiley.com/en-us/Causal+Inference+in+Statistics\%3A+A+Primer-p-9781119186847}}{{Pearl,
+Glymour and Jewell (2016)}}, \href{{https://doi.org/10.1257/jep.31.2.3}}{{Athey
+and Imbens (2017)}}, and
+\href{{https://doi.org/10.1016/j.jeconom.2020.12.001}}{{Callaway and Sant'Anna
+(2021)}} on causal identification, cited only to support the outlined-not-executed
+causal-inference perspective.
 \end{{itemize}}
 
 \end{{document}}
@@ -784,6 +1286,128 @@ independent specialist validation, or human inter-annotator agreement.
     (PROJECT_ROOT / "NATIONAL_BENCHMARK_REFERENCE.md").write_text(national, encoding="utf-8")
 
 
+def write_executive_summary(
+    dev: dict[str, Any],
+    validation: dict[str, Any],
+    modeling: dict[str, Any],
+    manifest: dict[str, Any],
+    generated_at: str,
+) -> Path:
+    validation_frame = method_frame(validation)
+    m_b = validation_frame.loc[validation_frame["method"].eq("M_B_text_ranking")].iloc[0]
+    application = load_json(PROCESSED / "linkage_application_summary.json")
+    survival = load_json(PROCESSED / "survival_dataset_summary.json")["variants"]["main"]
+    survival_summary = load_json(PROCESSED / "survival_analysis_summary.json")
+    km_horizons = pd.read_csv(PROCESSED / "survival_km_horizons.csv").set_index("months")
+    trend_signal = pd.read_csv(PROCESSED / "trend_signal_matrix.csv")
+    decreasing_segments = trend_signal.loc[trend_signal["state"].eq("decreasing"), "segment"].tolist()
+    standardized_notices = load_json(PROCESSED / "standardized_notice_summary.json")["rows"]
+
+    text = f"""# Executive Summary
+
+Generated: `{generated_at}`
+Audience: Gigalis Data & AI Hub management
+
+## What This Project Does
+
+Analyzes official BOAMP public digital procurement notices (2015-2025, Grand
+Ouest) to identify **observable successor procurements** -- later BOAMP
+episodes from the same buyer that plausibly continue an earlier awarded
+digital contract -- and studies time-to-successor with survival analysis and
+segment activity with change-point/regime detection. BOAMP does not encode
+legal contract renewal directly, so this measures a data proxy, not certified
+legal renewal.
+
+## What Was Done
+
+- Standardised {standardized_notices:,} BOAMP notices into
+  reconstructed procurement episodes and an awarded Grand Ouest digital study
+  cohort of `{survival["validation"]["rows"]:,}` episodes.
+- Compared four linkage algorithms on a `{manifest["anchor_totals"]["anchors"]}`-anchor,
+  `{manifest["anchor_totals"]["labelled_pairs"]:,}`-pair national development reference and
+  froze `M_B_text_ranking @ 0.70` as the primary, precision-first rule
+  (precision `{m_b.precision:.3f}`, recall `{m_b.recall:.3f}` on the internal
+  held-out split).
+- Applied it to the full cohort: `{application["cohort_application"]["accepted_links"]}`
+  accepted links, `{survival["description"]["event_rate"]:.1%}` event rate.
+- Built a full survival pipeline: Kaplan-Meier, log-rank, Cox (with PH
+  diagnostics and temporal validation), parametric models, and 12/24-month
+  conditional successor-probability estimates, each cross-checked across four
+  linkage-definition sensitivity arms.
+- Built a descriptive trend pipeline: quarterly series by CPV segment, PELT
+  change-point detection with penalty sensitivity, ADF/KPSS stationarity
+  tests, and a 3-state HMM regime model for the overall series and the two
+  highest-volume segments.
+- Ran a model-assisted (not independent-human) blinded challenge review of 20
+  accepted links, 20 structural negatives, and 20 buyer-declared relationships.
+- Documented every provenance caveat honestly: bootstrap-labelled benchmark,
+  model-assisted review, and a CPV-division substitute where the guide asks
+  for a supervised technology classifier.
+
+## What Works
+
+- The pipeline is reproducible end to end (`scripts/run_final_pipeline.py`),
+  with `171` automated tests passing and internal consistency checks
+  (`data/processed/boamp/canonical_state_validation.json`) all green.
+- Kaplan-Meier shows a clear, well-powered separation across CPV segments
+  (log-rank statistic `{survival_summary["logrank"]["test_statistic"]:.2f}`,
+  `p={survival_summary["logrank"]["p_value"]:.2g}`); estimated successor
+  probability is `{km_horizons.loc[12, 'cumulative_successor_probability']:.1%}`
+  by 12 months and `{km_horizons.loc[24, 'cumulative_successor_probability']:.1%}`
+  by 24 months.
+- Framework-agreement status and CPV-35 are the most linkage-robust Cox
+  covariates across all four sensitivity arms.
+- CPV-48 shows a statistically distinguishable recent decline
+  (segments: {", ".join(decreasing_segments) if decreasing_segments else "none"}); other
+  segments are stable or uncertain by the current 12-quarter signal.
+
+## What Remains Uncertain
+
+- The benchmark's labels come from deterministic rules, not independent human
+  annotation; the model-assisted 60-pair review found `70.0%` conservative
+  precision among accepted links, below the `80%` target -- independent
+  human review is still needed before claiming validated accuracy.
+- Absolute event rates and probabilities are linkage-sensitive: event counts
+  range from `{survival_summary["sensitivity"]["minimum_events"]:,}` to
+  `{survival_summary["sensitivity"]["maximum_events"]:,}` across retained arms.
+- Cox temporal validation is weak (C-index
+  `{survival_summary["cox"]["temporal_validation"]["train_c_index"]:.3f}` in-sample
+  vs `{survival_summary["cox"]["temporal_validation"]["test_c_index"]:.3f}` out-of-time); the
+  model is not validated for individualized operational prediction, and no
+  active Gigalis portfolio was available to score.
+- The guide's supervised technology-classification deliverable (L2) was not
+  built; CPV divisions are used as a coarser, reproducible substitute.
+- The guide's causal-inference question (does a Gigalis framework change
+  member behaviour?) is outlined methodologically but not answered -- it
+  needs Gigalis-internal membership/adoption-date data not present in BOAMP.
+
+## Recommended Next Steps
+
+1. Commission an independent human procurement-domain reviewer to label the
+   prepared blinded 60-pair sample (`INDEPENDENT_LINK_REVIEW_PROTOCOL.md`)
+   before any external accuracy claim or threshold change.
+2. If the technology classifier remains a priority, recruit a second
+   qualified annotator and reuse the existing blinded-sample-plus-adjudication
+   tooling (`scripts/prepare_independent_link_review.py`,
+   `scripts/ingest_annotations.py`, `scripts/adjudicate_annotations.py`) for a
+   real 300-500 example corpus with genuine Cohen's kappa.
+3. If a Gigalis-membership causal analysis is wanted, supply member identity
+   and adoption-date data so the outlined staggered-adoption
+   difference-in-differences design can actually be estimated.
+4. Treat the current linkage, survival, and trend components as frozen; do
+   not reopen them without new evidence, per `PROJECT_WORK_PROTOCOL.md`.
+
+## Full Documentation
+
+`README.md`, `FINAL_PIPELINE.md`, `reports/boamp_methodology_chapter.pdf`,
+`SURVIVAL_ANALYSIS_REPORT.md`, `TREND_ANALYSIS_REPORT.md`,
+`DATA_QUALITY_REPORT.md`, `INTERNSHIP_GUIDE_COMPLIANCE.md`.
+"""
+    path = PROJECT_ROOT / "EXECUTIVE_SUMMARY.md"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
 def write_notebook(generated_at: str) -> None:
     nb = nbf.v4.new_notebook()
     nb["metadata"] = {
@@ -935,6 +1559,7 @@ def main() -> int:
     pdf_path = compile_methodology_pdf(report_path)
     write_status_files(dev, validation, modeling, manifest, generated_at)
     write_notebook(generated_at)
+    summary_path = write_executive_summary(dev, validation, modeling, manifest, generated_at)
 
     print(
         json.dumps(
@@ -943,6 +1568,7 @@ def main() -> int:
                 "report": str(report_path.relative_to(PROJECT_ROOT)),
                 "report_pdf": str(pdf_path.relative_to(PROJECT_ROOT)),
                 "notebook": str(NOTEBOOK.relative_to(PROJECT_ROOT)),
+                "executive_summary": str(summary_path.relative_to(PROJECT_ROOT)),
                 "figures": [
                     str((FIGURES / "benchmark_dev_method_metrics.png").relative_to(PROJECT_ROOT)),
                     str((FIGURES / "benchmark_validation_method_metrics.png").relative_to(PROJECT_ROOT)),

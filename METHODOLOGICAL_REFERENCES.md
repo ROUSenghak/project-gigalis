@@ -21,6 +21,11 @@ results.
 | [Cox (1972)](https://doi.org/10.1111/j.2517-6161.1972.tb00899.x) | The Cox model estimates covariate associations with the event hazard without specifying a baseline hazard | Hazard ratios are not causal effects without stronger identification assumptions |
 | [Grambsch and Therneau (1994)](https://doi.org/10.1093/biomet/81.3.515) | Schoenfeld-residual diagnostics test the proportional-hazards assumption | Passing a diagnostic would not validate linkage or causal interpretation |
 | [Killick, Fearnhead and Eckley (2012)](https://doi.org/10.1080/01621459.2012.737745) | PELT provides an efficient multiple-change-point procedure | A statistical break does not identify its cause; the report treats breaks as descriptive candidates |
+| [Hamilton (1989)](https://doi.org/10.2307/1912559) | Markov-switching regime models are the general framework behind the trend HMM's growth/plateau/decline states | Regime-switching theory does not validate a specific 3-state fit on 43 noisy quarterly observations, and a detected regime is not a forecast |
+| [Angrist and Pischke (2009)](https://www.jstor.org/stable/j.ctvcm4j72) | Difference-in-differences and instrumental-variables identification are standard tools for the causal question the internship guide poses about Gigalis membership | The textbook does not supply Gigalis-internal membership data, without which no DiD estimate can be computed here |
+| [Pearl, Glymour and Jewell (2016)](https://www.wiley.com/en-us/Causal+Inference+in+Statistics%3A+A+Primer-p-9781119186847) | The DAG framework is the right way to state causal assumptions explicitly before any causal estimation is attempted | It does not by itself identify an effect; assumptions still require domain knowledge and appropriate data |
+| [Athey and Imbens (2017)](https://doi.org/10.1257/jep.31.2.3) | Surveys modern causal-ML methods relevant if a Gigalis-membership causal analysis is undertaken later | It is a survey, not evidence that this project's BOAMP-only data supports causal identification |
+| [Callaway and Sant'Anna (2021)](https://doi.org/10.1016/j.jeconom.2020.12.001) | Staggered-adoption DiD is the natural design if Gigalis members join at different dates | Requires member-level adoption-date data not present in this repository; cited as a design reference only |
 
 ## Consequences For The Current Pipeline
 
@@ -40,3 +45,9 @@ results.
    definition sensitivity.
 9. Treat PELT breaks and recent slopes as exploratory signals requiring domain
    corroboration.
+10. Treat HMM regime labels as a descriptive complement to PELT, not a
+    forecast; report disagreement between the two honestly rather than
+    reconciling it.
+11. Keep the causal-inference discussion of Gigalis membership effects as a
+    design outline only until Gigalis-internal membership and adoption-date
+    data are available; do not substitute a BOAMP-only proxy treatment.

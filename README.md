@@ -40,8 +40,27 @@ weighted-gated method, and expiry-aware method remain sensitivity analyses.
 
 There are no active project directories named by competing project versions.
 Fields ending in `_schema` are data-contract identifiers, not alternative
-analytical results. Historical regional reference files are isolated under
-`archive/legacy_reference/` and are never read by the active pipeline.
+analytical results.
+
+## Two Benchmark References, One Active
+
+Two successor-linkage reference efforts exist in this repository's history:
+
+- **Regional reference (archived, inactive).** An early, small Grand Ouest
+  reference (120 anchors) built by the project owner with LLM assistance,
+  grounded in real BOAMP notices and external knowledge sources. It predates
+  the linkage algorithms compared in this repository. It is isolated under
+  `archive/legacy_reference/` and is never read by any active script,
+  notebook, or pipeline stage. See `archive/legacy_reference/README.md`.
+- **France-level national benchmark (active, canonical).** The current
+  reference used for all linkage calibration and evaluation: `252` anchors
+  and `7,031` labelled pairs spanning France, not restricted to Grand Ouest,
+  with buyer-blocked dev/validation/sealed-test splits. Its labels come from
+  the deterministic rules in `scripts/auto_annotate_wave1a.py`, not
+  independent human annotation. See `NATIONAL_BENCHMARK_REFERENCE.md`.
+
+Only the France-level national benchmark is used for method selection,
+threshold calibration, and the reported precision/recall figures below.
 
 ## Current Materialised Results
 
@@ -74,6 +93,7 @@ all materialised outputs from their inputs.
 
 ## Supporting Evidence
 
+- `EXECUTIVE_SUMMARY.md`: one-page status for non-technical stakeholders.
 - `NATIONAL_BENCHMARK_REFERENCE.md`: benchmark datasheet and method metrics.
 - `QUALITY_EVIDENCE.md`: confusion matrices and threshold/curve evidence.
 - `DATA_QUALITY_REPORT.md`: completeness, identity, and integrity checks.

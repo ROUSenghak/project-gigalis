@@ -9,6 +9,7 @@ plotly>=5.20.0
 scikit-learn>=1.4.0
 lifelines>=0.28.0
 ruptures>=1.1.9
+hmmlearn>=0.3.3
 statsmodels>=0.14.0
 nbformat>=5.10.0
 nbclient>=0.10.0
