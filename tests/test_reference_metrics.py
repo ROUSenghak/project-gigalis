@@ -1,4 +1,4 @@
-"""Canonical benchmark I/O and weighted metric safeguards."""
+"""Regional reference I/O and weighted metric safeguards."""
 
 import json
 from pathlib import Path
@@ -7,17 +7,21 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from boamp_pipeline.annotation_schema import EVENT_SETS
-from boamp_pipeline.benchmark_io import TRUTH_COLUMNS, load_truth
 from boamp_pipeline.benchmark_metrics import (
     hard_negative_suite_metrics,
     stratified_ratio_estimate,
     weighted_evaluate,
 )
+from boamp_pipeline.regional_benchmark_io import (
+    SUPPORTED_EVENT_SETS,
+    TRUTH_COLUMNS,
+    load_truth,
+    wilson_interval,
+)
 
 PROCESSED = Path("data/processed/boamp")
 SUMMARY = PROCESSED / "linkage_application_summary.json"
-BENCHMARK = PROCESSED / "benchmark"
+REFERENCE = PROCESSED / "regional_benchmark"
 
 
 # ---------------------------------------------------------------------------
@@ -35,15 +39,41 @@ def test_primary_application_uses_the_frozen_policy() -> None:
     assert summary["validation_passed"]
 
 
-@pytest.mark.skipif(not BENCHMARK.exists(), reason="canonical benchmark not built")
-def test_canonical_validation_loader_has_one_truth_contract() -> None:
-    truth, access_record = load_truth(BENCHMARK, "validation", "primary")
+@pytest.mark.skipif(not REFERENCE.exists(), reason="regional reference not built")
+def test_regional_validation_loader_has_one_truth_contract() -> None:
+    truth = load_truth(REFERENCE, "validation", "primary")
 
     assert set(TRUTH_COLUMNS) <= set(truth.columns)
     assert truth["benchmark_split"].eq("validation").all()
     assert truth["anchor_episode_id"].is_unique
-    assert access_record is None
     assert truth["truth_usable"].any()
+
+
+@pytest.mark.skipif(not REFERENCE.exists(), reason="regional reference not built")
+def test_anchors_the_reviewer_declined_to_decide_are_not_negatives() -> None:
+    """``OUTSIDE_SCOPE`` means no decision, not "no successor". Counting those
+    anchors as negatives would credit every method with free true negatives."""
+    truth = load_truth(REFERENCE, "validation", "primary")
+    unusable = truth.loc[~truth["truth_usable"]]
+
+    assert len(unusable) > 0
+    assert unusable["anchor_verdict"].eq("ANCHOR_UNUSABLE").all()
+    assert not unusable["has_successor"].any()
+
+
+def test_the_regional_reference_refuses_event_sets_it_never_recorded() -> None:
+    """The review records one relationship per anchor, so a strict/broad split
+    would be invented rather than read."""
+    assert SUPPORTED_EVENT_SETS == ("primary",)
+    with pytest.raises(ValueError, match="supports only"):
+        load_truth(REFERENCE, "validation", "strict")
+
+
+def test_a_small_sample_reports_an_interval_that_contains_its_estimate() -> None:
+    low, high = wilson_interval(7, 8)
+
+    assert low < 7 / 8 < high
+    assert wilson_interval(0, 0) is None
 
 
 # ---------------------------------------------------------------------------
@@ -193,7 +223,3 @@ def test_a_hard_negative_actually_accepted_is_counted() -> None:
 
     assert result["PARALLEL_LOT"]["pairs_at_risk"] == 1
     assert result["PARALLEL_LOT"]["false_acceptance_rate"] == 1.0
-
-
-def test_event_sets_are_selectable_and_nested() -> None:
-    assert EVENT_SETS["strict"] < EVENT_SETS["broad"]

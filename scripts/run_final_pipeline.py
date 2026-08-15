@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import subprocess
@@ -23,49 +24,54 @@ class Stage:
     command: tuple[str, ...]
     outputs: tuple[Path, ...]
     accepts_force: bool = False
+    #: Cheap derivations of current inputs - evaluation, reports, figures,
+    #: notebooks-facing artifacts. They must never be skipped because their
+    #: outputs happen to exist: an edited generator would then leave a stale
+    #: document behind, which is exactly the failure this pipeline exists to
+    #: prevent. Only the expensive upstream stages earn a skip.
+    always_run: bool = False
 
 
-def benchmark_build_stages() -> tuple[Stage, ...]:
-    """National benchmark construction before annotation.
+def regional_reference_stage() -> Stage:
+    """Materialise the Grand Ouest regional reference onto current episode ids.
 
-    Kept out of the default path on purpose: annotation and sealed-test handling
-    are separate from the core Grand Ouest survival refresh.
+    The reference itself is fixed input under ``data/reference/``; this stage
+    only re-resolves it onto the current episode reconstruction and cuts its
+    exposure from the production candidate pool, so it must rerun whenever
+    episodes or candidates are rebuilt.
     """
-    bench = PROCESSED / "benchmark"
-    return (
-        Stage("benchmark_national_index", ("scripts/build_national_episode_index.py",),
-              (bench / "national_episode_index.parquet",), True),
-        Stage("benchmark_frame", ("scripts/build_benchmark_frame.py",),
-              (bench / "frame_national.parquet", bench / "frame_strata_summary.json"), True),
-        Stage("benchmark_mine_declarations", ("scripts/mine_renewal_declarations.py",),
-              (bench / "renewal_declarations.parquet",), True),
-        Stage("benchmark_resolve_predecessors", ("scripts/resolve_declared_predecessors.py",),
-              (bench / "declared_predecessor_links.parquet",), True),
-        Stage("benchmark_sample_anchors", ("scripts/sample_benchmark_anchors.py",),
-              (bench / "anchors.parquet",), True),
-        Stage("benchmark_exposure", ("scripts/build_benchmark_exposure.py",),
-              (bench / "exposure_full.parquet", bench / "pool_definition.json"), True),
-        Stage("benchmark_structural_negatives", ("scripts/harvest_structural_negatives.py",),
-              (bench / "structural_negatives.parquet",), True),
+    reference = PROCESSED / "regional_benchmark"
+    return Stage(
+        "regional_reference",
+        ("scripts/build_regional_benchmark.py",),
+        (
+            reference / "benchmark_dev.parquet",
+            reference / "benchmark_validation.parquet",
+            reference / "exposure_full.parquet",
+            reference / "regional_benchmark_manifest.json",
+        ),
+        True,
     )
 
 
 def evidence_stages() -> tuple[Stage, ...]:
-    """Evaluate the frozen benchmark and refresh every reader-facing artifact."""
-    bench = PROCESSED / "benchmark"
+    """Evaluate the frozen reference and refresh every reader-facing artifact."""
+    bench = PROCESSED / "regional_benchmark"
     return (
         Stage(
-            "benchmark_evaluate_dev",
+            "reference_evaluate_dev",
             ("scripts/evaluate_linkage.py", "--evaluate-split", "dev", "--event-set", "primary"),
             (PROCESSED / "linkage_evaluation_dev.json",),
+            always_run=True,
         ),
         Stage(
-            "benchmark_evaluate_validation",
+            "reference_evaluate_validation",
             ("scripts/evaluate_linkage.py", "--evaluate-split", "validation", "--event-set", "primary"),
             (PROCESSED / "linkage_evaluation_validation.json",),
+            always_run=True,
         ),
         Stage(
-            "benchmark_modeling_tables",
+            "reference_modeling_tables",
             ("scripts/build_benchmark_modeling_dataset.py",),
             (
                 bench / "modeling" / "modeling_dev.parquet",
@@ -73,9 +79,10 @@ def evidence_stages() -> tuple[Stage, ...]:
                 bench / "modeling" / "modeling_summary.json",
             ),
             True,
+            always_run=True,
         ),
         Stage(
-            "benchmark_quality_evidence",
+            "reference_quality_evidence",
             ("scripts/build_quality_evidence.py",),
             (
                 PROCESSED / "quality_evidence" / "quality_evidence_summary.json",
@@ -89,18 +96,43 @@ def evidence_stages() -> tuple[Stage, ...]:
                 Path("reports/figures/benchmark_validation_pair_precision_recall.png"),
                 Path("reports/figures/benchmark_validation_m_b_threshold_tradeoff.png"),
             ),
+            always_run=True,
         ),
         Stage(
             "reader_artifact_refresh",
             ("scripts/refresh_reader_artifacts.py",),
             (
                 Path("FINAL_PIPELINE.md"),
-                Path("NATIONAL_BENCHMARK_REFERENCE.md"),
+                Path("REGIONAL_BENCHMARK_REFERENCE.md"),
                 Path("notebooks/12_successor_linkage_and_evaluation.ipynb"),
                 Path("reports/boamp_methodology_chapter.tex"),
                 Path("reports/boamp_methodology_chapter.pdf"),
                 Path("reports/figures/benchmark_validation_method_metrics.png"),
             ),
+            always_run=True,
+        ),
+        # Survival evidence precedes the project evidence stage: the data-quality
+        # report's event-validation section quotes the survival summary, so
+        # generating it second would document the previous run's numbers.
+        Stage(
+            "survival_evidence",
+            ("scripts/build_survival_evidence.py",),
+            (
+                PROCESSED / "survival_analysis_summary.json",
+                PROCESSED / "survival_km_horizons.csv",
+                PROCESSED / "survival_segment_summary.csv",
+                PROCESSED / "survival_conditional_probabilities.csv",
+                PROCESSED / "survival_selection_diagnostic.csv",
+                PROCESSED / "survival_selection_by_category.csv",
+                PROCESSED / "survival_cox_results.csv",
+                PROCESSED / "survival_ph_diagnostics.csv",
+                PROCESSED / "survival_linkage_sensitivity.csv",
+                PROCESSED / "survival_cox_linkage_sensitivity.csv",
+                PROCESSED / "survival_borderline_link_sensitivity.csv",
+                PROCESSED / "survival_parametric_comparison.csv",
+                Path("SURVIVAL_ANALYSIS_REPORT.md"),
+            ),
+            always_run=True,
         ),
         Stage(
             "project_quality_and_trend_evidence",
@@ -118,35 +150,16 @@ def evidence_stages() -> tuple[Stage, ...]:
                 Path("reports/figures/trend_quarterly_episode_counts.png"),
                 Path("reports/figures/trend_duration_completeness.png"),
             ),
+            always_run=True,
         ),
         Stage(
-            "survival_evidence",
-            ("scripts/build_survival_evidence.py",),
+            "buyer_blocking_legal_form_audit",
+            ("scripts/audit_buyer_blocking_legal_forms.py",),
             (
-                PROCESSED / "survival_analysis_summary.json",
-                PROCESSED / "survival_km_horizons.csv",
-                PROCESSED / "survival_segment_summary.csv",
-                PROCESSED / "survival_conditional_probabilities.csv",
-                PROCESSED / "survival_selection_diagnostic.csv",
-                PROCESSED / "survival_selection_by_category.csv",
-                PROCESSED / "survival_cox_results.csv",
-                PROCESSED / "survival_ph_diagnostics.csv",
-                PROCESSED / "survival_linkage_sensitivity.csv",
-                PROCESSED / "survival_cox_linkage_sensitivity.csv",
-                PROCESSED / "survival_parametric_comparison.csv",
-                Path("SURVIVAL_ANALYSIS_REPORT.md"),
+                PROCESSED / "buyer_blocking_legal_form_audit.csv",
+                PROCESSED / "buyer_blocking_legal_form_audit_summary.json",
             ),
-        ),
-        Stage(
-            "independent_link_review_queue",
-            ("scripts/prepare_independent_link_review.py",),
-            (
-                Path("data/review/independent_link_review_sample.csv"),
-                Path("data/review/independent_link_review_audit_key.csv"),
-                Path("data/review/independent_link_review_summary.json"),
-                Path("data/review/review_provenance.json"),
-                Path("INDEPENDENT_LINK_REVIEW_PROTOCOL.md"),
-            ),
+            always_run=True,
         ),
         Stage(
             "completed_review_diagnostic",
@@ -156,6 +169,7 @@ def evidence_stages() -> tuple[Stage, ...]:
                 Path("data/review/review_audit_findings.csv"),
                 Path("REVIEW_AUDIT_RESULTS.md"),
             ),
+            always_run=True,
         ),
         Stage(
             "readiness_report_data",
@@ -164,11 +178,13 @@ def evidence_stages() -> tuple[Stage, ...]:
                 Path("reports/current_project_readiness.db"),
                 Path("reports/current_project_readiness_artifact.json"),
             ),
+            always_run=True,
         ),
         Stage(
             "canonical_state_validation",
             ("scripts/validate_canonical_state.py",),
             (PROCESSED / "canonical_state_validation.json",),
+            always_run=True,
         ),
     )
 
@@ -220,6 +236,7 @@ def pipeline_stages() -> tuple[Stage, ...]:
             (PROCESSED / "linkage_candidates_scored.parquet", PROCESSED / "fellegi_sunter_model.json"),
             True,
         ),
+        regional_reference_stage(),
         Stage(
             "primary_linkage",
             ("scripts/evaluate_linkage.py",),
@@ -235,26 +252,55 @@ def pipeline_stages() -> tuple[Stage, ...]:
             (PROCESSED / "survival_dataset.parquet", PROCESSED / "survival_dataset_summary.json"),
             True,
         ),
-        Stage(
-            "expiry_sensitivity_audit",
-            ("scripts/evaluate_expiry_aware_linkage.py",),
-            (
-                PROCESSED / "accepted_successor_links_expiry_aware.parquet",
-                PROCESSED / "expiry_aware_linkage_summary.json",
-                PROCESSED / "expiry_link_review.csv",
-            ),
-            True,
-        ),
-        Stage(
-            "expiry_sensitivity_survival_dataset",
-            ("scripts/build_expiry_aware_survival_dataset.py",),
-            (
-                PROCESSED / "survival_dataset_expiry_aware.parquet",
-                PROCESSED / "survival_dataset_expiry_aware_summary.json",
-            ),
-            True,
-        ),
     )
+
+
+def source_dependencies(script: Path) -> list[Path]:
+    """The stage's script plus every first-party module it imports."""
+    seen: set[Path] = set()
+    stack = [script]
+    found = [script]
+    while stack:
+        current = stack.pop()
+        try:
+            tree = ast.parse(current.read_text(encoding="utf-8"))
+        except (OSError, SyntaxError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or not node.module:
+                continue
+            candidates: list[Path] = []
+            if node.module.startswith("boamp_pipeline"):
+                parts = node.module.split(".")
+                names = [parts[1]] if len(parts) > 1 else [alias.name for alias in node.names]
+                candidates = [PROJECT_ROOT / "boamp_pipeline" / f"{name}.py" for name in names]
+            elif node.module.startswith("scripts"):
+                candidates = [PROJECT_ROOT / "scripts" / f"{node.module.split('.')[-1]}.py"]
+            for candidate in candidates:
+                if candidate.exists() and candidate not in seen:
+                    seen.add(candidate)
+                    stack.append(candidate)
+                    found.append(candidate)
+    return found
+
+
+def generator_is_newer_than_outputs(stage: Stage) -> Path | None:
+    """Return the source file that post-dates the stage's oldest output.
+
+    A stage that skips on "outputs exist" will keep serving results from a
+    generator that has since been edited. That is how a report ends up
+    describing a methodology the code no longer implements, so the skip is
+    conditioned on the code being older than what it produced.
+    """
+    script = PROJECT_ROOT / stage.command[0]
+    if not script.exists():
+        return None
+    outputs = [PROJECT_ROOT / path for path in stage.outputs if (PROJECT_ROOT / path).exists()]
+    if not outputs:
+        return None
+    oldest_output = min(path.stat().st_mtime for path in outputs)
+    newest_source = max(source_dependencies(script), key=lambda path: path.stat().st_mtime)
+    return newest_source if newest_source.stat().st_mtime > oldest_output else None
 
 
 def run_command(command: list[str], dry_run: bool) -> None:
@@ -269,6 +315,16 @@ def run_command(command: list[str], dry_run: bool) -> None:
 def run_stage(stage: Stage, force: bool, dry_run: bool) -> str:
     resolved_outputs = [PROJECT_ROOT / path for path in stage.outputs]
     existing = [path for path in resolved_outputs if path.exists()]
+    if stage.always_run:
+        force = True
+    stale_source = generator_is_newer_than_outputs(stage)
+    if not force and stale_source is not None:
+        print(
+            f"REBUILD {stage.name}: {stale_source.relative_to(PROJECT_ROOT)} "
+            "is newer than its outputs",
+            flush=True,
+        )
+        force = True
     if not force and len(existing) == len(resolved_outputs):
         print(f"SKIP {stage.name}: outputs already complete", flush=True)
         return "skipped_complete"
@@ -319,12 +375,28 @@ def write_manifest(statuses: dict[str, str]) -> Path:
         "primary_method": "M_B_text_ranking @ 0.70",
         "primary_links": str(PROCESSED / "accepted_successor_links.parquet"),
         "primary_survival_dataset": str(PROCESSED / "survival_dataset.parquet"),
-        "sensitivity_method": "M_E_expiry_aware_text",
-        "sensitivity_role": "audit only; not promoted to the primary event definition",
-        "manual_review": str(PROCESSED / "expiry_link_review.csv"),
-        "evaluation_status": "internal development reference; external accuracy not established",
+        "event_definition_sensitivity_arms": [
+            "M_B_text_ranking @ 0.80",
+            "M_B_text_ranking @ 0.70",
+            "M_B_text_ranking @ 0.60",
+            "M_C_weighted_gated @ 0.70",
+        ],
+        "borderline_robustness": "M_B text_component band [0.65, 0.75] excluded",
+        "removed_arm": "M_E_expiry_aware_text",
+        "removed_arm_note": (
+            "Built and evaluated, never promoted, and removed from the repository in "
+            "full: its code, outputs, and tests. Reliable duration is missing for most "
+            "of the cohort, so the rule could differentiate itself only on a minority "
+            "of episodes. History remains in version control."
+        ),
+        "reference": "regional_grand_ouest",
+        "evaluation_status": "regional reference sample; external accuracy not established",
         "independent_review_sample": "data/review/independent_link_review_sample.csv",
         "independent_review_protocol": "INDEPENDENT_LINK_REVIEW_PROTOCOL.md",
+        "independent_review_status": (
+            "frozen historical diagnostic; the sample was drawn once and reviewed, so "
+            "the pipeline no longer regenerates it"
+        ),
         "stage_status": statuses,
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
@@ -336,10 +408,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--force", action="store_true", help="Rebuild every materialised stage.")
     parser.add_argument("--with-notebooks", action="store_true", help="Execute evidence notebooks 10-14.")
     parser.add_argument("--with-tests", action="store_true", help="Run the test suite after the pipeline.")
-    parser.add_argument(
-        "--rebuild-benchmark-inputs", action="store_true",
-        help="Rebuild pre-annotation benchmark inputs. Existing adjudicated labels remain a frozen input.",
-    )
     parser.add_argument("--dry-run", action="store_true", help="Print work without executing commands.")
     return parser.parse_args()
 
@@ -349,10 +417,6 @@ def main() -> int:
     statuses: dict[str, str] = {}
     for stage in pipeline_stages():
         statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
-
-    if args.rebuild_benchmark_inputs:
-        for stage in benchmark_build_stages():
-            statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
 
     for stage in evidence_stages():
         statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
@@ -368,7 +432,7 @@ def main() -> int:
         manifest = write_manifest(statuses)
         print(f"Manifest: {manifest.relative_to(PROJECT_ROOT)}", flush=True)
     print("Primary result: M_B_text_ranking @ 0.70", flush=True)
-    print("Expiry-aware result: sensitivity audit only", flush=True)
+    print("Sensitivity: M_B @ 0.80/0.70/0.60, M_C @ 0.70, borderline band", flush=True)
     return 0
 
 

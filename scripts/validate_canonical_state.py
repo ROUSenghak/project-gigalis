@@ -13,7 +13,7 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = PROJECT_ROOT / "data/processed/boamp"
-BENCHMARK = PROCESSED / "benchmark"
+REFERENCE = PROCESSED / "regional_benchmark"
 OUTPUT = PROCESSED / "canonical_state_validation.json"
 
 
@@ -33,17 +33,12 @@ def build() -> dict[str, Any]:
         PROCESSED / "survival_dataset.parquet",
         PROCESSED / "survival_dataset_summary.json",
         PROCESSED / "survival_analysis_summary.json",
-        PROCESSED / "accepted_successor_links_expiry_aware.parquet",
-        PROCESSED / "expiry_aware_linkage_summary.json",
-        PROCESSED / "expiry_link_review.csv",
-        PROCESSED / "survival_dataset_expiry_aware.parquet",
-        PROCESSED / "survival_dataset_expiry_aware_summary.json",
         PROCESSED / "linkage_evaluation_dev.json",
         PROCESSED / "linkage_evaluation_validation.json",
-        BENCHMARK / "benchmark_manifest.json",
-        BENCHMARK / "benchmark_dev.parquet",
-        BENCHMARK / "benchmark_validation.parquet",
-        BENCHMARK / "modeling/modeling_summary.json",
+        REFERENCE / "regional_benchmark_manifest.json",
+        REFERENCE / "benchmark_dev.parquet",
+        REFERENCE / "benchmark_validation.parquet",
+        REFERENCE / "modeling/modeling_summary.json",
         PROJECT_ROOT / "FINAL_PIPELINE.md",
         PROJECT_ROOT / "SURVIVAL_ANALYSIS_REPORT.md",
         PROJECT_ROOT / "reports/boamp_methodology_chapter.pdf",
@@ -57,18 +52,10 @@ def build() -> dict[str, Any]:
     application = load_json(PROCESSED / "linkage_application_summary.json")
     survival_summary = load_json(PROCESSED / "survival_dataset_summary.json")
 
-    expiry_links = pd.read_parquet(PROCESSED / "accepted_successor_links_expiry_aware.parquet")
-    expiry_survival = pd.read_parquet(PROCESSED / "survival_dataset_expiry_aware.parquet")
-    expiry_review = pd.read_csv(PROCESSED / "expiry_link_review.csv")
-    expiry_summary = load_json(PROCESSED / "expiry_aware_linkage_summary.json")
-    expiry_survival_summary = load_json(
-        PROCESSED / "survival_dataset_expiry_aware_summary.json"
-    )
-
-    manifest = load_json(BENCHMARK / "benchmark_manifest.json")
+    manifest = load_json(REFERENCE / "regional_benchmark_manifest.json")
     dev_evaluation = load_json(PROCESSED / "linkage_evaluation_dev.json")
     validation_evaluation = load_json(PROCESSED / "linkage_evaluation_validation.json")
-    modeling = load_json(BENCHMARK / "modeling/modeling_summary.json")
+    modeling = load_json(REFERENCE / "modeling/modeling_summary.json")
 
     metadata_files = [path for path in PROCESSED.rglob("*.json") if path != OUTPUT]
     # Version identifiers inside schemas are data-contract labels, not paths.
@@ -85,9 +72,49 @@ def build() -> dict[str, Any]:
     }
 
     evaluation_provenance = [
-        evaluation.get("caveats", {}).get("annotation_source", "")
+        evaluation.get("caveats", {}).get("label_source", "")
         for evaluation in (dev_evaluation, validation_evaluation)
     ]
+
+    # The France-level benchmark and the expiry-aware linkage arm were both
+    # removed, not paused. Two guards apply to each: nothing may read their
+    # paths, and the paths may not exist to be read.
+    retired_paths = [
+        PROJECT_ROOT / "data/processed/boamp/benchmark",
+        PROJECT_ROOT / "archive/national_benchmark",
+        PROJECT_ROOT / "archive/legacy_reference",
+        PROJECT_ROOT / "boamp_pipeline/expiry_linkage.py",
+        PROJECT_ROOT / "scripts/evaluate_expiry_aware_linkage.py",
+        PROJECT_ROOT / "scripts/build_expiry_aware_survival_dataset.py",
+        PROJECT_ROOT / "tests/test_expiry_linkage.py",
+        *PROCESSED.glob("*expiry*"),
+    ]
+    retired_present = [relative(path) for path in retired_paths if path.exists()]
+
+    retired_tokens = (
+        "data/processed/boamp/benchmark/",
+        "archive/national_benchmark/",
+        "expiry_aware",
+        "expiry_link",
+        "expiry_linkage",
+    )
+    # Naming the removal in generated prose is required; opening something inside
+    # it is the thing to forbid, so a line only counts when it also reads.
+    access_markers = ("Path(", "open(", "read_", "load_json(", "glob(", "rglob(")
+    executable_sources = [
+        path
+        for root in ("scripts", "boamp_pipeline", "notebooks")
+        for path in (PROJECT_ROOT / root).rglob("*")
+        if path.is_file() and path.suffix in {".py", ".ipynb"}
+        and "__pycache__" not in path.parts
+        and path != Path(__file__)
+    ]
+    retired_references: dict[str, str] = {}
+    for path in executable_sources:
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            for token in retired_tokens:
+                if token in line and any(marker in line for marker in access_markers):
+                    retired_references[relative(path)] = line.strip()[:160]
 
     main_summary = survival_summary["variants"]["main"]
     checks = {
@@ -104,38 +131,31 @@ def build() -> dict[str, Any]:
             .ne(primary_links["candidate_episode_id"])
             .all()
         ),
-        "expiry_link_count_matches_survival_events": (
-            len(expiry_links) == int(expiry_survival["event"].sum())
-            == expiry_survival_summary["validation"]["events"]
-            == expiry_summary["cohort_comparison"]["expiry_aware"]["accepted_links"]
-        ),
-        "expiry_review_count_matches_changed_anchors": (
-            len(expiry_review)
-            == expiry_summary["cohort_comparison"]["changed_anchors_for_review"]
-        ),
-        "benchmark_evaluations_use_national_reference": (
-            dev_evaluation["benchmark"] == "national"
+        "evaluations_use_the_regional_reference": (
+            dev_evaluation["benchmark"] == "regional_grand_ouest"
             and dev_evaluation["split"] == "dev"
-            and validation_evaluation["benchmark"] == "national"
+            and validation_evaluation["benchmark"] == "regional_grand_ouest"
             and validation_evaluation["split"] == "validation"
         ),
-        "benchmark_counts_match_modeling_tables": (
-            manifest["outputs"]["dev"]["anchors"]
-            == modeling["outputs"]["dev"]["anchors"]
-            and manifest["outputs"]["validation"]["anchors"]
-            == modeling["outputs"]["validation"]["anchors"]
+        "evaluated_anchor_counts_match_the_reference_manifest": (
+            dev_evaluation["anchors_evaluated"] == manifest["splits"]["dev"]["usable_anchors"]
+            and validation_evaluation["anchors_evaluated"]
+            == manifest["splits"]["validation"]["usable_anchors"]
         ),
-        "benchmark_paths_are_canonical": all(
-            "/data/processed/boamp/benchmark/" in payload["file"]
-            for payload in manifest["outputs"].values()
+        # Anchors the blocking step proposes nothing for cannot appear in a
+        # pair-level table, so the modeling tables are a subset by construction.
+        "modeling_tables_are_a_subset_of_the_reference": all(
+            modeling["outputs"][split]["anchors"] <= manifest["splits"][split]["usable_anchors"]
+            for split in ("dev", "validation")
         ),
         "materialized_metadata_has_no_legacy_paths": not stale_metadata,
-        "benchmark_provenance_is_truthful": all(
-            "deterministic bootstrap rules" in note
-            and "independent" in note
-            and "language model" not in note
+        "reference_provenance_is_truthful": all(
+            "LLM-assisted" in note
+            and "not an independent human specialist panel" in note
             for note in evaluation_provenance
         ),
+        "no_executable_source_reads_a_retired_branch": not retired_references,
+        "retired_branches_are_absent_from_the_repository": not retired_present,
         "no_legacy_processed_tree": not (
             PROJECT_ROOT / "data/processed" / ("boamp_" + "v2")
         ).exists(),
@@ -148,17 +168,19 @@ def build() -> dict[str, Any]:
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "workflow": "canonical_boamp_pipeline",
         "processed_root": relative(PROCESSED),
-        "benchmark_root": relative(BENCHMARK),
+        "reference_root": relative(REFERENCE),
         "counts": {
             "cohort_rows": int(len(primary_survival)),
             "primary_links": int(len(primary_links)),
-            "expiry_links": int(len(expiry_links)),
-            "expiry_changed_anchors": int(len(expiry_review)),
-            "benchmark_anchors": int(manifest["anchor_totals"]["anchors"]),
-            "benchmark_labelled_pairs": int(manifest["anchor_totals"]["labelled_pairs"]),
+            "reference_reviewed_anchors": int(manifest["reviewed_anchors"]),
+            "reference_usable_anchors": int(
+                sum(split["usable_anchors"] for split in manifest["splits"].values())
+            ),
         },
         "checks": checks,
         "stale_metadata": stale_metadata,
+        "retired_branch_references": retired_references,
+        "retired_paths_still_present": retired_present,
         "validation_passed": all(checks.values()),
     }
     OUTPUT.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")

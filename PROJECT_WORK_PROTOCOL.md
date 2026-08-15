@@ -52,7 +52,6 @@ Official BOAMP notices, 2015-2025
   -> same-buyer, future-time candidate generation
   -> four-method development comparison
   -> one selected successor or abstention
-  -> expiry-aware sensitivity audit
   -> right-censored survival dataset
   -> survival and descriptive trend analyses
 ```
@@ -125,13 +124,28 @@ Y_i=\mathbf{1}\!\left(T_{i\hat{j}_i}\ge0.70\right).
 At most one candidate is selected for each anchor. If no candidate qualifies,
 the method abstains.
 
-### 3.6 Expiry-Aware Sensitivity
+### 3.6 The Removed Duration-Conditioned Arm
 
-Expected expiry is calculated only from valid explicit end-date or duration
-evidence. Missing duration remains missing. Very early candidates require text
-similarity of at least `0.85` plus positive CPV continuity; other candidates use
-the `0.70` text rule. This method is an audit arm and is not the primary event
-definition.
+A duration-conditioned linkage variant was built and evaluated during
+development. It derived an expected end date from explicit end-date or duration
+evidence only, never assuming a four-year duration, and required unusually early
+candidates to clear stronger text and CPV-continuity evidence.
+
+It was never the primary event definition, and it has now been **removed from the
+repository in full**: its module, its two scripts, its tests, and all five of its
+materialised outputs. Reliable duration is missing for `74.9%` of the cohort, so
+the rule could differentiate itself only on a minority of episodes, and where the
+evidence does exist the observed data show many declared successors published
+well before the declared end date. Varying the acceptance threshold and the
+scoring method moves the event set along the dimension that matters; varying a
+duration assumption that is absent three times in four does not.
+`scripts/validate_canonical_state.py` fails the build if any of it reappears. The
+history remains in version control.
+
+This removal does not touch the separate descriptive comparison between declared
+duration and observed successor delay, which remains part of the survival
+evidence (notebook 13). That diagnostic measures duration reliability; it is not
+a linkage algorithm.
 
 ### 3.7 Survival Construction
 
@@ -150,10 +164,23 @@ right-censored:
 \qquad Y_i=0.
 \]
 
-Kaplan-Meier estimates describe the linkage-conditioned survivor function. Cox
-models describe covariate associations with the observed event hazard; they are
-not causal effects. Strict, main, loose, weighted-gated, and expiry-aware event
-definitions are retained as sensitivity analyses.
+Kaplan-Meier estimates describe the linkage-conditioned survivor function and
+are the source of the operational 12/24-month conditional probabilities, because
+every reported horizon falls inside the observed window. Parametric families are
+compared on AIC/BIC and the generalized gamma is reported as the best fit, but it
+is the instrument for extrapolation beyond the window, not the source of the
+operational numbers. Cox models describe covariate associations with the observed
+event hazard; they are not causal effects.
+
+Strict (`M_B @ 0.80`), main (`M_B @ 0.70`), loose (`M_B @ 0.60`), and
+weighted-gated (`M_C @ 0.70`) event definitions are the retained sensitivity
+arms. A fixed `±0.05` borderline band around the frozen threshold is additionally
+excluded as a robustness check.
+
+Neither the observed event rate nor any survival probability is a formal lower
+bound on true re-procurement: missed successors push the measured level down and
+residual false links push it up, so the net direction is not identified. They are
+linkage-conditioned estimates.
 
 ### 3.8 Descriptive Trend Analysis
 
@@ -180,8 +207,9 @@ has been validated at episode grain.
 | Main accepted successors | `544` | `M_B @ 0.70` observable events |
 | Main observed event rate | `14.32%` | Linkage-conditioned, not legal renewal prevalence |
 | Median successor time | `31.82 months` | Median among accepted events only |
-| Expiry-aware accepted links | `504` | Sensitivity result |
-| Expiry-aware changed anchors | `41` | Existing audit queue |
+| Borderline-band episodes excluded | `280` | `133` events, `147` censored |
+| Cox C-index, 2022-2024 out-of-time | `0.479` | Guideline-aligned primary validation |
+| Cox C-index, 2022-2025 out-of-time | `0.518` | Sensitivity, adds the 2025 cohort |
 
 Event-definition sensitivity is material:
 
@@ -189,29 +217,49 @@ Event-definition sensitivity is material:
 |---|---:|---:|---:|
 | `M_B @ 0.80` | `296` | `7.79%` | `35.71` months |
 | `M_B @ 0.70` | `544` | `14.32%` | `31.82` months |
-| `M_B @ 0.60` | `853` | `22.45%` | `26.58` months |
+| `M_B @ 0.60` | `853` | `22.45%` | `26.55` months |
 | `M_C @ 0.70` | `1,332` | `35.05%` | `26.09` months |
 
 Therefore, no single event rate is treated as exact truth or as a formal lower
 bound.
 
+Excluding the `280` episodes inside the borderline band leaves both headline
+hazard ratios on the same side of 1 (CPV-35 `1.55` to `1.78`; framework `1.75` to
+`1.62`) while the absolute KM level falls. The comparative claims are therefore
+robust to near-threshold linkage decisions; the absolute level is not, which the
+four-arm table already establishes.
+
 ## 5. Evaluation Status
 
-The national development reference contains `252` anchors and `7,031` labelled
-pairs. Its two passes were generated by the same deterministic bootstrap rules.
-Consequently, their agreement measures rule repeatability rather than human
-inter-annotator agreement.
+The active reference is the Grand Ouest regional review: `120` anchors reviewed
+against real BOAMP notices on 2026-08-11, of which `112` re-resolve onto the
+current episode reconstruction and `88` are usable. It replaced a France-level
+benchmark whose two annotation passes were both generated by deterministic rules
+reading the same text, CPV, and date evidence the linkage methods consume; that
+construction made the method comparison circular, and its artifacts have been
+removed from the repository in full.
 
-On its held-out internal split, `M_B @ 0.70` has:
+Two anchor counts appear for the locked split and the difference is by
+construction: `72` anchors are evaluable at anchor level, of which `69` also have
+at least one exposed candidate pair and so appear in the pair-level table. The
+other `3` generated no candidate, which is a blocking-stage loss counted against
+recall. Anchor-level metrics use `72`; pair-level ROC and precision-recall curves
+use `69`.
 
-- exact-successor true positives: `4`;
-- accepted links: `5`;
-- precision: `0.800`;
-- recall: `0.1818`;
+On the locked split (`72` usable anchors, `18` with a reviewed successor),
+`M_B @ 0.70` has:
+
+- exact-successor true positives: `7`;
+- accepted links: `8`;
+- precision: `0.875` (95% CI `[0.529, 0.978]`);
+- recall: `0.389` (95% CI `[0.203, 0.614]`);
 - negative-anchor false-positive rate: `0.000`.
 
-These are development diagnostics. They are not independently validated
-accuracy estimates, and the five accepted decisions make precision
+Recall is capped at `0.913` by candidate generation, which reaches `21` of the
+`23` reviewed successors. These labels are independent of every method scored,
+but they are a single-pass LLM-assisted review rather than an independent
+specialist panel, and the negatives are corpus-relative, so the false-positive
+rate is an upper bound. Eight accepted decisions make precision
 sample-sensitive.
 
 ## 6. Review Audit Protocol
@@ -223,7 +271,11 @@ A blinded `60`-pair challenge set was prepared:
 - `20` resolved buyer-declared relationships.
 
 The reviewer sees buyer fields, CPVs, descriptions, and dates, but not model
-scores, bootstrap labels, or sampling strata. A model-assisted diagnostic review
+scores, reference labels, or sampling strata. This sample is frozen: it was
+drawn once, under a sampling frame whose structural-negative and
+buyer-declared strata came from the now-removed France-level benchmark, and
+the pipeline no longer regenerates it. Only the `20` accepted-link rows, drawn
+from production links, are quoted as active evidence. A model-assisted diagnostic review
 has now been completed. It found 14 confirmed successors, 5 non-successors, and
 1 uncertain case among the 20 sampled accepted links. Precision was `14/19 =
 0.7368` excluding uncertainty (exact 95% CI `[0.4880, 0.9085]`) and `14/20 =
@@ -274,11 +326,14 @@ required to complete the minimum specialist audit.
 | Maximum one selected successor per anchor | Passed |
 | Survival rows = events + censored | Passed |
 | No negative survival durations | Passed |
-| Benchmark buyer-level split isolation | Passed |
-| Sealed-split protection | Passed |
+| Regional reference split isolation | Passed |
+| Reference anchors re-resolved by notice id, ambiguities dropped | Passed |
+| Retired benchmark and duration-conditioned arm absent from the repository | Passed |
 | Evidence notebooks execute | Passed |
-| Automated test suite | `168 passed` |
+| Automated test suite | `72 passed` |
 | Model-assisted linkage diagnostic | Complete; `14/20` conservatively confirmed |
+| Guideline-aligned temporal validation (2022-2024) | Complete; weak, `C = 0.479` |
+| Borderline-band robustness | Complete; comparative claims hold |
 | Independent specialist linkage validity | Not established; required for stronger external accuracy claims, not for the current descriptive scope |
 
 Passing software tests establishes implementation consistency. It does not
@@ -292,22 +347,27 @@ The final report may state that:
 - it identifies observable successor procurements rather than legal renewals;
 - the main operating rule accepts `544` successors in a `3,800`-episode cohort;
 - survival estimates are conditional on the linkage rule;
-- the current internal reference supports `M_B @ 0.70` as a provisional,
-  precision-first baseline;
-- `M_B @ 0.60` performs better on the small bootstrap validation split but is
-  retained as sensitivity evidence because development and production-review
-  evidence do not justify post-hoc promotion;
+- the regional reference supports `M_B @ 0.70` as a provisional,
+  precision-first baseline, held out because the threshold was frozen before
+  that reference was consulted;
+- lower thresholds trade precision for recall on the locked split and are
+  retained as sensitivity arms rather than promoted, because selecting one from
+  those rows would convert the locked split into a tuning set;
 - trend findings are descriptive and non-causal.
 
 The report must not state that:
 
 - the `544` links are confirmed legal renewals;
-- `0.800` is independently validated precision;
-- the bootstrap passes are independent human annotations;
+- the locked-split precision is independently validated;
+- the reference labels are independent human specialist annotations;
+- a negative reference anchor proves that no successor exists;
 - missing contracts are four years long;
 - observed statistical breaks have known causes;
 - the project implements a supervised technology taxonomy classifier;
-- Cox hazard ratios are causal or provide validated individual forecasts.
+- Cox hazard ratios are causal or provide validated individual forecasts;
+- the survival probabilities are lower bounds on true re-procurement;
+- a duration-conditioned linkage arm is part of the current sensitivity
+  framework.
 
 ## 9. Formal Completion Definition
 

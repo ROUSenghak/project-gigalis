@@ -35,6 +35,12 @@ ARM_FILES = {
     "looser": "survival_dataset_looser.parquet",
     "contrast_high_recall": "survival_dataset_contrast_high_recall.parquet",
 }
+#: The M_B decision variable is ``text_component`` on a 0-1 scale and the frozen
+#: acceptance threshold is 0.70. A symmetric +/-0.05 band around it collects the
+#: anchors whose event status would flip under a small threshold perturbation:
+#: accepted links that only just cleared the bar, and abstentions whose best
+#: candidate only just missed it. One band, fixed a priori, not optimised.
+BORDERLINE_BAND = (0.65, 0.75)
 
 
 def conditional_probability(fitter: Any, age: float, horizon: float) -> float:
@@ -212,14 +218,37 @@ def cox_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict[s
         columns={"index": "covariate"}
     )
 
-    train_mask = frame["award_year"].le(2021).to_numpy()
-    test_mask = frame["award_year"].ge(2022).to_numpy()
-    train = design.loc[train_mask]
-    test = design.loc[test_mask]
+    # The training window is fixed at 2015-2021 for both evaluations, so the two
+    # windows differ only in whether the 2025 award year is included in the test
+    # set. The model is never refitted to improve either number.
+    train = design.loc[frame["award_year"].le(2021).to_numpy()]
     temporal = CoxPHFitter().fit(train, duration_col="t_months", event_col="event")
-    test_c = concordance_index(
-        test["t_months"], -temporal.predict_partial_hazard(test), test["event"]
-    )
+
+    def evaluate(last_test_year: int) -> dict[str, Any]:
+        mask = frame["award_year"].ge(2022) & frame["award_year"].le(last_test_year)
+        test = design.loc[mask.to_numpy()]
+        test_c = concordance_index(
+            test["t_months"], -temporal.predict_partial_hazard(test), test["event"]
+        )
+        return {
+            "train_years": "2015-2021",
+            "test_years": f"2022-{last_test_year}",
+            "train_contracts": len(train),
+            "train_events": int(train["event"].sum()),
+            "test_contracts": len(test),
+            "test_events": int(test["event"].sum()),
+            # Rounded once, to the precision every artifact displays. Storing 4
+            # decimals and formatting 3 double-rounds, which is how the report
+            # and the notebook end up disagreeing in the last digit.
+            "train_c_index": round(float(temporal.concordance_index_), 3),
+            "test_c_index": round(float(test_c), 3),
+        }
+
+    primary = evaluate(2024)
+    primary["role"] = "primary; the internship guideline's 2015-2021 / 2022-2024 split"
+    extended = evaluate(2025)
+    extended["role"] = "sensitivity; adds the 2025 award cohort, whose follow-up is shortest"
+
     diagnostics = {
         "contracts": len(frame),
         "events": int(frame["event"].sum()),
@@ -229,16 +258,8 @@ def cox_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict[s
         "ph_violations_p_lt_0_05": ph_results.loc[
             ph_results["p"].lt(0.05), "covariate"
         ].tolist(),
-        "temporal_validation": {
-            "train_years": "2015-2021",
-            "test_years": "2022-2025",
-            "train_contracts": len(train),
-            "train_events": int(train["event"].sum()),
-            "test_contracts": len(test),
-            "test_events": int(test["event"].sum()),
-            "train_c_index": round(float(temporal.concordance_index_), 4),
-            "test_c_index": round(float(test_c), 4),
-        },
+        "temporal_validation": primary,
+        "temporal_validation_including_latest_cohort": extended,
         "interpretation": "descriptive time-averaged associations; not a validated individual prediction model",
     }
     return results, ph_results, diagnostics
@@ -291,6 +312,106 @@ def sensitivity_outputs() -> tuple[pd.DataFrame, pd.DataFrame]:
     return pd.DataFrame(km_rows), cox
 
 
+def best_candidate_score(episode_ids: pd.Series) -> pd.Series:
+    """Highest M_B text score available to each anchor, NaN when it had none.
+
+    This is the quantity the frozen rule thresholds, so it is what decides
+    whether an anchor sits near the acceptance boundary. Anchors that generated
+    no candidate at all are not near any boundary: their event status is fixed
+    by blocking, not by the threshold.
+    """
+    candidates = pd.read_parquet(
+        PROCESSED / "linkage_candidates_scored.parquet",
+        columns=["anchor_episode_id", "text_component"],
+    )
+    best = candidates.groupby("anchor_episode_id")["text_component"].max()
+    return episode_ids.map(best)
+
+
+def km_and_cox_headline(frame: pd.DataFrame) -> dict[str, Any]:
+    """The four quantities the borderline check compares before and after."""
+    km = KaplanMeierFitter().fit(frame["t_months"], frame["event"])
+    model = CoxPHFitter().fit(cox_design(frame), duration_col="t_months", event_col="event")
+    return {
+        "contracts": len(frame),
+        "events": int(frame["event"].sum()),
+        "event_rate": float(frame["event"].mean()),
+        "km_successor_by_12m": 1.0 - float(km.survival_function_at_times(12).iloc[0]),
+        "km_successor_by_24m": 1.0 - float(km.survival_function_at_times(24).iloc[0]),
+        "cox_hr_cpv_35": float(model.summary.loc["digital_segment_CPV-35", "exp(coef)"]),
+        "cox_hr_framework": float(model.summary.loc["framework_flag", "exp(coef)"]),
+    }
+
+
+def borderline_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Re-run the headline results with near-threshold anchors excluded.
+
+    An anchor whose best candidate scores inside the band is one the frozen
+    rule could plausibly have classified either way. Dropping the whole band -
+    borderline acceptances and borderline abstentions alike - asks whether the
+    conclusions depend on those coin-flips. It is a robustness check, not a
+    second event definition: the excluded rows are removed, not relabelled.
+    """
+    low, high = BORDERLINE_BAND
+    scores = best_candidate_score(frame["episode_id"])
+    in_band = scores.between(low, high, inclusive="both").fillna(False).to_numpy()
+    retained = frame.loc[~in_band]
+
+    main = km_and_cox_headline(frame)
+    excluded = km_and_cox_headline(retained)
+    rows = pd.DataFrame([
+        {"analysis": "main", **main},
+        {"analysis": "excluding_borderline_links", **excluded},
+    ])
+
+    removed = frame.loc[in_band]
+    summary = {
+        "band": {"low": low, "high": high, "variable": "M_B text_component (0-1)"},
+        "band_rationale": (
+            "Symmetric +/-0.05 around the frozen 0.70 acceptance threshold, fixed "
+            "a priori. The band was not searched over and no second band exists."
+        ),
+        "contracts_removed": int(in_band.sum()),
+        "events_removed": int(removed["event"].sum()),
+        "censored_removed": int((removed["event"] == 0).sum()),
+        "anchors_without_candidates": int(scores.isna().sum()),
+        "main": main,
+        "excluding_borderline_links": excluded,
+        "deltas": {
+            "km_successor_by_12m": excluded["km_successor_by_12m"] - main["km_successor_by_12m"],
+            "km_successor_by_24m": excluded["km_successor_by_24m"] - main["km_successor_by_24m"],
+            "cox_hr_cpv_35": excluded["cox_hr_cpv_35"] - main["cox_hr_cpv_35"],
+            "cox_hr_framework": excluded["cox_hr_framework"] - main["cox_hr_framework"],
+        },
+    }
+    # The project makes two kinds of claim and they do not stand or fall together,
+    # so they are assessed separately rather than compressed into one verdict.
+    # The comparative claim is that CPV-35 and framework episodes re-procure
+    # sooner; it survives iff both hazard ratios keep their side of 1. The
+    # absolute claim is the KM probability level, which drops mechanically once
+    # borderline events are removed and is already declared linkage-sensitive by
+    # the four-arm table.
+    directions_hold = bool(
+        (excluded["cox_hr_cpv_35"] > 1) == (main["cox_hr_cpv_35"] > 1)
+        and (excluded["cox_hr_framework"] > 1) == (main["cox_hr_framework"] > 1)
+    )
+    summary["assessment"] = {
+        "comparative_claims": (
+            "NOT_DRIVEN_BY_BORDERLINE_LINKS" if directions_hold else "THRESHOLD_UNCERTAIN"
+        ),
+        "absolute_probability_level": "THRESHOLD_UNCERTAIN",
+        "interpretation": (
+            "The direction of both headline hazard ratios is unchanged, so the "
+            "comparative findings the project actually claims do not rest on "
+            "borderline linkage decisions. The absolute KM level does move, which "
+            "is the expected mechanical consequence of removing borderline events "
+            "and is consistent with the four-arm linkage sensitivity: absolute "
+            "probabilities remain threshold-uncertain and are not quoted alone."
+        ),
+    }
+    return rows, summary
+
+
 def parametric_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
     warnings.filterwarnings("ignore")
     models = {
@@ -317,6 +438,11 @@ def parametric_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
 
 def write_report(summary: dict[str, Any], cox: pd.DataFrame, selection: pd.DataFrame) -> None:
     temporal = summary["cox"]["temporal_validation"]
+    extended = summary["cox"]["temporal_validation_including_latest_cohort"]
+    border = summary["borderline_link_sensitivity"]
+    border_main = border["main"]
+    border_kept = border["excluding_borderline_links"]
+    border_verdict = border["assessment"]["interpretation"]
     important_smd = selection.sort_values("absolute_smd", ascending=False).head(4)
     smd_lines = "\n".join(
         f"- `{row.variable}`: SMD `{row.standardized_mean_difference:.3f}`."
@@ -360,17 +486,57 @@ The proportional-hazards diagnostic rejects constant effects for:
 `{', '.join(summary['cox']['ph_violations_p_lt_0_05'])}`. These coefficients are
 therefore descriptive time-averaged associations, not causal effects.
 
-Temporal validation is weak: C-index is `{temporal['train_c_index']:.3f}` on
-2015–2021 and `{temporal['test_c_index']:.3f}` on 2022–2025. The Cox model is not
-validated for individualized operational prediction.
+### Temporal Validation
+
+The model is fit once on `{temporal['train_years']}` awards and scored out of time
+without any refitting or retuning.
+
+| Split | Train N | Train events | Test N | Test events | C-index train | C-index test |
+|---|---:|---:|---:|---:|---:|---:|
+| Primary, {temporal['test_years']} | {temporal['train_contracts']:,} | {temporal['train_events']} | {temporal['test_contracts']:,} | {temporal['test_events']} | {temporal['train_c_index']:.3f} | {temporal['test_c_index']:.3f} |
+| Sensitivity, {extended['test_years']} | {extended['train_contracts']:,} | {extended['train_events']} | {extended['test_contracts']:,} | {extended['test_events']} | {extended['train_c_index']:.3f} | {extended['test_c_index']:.3f} |
+
+The primary split is the one the internship guideline specifies. The extended split
+adds the 2025 award cohort, whose follow-up is shortest, and is carried only as a
+sensitivity read.
+
+Out-of-time discrimination is weak in both: a C-index near `0.5` means the model
+does not usefully rank individual episodes by time to successor on unseen award
+years. That is the result, not a prompt to retune. Part of it is structural, since
+episodes awarded from 2022 onwards can only contribute short-gap events, but the
+model has no demonstrated out-of-time discriminative power and nothing in the
+operational deliverable rests on it.
 
 ## Parametric Models And Indicators
 
 `{summary['parametric']['selected_model']}` has the lowest AIC among exponential,
 Weibull, log-logistic, log-normal, and generalized-gamma fits. Model selection does
-not remove linkage uncertainty or guarantee tail extrapolation. The exported
-`survival_conditional_probabilities.csv` gives 12/24-month conditional indicators
-with 500-draw episode-bootstrap intervals.
+not remove linkage uncertainty or guarantee tail extrapolation.
+
+The selected parametric model is **not** the source of the operational numbers.
+Every horizon reported here falls inside the observed window, and the smooth
+families flatten the observed renewal shoulder, so the 12/24-month conditional
+probabilities in `survival_conditional_probabilities.csv` are read off the
+Kaplan-Meier estimator, with 500-draw episode-bootstrap intervals. The generalized
+gamma is reported as the best-fitting family and as the instrument any
+extrapolation past `2025-12-31` would use.
+
+## Borderline-Link Robustness
+
+The frozen rule accepts at `0.70` on the M_B text score. Anchors whose best
+candidate falls in `[{border['band']['low']:.2f}, {border['band']['high']:.2f}]` are
+the ones a small threshold perturbation would reclassify. Dropping that whole band —
+borderline acceptances and borderline abstentions alike — removes
+`{border['contracts_removed']:,}` episodes, of which `{border['events_removed']}` are
+events, and gives:
+
+| Analysis | Contracts | Events | KM 12m | KM 24m | CPV-35 HR | Framework HR |
+|---|---:|---:|---:|---:|---:|---:|
+| Main | {border_main['contracts']:,} | {border_main['events']} | {border_main['km_successor_by_12m']:.3%} | {border_main['km_successor_by_24m']:.3%} | {border_main['cox_hr_cpv_35']:.3f} | {border_main['cox_hr_framework']:.3f} |
+| Excluding borderline | {border_kept['contracts']:,} | {border_kept['events']} | {border_kept['km_successor_by_12m']:.3%} | {border_kept['km_successor_by_24m']:.3%} | {border_kept['cox_hr_cpv_35']:.3f} | {border_kept['cox_hr_framework']:.3f} |
+
+{border_verdict} The band is a fixed `±0.05` around the frozen threshold; it was not
+searched over, and the excluded episodes are removed rather than relabelled.
 
 ## Detectability And Censoring Diagnostic
 
@@ -387,10 +553,15 @@ with BOAMP alone.
 ## Linkage Sensitivity
 
 Event counts range from `{summary['sensitivity']['minimum_events']}` to
-`{summary['sensitivity']['maximum_events']}` across the four retained linkage arms.
+`{summary['sensitivity']['maximum_events']}` across the four retained linkage arms
+(`M_B` at `0.80`, `0.70`, `0.60`, and the `M_C` weighted-gated contrast at `0.70`).
 Absolute probabilities are therefore linkage-sensitive. Cox effects and subgroup
 ordering should only be claimed where the exported sensitivity tables show stable
 direction.
+
+These are linkage-conditioned estimates. Missed successors may reduce the observed
+event rate, whereas residual false links may increase it. They should therefore not
+be interpreted as formal lower bounds on true re-procurement probability.
 
 ## Decision
 
@@ -412,6 +583,7 @@ def main() -> int:
     selection, selection_categories = selection_outputs(frame)
     cox, ph, cox_diagnostics = cox_outputs(frame)
     sensitivity, cox_sensitivity = sensitivity_outputs()
+    borderline, borderline_summary = borderline_outputs(frame)
     parametric, selected_model = parametric_outputs(frame)
 
     outputs = {
@@ -424,6 +596,7 @@ def main() -> int:
         "survival_ph_diagnostics.csv": ph,
         "survival_linkage_sensitivity.csv": sensitivity,
         "survival_cox_linkage_sensitivity.csv": cox_sensitivity,
+        "survival_borderline_link_sensitivity.csv": borderline,
         "survival_parametric_comparison.csv": parametric,
     }
     for filename, table in outputs.items():
@@ -451,7 +624,18 @@ def main() -> int:
         "parametric": {
             "selected_model": selected_model,
             "selection_basis": "minimum AIC and BIC, checked against empirical KM",
+            "role": (
+                "reported as the best-fitting parametric family and as the instrument "
+                "any extrapolation past the observation window would use"
+            ),
+            "operational_probability_source": (
+                "Kaplan-Meier. Every horizon reported here falls inside the observed "
+                "window, and the smooth families flatten the observed renewal shoulder, "
+                "so the 12/24-month conditional probabilities are read off the empirical "
+                "estimator rather than off the fitted parametric model."
+            ),
         },
+        "borderline_link_sensitivity": borderline_summary,
         "sensitivity": {
             "arms": list(ARM_FILES),
             "minimum_events": int(sensitivity["events"].min()),

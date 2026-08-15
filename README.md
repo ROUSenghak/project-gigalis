@@ -1,7 +1,7 @@
 # BOAMP Observable Successor Procurement Study
 
 This repository has one active analytical workflow, one processed-data root,
-one national benchmark, and one primary linkage policy.
+one reference sample, and one primary linkage policy.
 
 ## Research Claim
 
@@ -18,49 +18,60 @@ Official BOAMP notices, 2015-2025
   -> procurement episode reconstruction
   -> awarded Grand Ouest digital cohort
   -> same-buyer candidates 90 days to 8 years after award
-  -> four linkage methods calibrated/evaluated on the national benchmark
+  -> four linkage methods evaluated on the Grand Ouest regional reference
   -> primary M_B_text_ranking selection at 0.70
   -> right-censored survival dataset
-  -> survival analysis plus threshold and expiry sensitivity checks
+  -> survival analysis plus threshold and borderline-link sensitivity checks
 ```
 
 The frozen primary rule is `M_B_text_ranking @ 0.70`. It is a conservative
-operating point, not a claim of mathematical optimality. The `0.60` threshold,
-weighted-gated method, and expiry-aware method remain sensitivity analyses.
+operating point, not a claim of mathematical optimality. Event-definition
+sensitivity is carried by four arms — `M_B @ 0.80`, `M_B @ 0.70`, `M_B @ 0.60`,
+and the `M_C_weighted_gated @ 0.70` contrast — plus a fixed borderline band
+around the threshold. A duration-conditioned arm was built and evaluated during
+development and has been removed in full; see `PROJECT_WORK_PROTOCOL.md` §3.6.
 
 ## One Active Layout
 
 - Processed root: `data/processed/boamp/`
-- National benchmark: `data/processed/boamp/benchmark/`
+- Reference source data: `data/reference/regional_link_benchmark/`
+- Materialised reference: `data/processed/boamp/regional_benchmark/`
 - Primary accepted links: `data/processed/boamp/accepted_successor_links.parquet`
 - Primary survival data: `data/processed/boamp/survival_dataset.parquet`
 - Linkage configuration: `data/processed/boamp/linkage_config.json`
 - Final workflow summary: `FINAL_PIPELINE.md`
 - Technical report: `reports/boamp_methodology_chapter.pdf`
+- Active notebooks: `notebooks/10` through `notebooks/14`, executed by
+  `scripts/run_final_pipeline.py --with-notebooks`
 
 There are no active project directories named by competing project versions.
 Fields ending in `_schema` are data-contract identifiers, not alternative
-analytical results.
+analytical results. `notebooks/` contains only the five active,
+pipeline-executed notebooks; nine earlier exploration notebooks (dated
+2026-08-11) are isolated under `notebooks/archive/` and are never read by the
+active pipeline — see `notebooks/archive/README.md`.
 
-## Two Benchmark References, One Active
+## One Reference, And Why The Other Was Retired
 
-Two successor-linkage reference efforts exist in this repository's history:
+- **Grand Ouest regional reference (active, canonical).** A stratified review of
+  `120` awarded digital procurement anchors across Bretagne, Pays de la Loire,
+  and Normandie, carried out on 2026-08-11 against real BOAMP notices and
+  official notice URLs, before the linkage methods in this repository existed.
+  `112` anchors re-resolve onto the current episode reconstruction and `88` are
+  usable. Its labels are independent of every method it scores. They are a
+  single-pass LLM-assisted review by the project owner, so it is a **reference
+  sample**, not ground truth. See `REGIONAL_BENCHMARK_REFERENCE.md`.
+- **France-level benchmark (retired, removed).** Both of its annotation passes
+  were emitted by deterministic rules built from the same text, CPV, and date
+  evidence the linkage methods consume, so a method could score well on it only
+  by agreeing with a hand-written rule made from its own features. Its numbers
+  measured rule agreement, not correctness. Its data, construction scripts,
+  annotation tooling, and the library modules that served only it have been
+  deleted; `scripts/validate_canonical_state.py` fails the build if any of it
+  reappears. The history remains in version control.
 
-- **Regional reference (archived, inactive).** An early, small Grand Ouest
-  reference (120 anchors) built by the project owner with LLM assistance,
-  grounded in real BOAMP notices and external knowledge sources. It predates
-  the linkage algorithms compared in this repository. It is isolated under
-  `archive/legacy_reference/` and is never read by any active script,
-  notebook, or pipeline stage. See `archive/legacy_reference/README.md`.
-- **France-level national benchmark (active, canonical).** The current
-  reference used for all linkage calibration and evaluation: `252` anchors
-  and `7,031` labelled pairs spanning France, not restricted to Grand Ouest,
-  with buyer-blocked dev/validation/sealed-test splits. Its labels come from
-  the deterministic rules in `scripts/auto_annotate_wave1a.py`, not
-  independent human annotation. See `NATIONAL_BENCHMARK_REFERENCE.md`.
-
-Only the France-level national benchmark is used for method selection,
-threshold calibration, and the reported precision/recall figures below.
+Only the regional reference is used for method comparison and the reported
+precision/recall figures below.
 
 ## Current Materialised Results
 
@@ -69,13 +80,22 @@ threshold calibration, and the reported precision/recall figures below.
 - Primary accepted links: `544`.
 - Primary event rate: `0.1432`.
 - Median observed successor time among linked events: `31.82` months.
-- Expiry-aware accepted links: `504`, with `41` changed primary anchors listed for audit.
+- Excluding the `280` episodes whose best candidate scores within `±0.05` of the
+  threshold leaves both headline hazard ratios pointing the same way, while the
+  absolute KM level falls: comparative claims are robust to borderline links,
+  absolute probabilities are not.
+- Locked-split precision of `M_B @ 0.70`: `0.875` (95% CI `0.529`-`0.978`) on
+  `8` accepted links; recall `0.389` (95% CI `0.203`-`0.614`); false-positive
+  rate `0.000` on reviewed negative anchors.
+- Candidate generation caps recall at `0.913`: it reaches `21` of the `23`
+  reviewed successors.
 
-Accuracy values in the report come only from the national benchmark dev and
-validation splits. They are internal bootstrap-reference estimates because the
-current labels were generated by deterministic annotation rules, not an
-independent panel of procurement specialists. The completed 60-pair production
-review is a separate diagnostic and does not estimate recall.
+Accuracy values come only from the regional reference. They are reference-sample
+estimates, not independently validated accuracy: the labels are a single-pass
+LLM-assisted review rather than an independent panel of procurement specialists,
+and reference negatives are corpus-relative, so the reported false-positive rate
+is an upper bound. The completed 60-pair production review is a separate frozen
+diagnostic and does not estimate recall.
 
 ## Run Everything
 
@@ -85,21 +105,22 @@ From the repository root:
 PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-notebooks --with-tests
 ```
 
-The command applies the primary pipeline, refreshes national benchmark
-evaluation, regenerates reader-facing artifacts, executes notebooks, runs the
-test suite, and writes `data/processed/boamp/final_pipeline_manifest.json`.
-Completed stages are skipped. Use `--force` only when intentionally rebuilding
-all materialised outputs from their inputs.
+The command applies the primary pipeline, rebuilds the regional reference,
+refreshes its evaluation, regenerates reader-facing artifacts, executes
+notebooks, runs the test suite, and writes
+`data/processed/boamp/final_pipeline_manifest.json`. Completed stages are
+skipped. Use `--force` only when intentionally rebuilding all materialised
+outputs from their inputs.
 
 ## Supporting Evidence
 
 - `EXECUTIVE_SUMMARY.md`: one-page status for non-technical stakeholders.
-- `NATIONAL_BENCHMARK_REFERENCE.md`: benchmark datasheet and method metrics.
+- `REGIONAL_BENCHMARK_REFERENCE.md`: reference datasheet and method metrics.
 - `QUALITY_EVIDENCE.md`: confusion matrices and threshold/curve evidence.
 - `DATA_QUALITY_REPORT.md`: completeness, identity, and integrity checks.
 - `TREND_ANALYSIS_REPORT.md`: descriptive temporal analysis.
 - `SURVIVAL_ANALYSIS_REPORT.md`: current KM, Cox, parametric, prediction, censoring, and linkage-sensitivity evidence.
-- `REVIEW_AUDIT_RESULTS.md`: independent-link-review diagnostic.
+- `REVIEW_AUDIT_RESULTS.md`: frozen independent-link-review diagnostic.
 - `METHODOLOGICAL_REFERENCES.md`: primary external methodological sources.
 - `INTERNSHIP_GUIDE_COMPLIANCE.md`: mapping to the internship requirements.
 
@@ -107,6 +128,11 @@ all materialised outputs from their inputs.
 
 - Do not call accepted links confirmed legal renewals.
 - Do not impute a missing duration or assume a four-year contract.
-- Do not promote a threshold after inspecting validation without fresh evidence.
-- Do not describe bootstrap labels as independent human ground truth.
-- Do not use archived regional reference files for active evaluation.
+- Do not promote a threshold after inspecting the locked split; it is held out
+  only because the operating point was frozen before that split was read.
+- Do not describe the reference labels as independent human ground truth.
+- Do not call the survival probabilities lower bounds. Missed successors push
+  the measured level down and residual false links push it up, so the net
+  direction is not identified.
+- Do not reintroduce the France-level benchmark or the duration-conditioned
+  linkage arm; both were removed, not paused.

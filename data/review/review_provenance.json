@@ -6,5 +6,7 @@
   "independent_human_specialist_review": false,
   "provenance_note": "The uploaded reviewed file originally declared CLAUDE-OPUS-5 for all 60 rows. The row-level reviewer_id column was removed by explicit project-owner request; provenance is retained here so the labels are not misrepresented as independent human validation.",
   "permitted_use": "diagnostic challenge review and failure-mode analysis",
-  "not_permitted_as": "independent human validation or externally validated accuracy evidence"
+  "not_permitted_as": "independent human validation or externally validated accuracy evidence",
+  "sampling_frame_note": "Frozen and no longer reproducible. Two of its three strata (HIGH_SIMILARITY_STRUCTURAL_NEGATIVE, BUYER_DECLARED_RESOLVED) were drawn from the France-level benchmark, and the sampler that drew them was removed with it on 2026-08-15. The PRIMARY_ACCEPTED stratum was drawn from production accepted links and is independent of that benchmark. The completed labels are retained rather than discarded because that stratum carries the accepted-link precision diagnostic.",
+  "active_evidence_scope": "Only the PRIMARY_ACCEPTED stratum is quoted as active evidence. The challenge strata remain a failure-mode diagnostic tied to the retired sampling frame."
 }

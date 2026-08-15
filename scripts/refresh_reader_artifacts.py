@@ -17,7 +17,7 @@ import pandas as pd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = PROJECT_ROOT / "data/processed/boamp"
-BENCHMARK = PROCESSED / "benchmark"
+BENCHMARK = PROCESSED / "regional_benchmark"
 REPORTS = PROJECT_ROOT / "reports"
 FIGURES = REPORTS / "figures"
 NOTEBOOK = PROJECT_ROOT / "notebooks/12_successor_linkage_and_evaluation.ipynb"
@@ -48,8 +48,8 @@ def compile_methodology_pdf(tex_path: Path) -> Path:
 def method_frame(summary: dict[str, Any]) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for method in summary["methods"]:
-        all_frames = method["unweighted_all_frames"]
-        weighted = method.get("weighted_national", {})
+        all_frames = method["unweighted"]
+        weighted = method.get("design_weighted", {})
         rows.append(
             {
                 "method": method["method"],
@@ -64,6 +64,10 @@ def method_frame(summary: dict[str, Any]) -> pd.DataFrame:
                 "weighted_fpr": weighted.get(
                     "false_positive_rate_on_verified_negatives", {}
                 ).get("estimate"),
+                "precision_low": (all_frames.get("precision_at_1_interval_95") or [None, None])[0],
+                "precision_high": (all_frames.get("precision_at_1_interval_95") or [None, None])[1],
+                "recall_low": (all_frames.get("recall_at_1_interval_95") or [None, None])[0],
+                "recall_high": (all_frames.get("recall_at_1_interval_95") or [None, None])[1],
             }
         )
     return pd.DataFrame(rows)
@@ -94,14 +98,14 @@ def plot_modeling_counts(modeling: dict[str, Any], path: Path) -> None:
                 "anchors": payload["anchors"],
                 "rows": payload["rows"],
                 "primary positives": payload["primary_positive_pairs"],
-                "verified negative anchors": payload["verified_negative_anchors"],
+                "positive anchors": payload["positive_anchors"],
             }
         )
     frame = pd.DataFrame(rows).set_index("split")
-    ax = frame[["anchors", "primary positives", "verified negative anchors"]].plot(
+    ax = frame[["anchors", "primary positives", "positive anchors"]].plot(
         kind="bar", figsize=(8.2, 4.2), width=0.72
     )
-    ax.set_title("Current national development-reference tables")
+    ax.set_title("Grand Ouest regional reference tables")
     ax.set_ylabel("count")
     ax.set_xlabel("")
     ax.legend(frameon=False)
@@ -291,12 +295,13 @@ def write_methodology_report(
 ) -> Path:
     dev_frame = method_frame(dev)
     validation_frame = method_frame(validation)
-    labelled_anchors = manifest["anchor_totals"]["anchors"]
-    labelled_pairs = manifest["anchor_totals"]["labelled_pairs"]
+    reviewed_anchors = manifest["reviewed_anchors"]
+    usable_anchors = sum(split["usable_anchors"] for split in manifest["splits"].values())
+    locked = manifest["splits"]["validation"]
+    ceiling = manifest["candidate_reachability"]
     candidates = load_json(PROCESSED / "linkage_candidates_summary.json")
     survival = load_json(PROCESSED / "survival_dataset_summary.json")
     buyer_audit = load_json(PROCESSED / "buyer_blocking_legal_form_audit_summary.json")
-    expiry = load_json(PROCESSED / "expiry_aware_linkage_summary.json")
     review_audit = load_json(PROJECT_ROOT / "data/review/review_audit_evaluation.json")
     survival_main = survival["variants"]["main"]
     survival_strict = survival["variants"]["strict"]
@@ -314,8 +319,16 @@ def write_methodology_report(
     km_horizons = pd.read_csv(PROCESSED / "survival_km_horizons.csv").set_index("months")
     trend_summary = load_json(PROCESSED / "trend_analysis_summary.json")
     trend_signal_matrix = pd.read_csv(PROCESSED / "trend_signal_matrix.csv")
+    validation_sweep = pd.read_csv(PROCESSED / "quality_evidence/validation_m_b_threshold_sweep.csv")
+    dev_sweep = pd.read_csv(PROCESSED / "quality_evidence/dev_m_b_threshold_sweep.csv")
+    locked_70 = validation_sweep.loc[validation_sweep["threshold_percent"].eq(70.0)].iloc[0]
+    locked_60 = validation_sweep.loc[validation_sweep["threshold_percent"].eq(60.0)].iloc[0]
+    pilot_70 = dev_sweep.loc[dev_sweep["threshold_percent"].eq(70.0)].iloc[0]
+    pilot_60 = dev_sweep.loc[dev_sweep["threshold_percent"].eq(60.0)].iloc[0]
     ph_violations = survival_summary["cox"]["ph_violations_p_lt_0_05"]
     temporal = survival_summary["cox"]["temporal_validation"]
+    extended = survival_summary["cox"]["temporal_validation_including_latest_cohort"]
+    borderline = survival_summary["borderline_link_sensitivity"]
 
     tex = rf"""
 \documentclass[11pt,a4paper]{{article}}
@@ -360,15 +373,22 @@ months among linked events. The candidate pool is broad:
 {candidates["candidate_pairs"]:,} candidate pairs from
 {candidates["anchors_with_candidates"]:,} anchors with at least one candidate.
 
-The current national development reference contains {labelled_anchors}
-bootstrap-labelled anchors and {labelled_pairs:,} labelled anchor-candidate
-rows. On its held-out internal split, \code{{M\_B\_text\_ranking @ 0.70}}
-has precision {m_b.precision:.3f},
-recall {m_b.recall:.3f}, false-positive rate {m_b.fpr:.3f}, and
-{int(m_b.accepted_links)} accepted links. These are internal protocol-reference
-estimates, not independently validated accuracy estimates, because both label
-passes were generated by the deterministic bootstrap rules in
-\pathcode{{scripts/auto\_annotate\_wave1a.py}}.
+Linkage accuracy is read against the Grand Ouest regional reference: a
+stratified review of {reviewed_anchors} anchors of which {usable_anchors} are
+usable, carried out against real BOAMP notices before these methods existed. On
+its locked split of {locked["usable_anchors"]} anchors
+({locked["positive_anchors"]} with a reviewed successor),
+\code{{M\_B\_text\_ranking @ 0.70}} has precision {m_b.precision:.3f}
+(95\% CI {m_b.precision_low:.3f}--{m_b.precision_high:.3f}), recall
+{m_b.recall:.3f} (95\% CI {m_b.recall_low:.3f}--{m_b.recall_high:.3f}),
+false-positive rate {m_b.fpr:.3f}, and {int(m_b.accepted_links)} accepted links.
+Recall is capped at {ceiling["candidate_generation_recall_ceiling"]:.3f} by
+candidate generation, which reaches
+{ceiling["positive_anchors_with_reviewed_successor_in_pool"]} of the
+{ceiling["positive_anchors"]} reviewed successors.
+These are reference-sample estimates on fewer than a hundred anchors, not
+independently validated accuracy: the labels are a single-pass LLM-assisted
+review by the project owner, not an independent specialist panel.
 \code{{M\_C\_weighted\_gated}} recovers more positives
 (recall {m_c.recall:.3f}) but admits more false positives
 (FPR {m_c.fpr:.3f}). This trade-off is important because a false positive in a
@@ -474,23 +494,50 @@ current blocking rule generated {candidates["candidate_pairs"]:,} candidate
 pairs, with a median of {candidates["candidates_per_anchor"]["median"]:.0f}
 candidates per anchor.
 
-\section{{Current National Development Reference}}
+\section{{Grand Ouest Regional Reference}}
 \label{{sec:linkage-caveat}}
-The current reference is national rather than Grand Ouest-only. It samples awarded
-digital procurement episodes across French region groups and CPV divisions.
-The dev split has {modeling["outputs"]["dev"]["anchors"]} anchors and
-{modeling["outputs"]["dev"]["rows"]:,} pair rows; the validation split has
+Evaluation uses a regional reference sample drawn from the study region itself:
+{reviewed_anchors} awarded digital procurement anchors stratified by CPV theme,
+buyer-identifier quality, and duration availability across Bretagne, Pays de la
+Loire, and Normandie, reviewed on 2026-08-11 against the notices and official
+BOAMP URLs of each candidate. The pilot split carries
+{modeling["outputs"]["dev"]["anchors"]} anchors and
+{modeling["outputs"]["dev"]["rows"]:,} pair rows; the locked split carries
 {modeling["outputs"]["validation"]["anchors"]} anchors and
-{modeling["outputs"]["validation"]["rows"]:,} pair rows. Only the probability
-frame supports national weighted estimates; enrichment frames are used for
-stress cases and diagnostics.
+{modeling["outputs"]["validation"]["rows"]:,} pair rows.
 
-The annotation caveat is decisive: labels were produced by deterministic
-bootstrap rules. Pass A and pass B are re-presentations of the same rules, so
-their agreement measures repeatability rather than independent annotator
-agreement. The reference is useful for development, stress testing, and split
-discipline, but it is not official legal renewal truth or independent specialist
-ground truth.
+Two anchor counts appear for the locked split and the difference is by
+construction, not a discrepancy: {locked["usable_anchors"]} anchors
+are evaluable at anchor level, of which
+{modeling["outputs"]["validation"]["anchors"]} also have at least one exposed
+candidate pair and so appear in the pair-level table. The remaining
+{locked["usable_anchors"] - modeling["outputs"]["validation"]["anchors"]}
+generated no candidate at all, which is a blocking-stage loss counted against
+recall rather than a scoring failure. Anchor-level metrics use
+{locked["usable_anchors"]}; pair-level ROC and precision-recall
+curves use {modeling["outputs"]["validation"]["anchors"]}.
+
+This reference replaced an earlier France-level benchmark whose labels were
+emitted by deterministic rules reading the same text, CPV, and date evidence the
+linkage methods consume. That construction made the comparison circular: a
+method could only score well by agreeing with a hand-written rule built from its
+own features, and the resulting numbers measured rule agreement rather than
+correctness. It has been removed from the repository in full -- its data, its
+construction scripts, and its annotation tooling -- so nothing here can descend
+from it. Its history remains in version control.
+
+Four limitations bind everything computed from the regional reference. The
+labels are a single-pass LLM-assisted review by the project owner, not an
+independent multi-reviewer panel, so they are a reference sample and not ground
+truth. Negatives are corpus-relative: the reviewer saw roughly 25 candidates per
+anchor rather than the full pool, so a false-positive rate computed on them is
+an upper bound. The sample is small enough that every point estimate needs its
+interval read beside it. And the anchors were re-resolved onto the current
+episode reconstruction through their BOAMP notice identifiers, because the
+review recorded episode identifiers from an earlier reconstruction;
+{reviewed_anchors - manifest["remap"]["resolved_to_current_episodes"]} anchors
+did not resolve to exactly one current episode and were dropped rather than
+guessed.
 
 \section{{Linkage Algorithms}}
 All methods operate on the same exposed candidate set. This is crucial: the
@@ -549,18 +596,20 @@ The fitted model provides \code{{fs\_match\_weight}} and
 simple text-ranking rule, likely because true successors are rare and
 same-buyer procurement activity contains many non-renewal lookalikes.
 
-\paragraph{{\(M_E\): expiry-aware audit arm.}}
-The expiry-aware method runs in parallel with the primary method. It estimates
-an expected end date \(E_i\) only from explicit end-date or duration evidence.
-It does not assume a four-year duration. Candidate timing is
-\[
-R_{{ij}}=C_j-E_i.
-\]
-Very early candidates require stronger text evidence and CPV continuity. This
-arm accepts {expiry["cohort_comparison"]["expiry_aware"]["accepted_links"]:,} links, compared with
-{survival_main["validation"]["events"]:,} under the main method. It is retained
-as an audit/sensitivity check, not promoted, because observed market behaviour
-shows many declared successors can be published before expected expiry.
+\paragraph{{A removed arm.}} A duration-conditioned variant was built and
+evaluated during development, then removed from the repository in full. Reliable
+duration is missing for most of the cohort, so such a rule can differentiate
+itself only on a minority of episodes, and where the evidence does exist the
+observed data show many declared successors published well before the declared
+end date. The event-definition sensitivity framework is therefore the four
+threshold and method arms (\(M_B@0.80\), \(M_B@0.70\), \(M_B@0.60\),
+\(M_C@0.70\)), which vary the decision rule along the dimension that actually
+moves the event set, together with the borderline-band check. The removed arm's
+history remains in version control.
+
+The separate descriptive comparison between declared contract duration and
+observed successor delay is a different thing and remains part of the evidence:
+it is a diagnostic about duration reliability, not a linkage algorithm.
 
 \section{{Survival Modeling}}
 The accepted-link decision from \(M_B\) defines the survival event. For episode
@@ -591,15 +640,29 @@ violations are reported and interpreted descriptively rather than silently
 dropped or used to discard the model.
 
 \paragraph{{Parametric models.}} Exponential, Weibull, log-logistic, log-normal,
-and generalized-gamma models are compared by log-likelihood, AIC, and BIC, and
-checked graphically against the Kaplan--Meier curve, because parametric models
-allow probability extrapolation (e.g. 12/24-month successor probability) that
-the semi-parametric Cox model does not directly provide.
+and generalized-gamma models are compared by log-likelihood, AIC, and BIC and
+checked graphically against the Kaplan--Meier curve. Their role is to identify
+the best-fitting family and to provide the instrument any extrapolation past the
+observation window would require. They are \emph{{not}} the source of the reported
+12/24-month probabilities: every horizon quoted in this report falls inside the
+observed window, and the smooth families flatten the empirical renewal shoulder,
+so the operational conditional probabilities are read off the Kaplan--Meier
+estimator, which imposes no shape.
 
-\paragraph{{Temporal validation.}} The model is fit on episodes awarded
-2015--2021 and evaluated on 2022--2025, reporting Harrell's concordance index
-\(C\) on each split to assess discrimination and out-of-time stability, not to
-target a specific value.
+\paragraph{{Temporal validation.}} The model is fit once on episodes awarded
+2015--2021 and scored out of time without refitting. The primary evaluation
+window is 2022--2024, as specified by the internship guideline; 2022--2025 is
+carried as a sensitivity read that adds the shortest-follow-up award cohort.
+Harrell's concordance index \(C\) is reported on each split to assess
+discrimination and out-of-time stability, not to target a specific value.
+
+\paragraph{{Borderline-link robustness.}} Threshold sensitivity swaps one event
+definition for another; a separate check asks how much rests on the anchors the
+frozen rule nearly classified the other way. Anchors whose best candidate scores
+within \(\pm0.05\) of the \(0.70\) acceptance bar are dropped entirely --
+borderline acceptances and borderline abstentions alike -- and the headline
+Kaplan--Meier levels and hazard ratios are recomputed on the remainder. The band
+is fixed a priori and is not searched over.
 
 \paragraph{{Linkage sensitivity.}} Because the event is linkage-conditioned, the
 same Kaplan--Meier and Cox analyses are repeated under the strict
@@ -648,13 +711,25 @@ in contract durations.
 The internship guide's L2 deliverable specifies a supervised technology
 taxonomy: 300--500 manually annotated contracts across 8--12 classes, a
 TF--IDF+logistic-regression/SVM baseline evaluated by macro-F1 and confusion
-matrix, and an optional CamemBERT comparison. \textbf{{This was not built.}} Two
-independent annotators with a Cohen's kappa agreement statistic are required for
-a defensible L2 corpus, and no second qualified annotator was available within
-this session's scope; producing single-pass AI-assisted labels and calling
-their agreement "kappa" would repeat exactly the self-consistency problem this
-project has documented for the successor-linkage benchmark
-(\S\ref{{sec:linkage-caveat}}) instead of avoiding it.
+matrix, and an optional CamemBERT comparison. \textbf{{This was not built inside
+the reproducible analytical branch.}} Two independent annotators with a Cohen's
+kappa agreement statistic are required for a defensible L2 corpus, and no second
+qualified annotator was available within this session's scope; producing
+single-pass AI-assisted labels and calling their agreement "kappa" would repeat
+exactly the self-consistency problem this project has documented for the
+successor-linkage benchmark (\S\ref{{sec:linkage-caveat}}) instead of avoiding it.
+
+A finer technology-classification effort was carried out in parallel, outside
+this pipeline: \pathcode{{data/reference/technology\_classification/}} holds a
+945-row export dated 2026-08-12 carrying a \code{{Domaine}} label per notice. It
+could not be integrated at the analytical freeze and is read by no stage of this
+pipeline. It covers current national opportunities rather than the 2015--2025
+Grand Ouest study cohort, and it arrives without the training corpus, the
+annotation guidelines, or the validation artifacts that would let its labels be
+audited or applied historically. The present reproducible branch therefore
+retains CPV divisions as the primary technological segmentation. That is a
+statement about what could be integrated and verified here, not a judgement on
+the parallel work.
 
 Every technology segment referenced in this report -- cohort selection, Cox
 covariates, quarterly trend series -- therefore uses CPV divisions 32
@@ -664,11 +739,10 @@ disguised classifier: CPV divisions are official, zero-missingness EU
 categories under Regulation 213/2008, but they are coarser than a learned
 taxonomy and cannot distinguish sub-themes such as cloud versus on-premise
 infrastructure within a division. A future session with a second qualified
-annotator could complete L2 using the same blinded-sample-plus-adjudication
-scaffolding already built for linkage review
-(\pathcode{{scripts/prepare\_independent\_link\_review.py}},
-\pathcode{{scripts/ingest\_annotations.py}},
-\pathcode{{scripts/adjudicate\_annotations.py}}).
+annotator could complete L2 by reusing the blinded-review design recorded in
+\pathcode{{INDEPENDENT\_LINK\_REVIEW\_PROTOCOL.md}}; the scripts that once
+implemented it were removed with the retired France-level benchmark and remain
+recoverable from version control.
 
 \section{{Dev Results}}
 \begin{{table}}[H]
@@ -713,13 +787,13 @@ Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 {latex_method_rows(validation_frame)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Unweighted held-out metrics on all bootstrap-labelled reference frames.}}
+\caption{{Unweighted held-out metrics on the locked split of the regional reference.}}
 \end{{table}}
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{{figures/benchmark_validation_method_metrics.png}}
-\caption{{Held-out internal method comparison generated from the development-reference JSON.}}
+\caption{{Held-out method comparison generated from the regional-reference evaluation JSON.}}
 \end{{figure}}
 
 \section{{Quality Evidence And Interpretation}}
@@ -727,7 +801,7 @@ The held-out internal result supports retaining a conservative baseline for
 continued work; it does not establish final accuracy. \code{{M\_B}} has
 only {int(m_b.accepted_links)} accepted held-out links, so its precision
 estimate is necessarily sample-sensitive; one changed decision would move the
-number materially. Within this bootstrap reference, the direction is coherent:
+number materially. Within this reference, the direction is coherent:
 \code{{M\_B}} gives the best precision and the lowest false-positive
 rate among useful methods, while \code{{M\_C}} shows the expected precision-recall
 trade-off.
@@ -743,7 +817,7 @@ The emphasis on precision-recall for rare positive decisions is supported by
 and
 \href{{https://doi.org/10.1371/journal.pone.0118432}}{{Saito and Rehmsmeier
 (2015)}}. These sources justify the diagnostic choice; they do not validate the
-bootstrap labels, numerical results, or selected threshold. Generic web
+reference labels, numerical results, or selected threshold. Generic web
 illustrations are therefore treated as presentation aids only, not as academic
 evidence.
 
@@ -751,15 +825,21 @@ evidence.
 \centering
 \includegraphics[width=0.99\textwidth]{{figures/benchmark_validation_m_b_threshold_tradeoff.png}}
 \caption{{Project-specific, unsmoothed anchor-level threshold trade-off for
-\code{{M\_B}}. The figure is empirical evidence from the internal validation
-reference, not an idealised illustration.}}
+\code{{M\_B}}. The figure is empirical evidence from the locked split of the
+regional reference, not an idealised illustration.}}
 \end{{figure}}
 
-At threshold $0.60$, this validation sample contains 8 correct successors
-among 9 accepted links, compared with 4 among 5 at $0.70$. Thus $0.60$
-performs better on this particular sample. Development evidence points in the
-opposite direction: precision is 0.800 and FPR is 0.058 at $0.60$, compared
-with precision 0.875 and FPR 0.035 at $0.70$. The lower threshold is therefore
+On the locked split, $0.70$ accepts {int(locked_70.accepted_links)} links of
+which {int(locked_70.true_positive)} are correct (precision
+{locked_70.precision:.3f}, recall {locked_70.recall:.3f}, FPR
+{locked_70.false_positive_rate:.3f}), while $0.60$ accepts
+{int(locked_60.accepted_links)} of which {int(locked_60.true_positive)} are
+correct (precision {locked_60.precision:.3f}, recall {locked_60.recall:.3f},
+FPR {locked_60.false_positive_rate:.3f}). On the pilot split the same two points
+give precision {pilot_70.precision:.3f} and {pilot_60.precision:.3f}
+respectively. The threshold was fixed before this reference was read, which is
+the only reason the locked split can be reported as held out; selecting one from
+these rows now would convert it into a tuning set. The lower threshold is therefore
 reported as a sensitivity arm rather than promoted after inspecting validation.
 
 \section{{Model-Assisted Challenge Review}}
@@ -859,13 +939,34 @@ if individualized prediction were required.
 
 \paragraph{{Temporal validation.}} Training on
 {temporal["train_years"]} ({temporal["train_contracts"]:,} episodes,
-{temporal["train_events"]:,} events) and evaluating on
-{temporal["test_years"]} ({temporal["test_contracts"]:,} episodes,
+{temporal["train_events"]:,} events) and evaluating on the guideline-aligned
+{temporal["test_years"]} window ({temporal["test_contracts"]:,} episodes,
 {temporal["test_events"]:,} events) gives C-index
 {temporal["train_c_index"]:.3f} in-sample versus
-{temporal["test_c_index"]:.3f} out-of-time. This gap indicates the model is not
-validated for individualized operational prediction; it is retained as a
-descriptive risk-factor summary.
+{temporal["test_c_index"]:.3f} out-of-time. Extending the test window to
+{extended["test_years"]} ({extended["test_contracts"]:,} episodes,
+{extended["test_events"]:,} events), without refitting, gives
+{extended["test_c_index"]:.3f}. Both are close to the \(0.5\) chance line:
+individualized out-of-time discrimination is weak. That is a result, not a
+prompt to retune -- the model is retained as a descriptive risk-factor summary
+and nothing in the operational deliverable rests on it. Part of the gap is
+structural, because episodes awarded from 2022 onwards can contribute only
+short-gap events.
+
+\paragraph{{Borderline-link robustness.}} Dropping the
+{borderline["contracts_removed"]:,} episodes whose best candidate scores within
+\(\pm0.05\) of the acceptance threshold removes
+{borderline["events_removed"]:,} events and leaves the direction of both headline
+hazard ratios unchanged (CPV-35 {borderline["main"]["cox_hr_cpv_35"]:.2f} to
+{borderline["excluding_borderline_links"]["cox_hr_cpv_35"]:.2f}; framework
+{borderline["main"]["cox_hr_framework"]:.2f} to
+{borderline["excluding_borderline_links"]["cox_hr_framework"]:.2f}). The absolute
+Kaplan--Meier level falls, from
+{borderline["main"]["km_successor_by_12m"] * 100:.1f}\% to
+{borderline["excluding_borderline_links"]["km_successor_by_12m"] * 100:.1f}\% at 12 months,
+which is the mechanical consequence of removing borderline events. The
+comparative conclusions therefore do not rest on borderline linkage decisions,
+while absolute probabilities remain threshold-uncertain.
 
 \paragraph{{Parametric models.}}
 \begin{{table}}[H]
@@ -881,13 +982,21 @@ Model & Parameters & Log-likelihood & AIC & BIC \\
 \caption{{Parametric survival model comparison.}}
 \end{{table}}
 \code{{{survival_summary["parametric"]["selected_model"]}}} has the lowest AIC
-and BIC and was checked graphically against the Kaplan--Meier curve before
-selection; it is used for the exported 12/24-month conditional successor
-probabilities (\pathcode{{survival\_conditional\_probabilities.csv}}), each with
-a 500-draw episode-bootstrap interval. These are estimated probabilities of an
-\emph{{identifiable observable successor procurement}}, not certified renewal
-probabilities, and no active Gigalis portfolio was available to score, so
-predictions cover the study cohort rather than a live deployment set.
+and BIC and was checked graphically against the Kaplan--Meier curve. It is
+reported as the best-fitting family and as the instrument any extrapolation past
+the 2025-12-31 cutoff would use. It is \emph{{not}} the source of the exported
+12/24-month conditional successor probabilities
+(\pathcode{{survival\_conditional\_probabilities.csv}}): those come from the
+Kaplan--Meier estimator, each with a 500-draw episode-bootstrap interval. The
+reason is visible in the fit itself -- around age 36 months, just before the
+observed renewal shoulder, every parametric family including the selected one
+reports roughly 0.02--0.03 for the next twelve months where Kaplan--Meier reports
+near 0.075. Since every horizon this report quotes falls inside the observed
+window, the extrapolation that would justify accepting that smoothing is not
+needed. These are estimated probabilities of an \emph{{identifiable observable
+successor procurement}}, not certified renewal probabilities, and no active
+Gigalis portfolio was available to score, so they cover the study cohort rather
+than a live deployment set.
 
 \paragraph{{Detectability and selection diagnostic.}} Comparing linked and
 censored episodes on standardized mean differences, the largest gap is
@@ -964,11 +1073,13 @@ and this report does not adjust either to match the other.
 
 \section{{Defensible Decision}}
 The final project decision is to keep \code{{M\_B\_text\_ranking @ 0.70}}
-as the frozen conservative observable-successor baseline and use the stricter,
-looser, weighted-gated, and expiry-aware variants as required sensitivity
-analyses. The threshold is not claimed to be optimal: $0.60$ performs better
-on the small bootstrap validation split, while $0.70$ has better precision and
-false-positive control on development evidence. Moreover, the completed
+as the frozen conservative observable-successor baseline and use the stricter
+(\(M_B@0.80\)), looser (\(M_B@0.60\)), and weighted-gated (\(M_C@0.70\)) variants
+as the required sensitivity analyses, together with the borderline-band check.
+The threshold is not claimed to be optimal; it is claimed to be
+pre-specified. It was fixed before the regional reference was consulted and has
+not been moved since, so the locked-split figures are held out rather than
+fitted. Moreover, the completed
 model-assisted review confirmed only 14 of 20 sampled production links at
 $0.70$ conservatively, so lowering an unreviewed threshold would not support a
 stronger accuracy claim. This is a precision-first design. Low recall is
@@ -976,7 +1087,7 @@ accepted as an explicit trade-off, but the
 observed event rate is not a mathematical lower bound: missed successors push it
 downward while residual false links can push it upward. It is therefore a
 linkage-conditioned indicator whose absolute value must be read with the strict,
-looser, weighted-gated, and expiry-aware sensitivity results.
+looser, and weighted-gated sensitivity results and the borderline-band check.
 Independent specialist review is required only before claiming externally
 validated precision or promoting a new threshold, not to complete this
 linkage-conditioned descriptive study.
@@ -987,10 +1098,11 @@ rather than forcing a more complex model.
 \begin{{itemize}}
 \item BOAMP does not consistently encode legal renewal status; accepted links are
 observable successor procurements, not legal renewal proof.
-\item The current reference labels come from deterministic bootstrap rules;
-pass agreement is self-consistency, not independent human agreement.
-\item The held-out reference is small:
-{validation["methods"][1]["unweighted_all_frames"]["positive_anchors"]}
+\item The reference labels come from a single-pass LLM-assisted review by the
+project owner, not an independent specialist panel, and its negatives are
+corpus-relative: the reviewer saw roughly 25 candidates per anchor, so the
+reported false-positive rate is an upper bound.
+\item The held-out reference is small: {locked["positive_anchors"]}
 positive anchors and {int(m_b.accepted_links)} accepted \code{{M\_B}} links.
 The selected threshold should not be over-tuned and its accuracy remains provisional.
 \item Buyer standardisation is improved but remains an important risk area. The
@@ -1063,8 +1175,9 @@ false positive links would create artificial survival events.
 \begin{{itemize}}
 \item \pathcode{{data/processed/boamp/linkage\_evaluation\_dev.json}}
 \item \pathcode{{data/processed/boamp/linkage\_evaluation\_validation.json}}
-\item \pathcode{{data/processed/boamp/benchmark/modeling/modeling\_summary.json}}
-\item \pathcode{{data/processed/boamp/benchmark/benchmark\_manifest.json}}
+\item \pathcode{{data/processed/boamp/regional\_benchmark/modeling/modeling\_summary.json}}
+\item \pathcode{{data/processed/boamp/regional\_benchmark/regional\_benchmark\_manifest.json}}
+\item \pathcode{{data/reference/regional\_link\_benchmark/}}
 \item \pathcode{{data/processed/boamp/survival\_dataset\_summary.json}}
 \item \pathcode{{data/processed/boamp/linkage\_candidates\_summary.json}}
 \item \pathcode{{data/processed/boamp/survival\_analysis\_summary.json}}
@@ -1137,11 +1250,11 @@ def write_status_files(
     generated_at: str,
 ) -> None:
     validation_frame = method_frame(validation)
-    labelled_anchors = manifest["anchor_totals"]["anchors"]
-    labelled_pairs = manifest["anchor_totals"]["labelled_pairs"]
+    locked = manifest["splits"]["validation"]
+    pilot = manifest["splits"]["dev"]
+    ceiling = manifest["candidate_reachability"]
     application = load_json(PROCESSED / "linkage_application_summary.json")
     survival = load_json(PROCESSED / "survival_dataset_summary.json")["variants"]["main"]
-    expiry = load_json(PROCESSED / "expiry_aware_linkage_summary.json")
     m_b = validation_frame.loc[validation_frame["method"].eq("M_B_text_ranking")].iloc[0]
     final_pipeline = f"""# Final Defensible Pipeline
 
@@ -1152,25 +1265,29 @@ Generated: `{generated_at}`
 The final primary event definition is `M_B_text_ranking @ 0.70`. It is a frozen
 conservative baseline, not a claim that `0.70` is the optimal threshold.
 
-On the held-out split of the current national development reference it gives:
+On the locked split of the Grand Ouest regional reference it gives:
 
-- precision@1: `{m_b.precision:.3f}`;
-- recall@1: `{m_b.recall:.3f}`;
+- precision@1: `{m_b.precision:.3f}` (95% CI `{m_b.precision_low:.3f}`-`{m_b.precision_high:.3f}`);
+- recall@1: `{m_b.recall:.3f}` (95% CI `{m_b.recall_low:.3f}`-`{m_b.recall_high:.3f}`);
 - false-positive rate on negative anchors: `{m_b.fpr:.3f}`;
-- accepted links: `{int(m_b.accepted_links)}`.
+- accepted links: `{int(m_b.accepted_links)}` on `{locked["usable_anchors"]}` usable anchors.
 
-These are internal bootstrap-reference estimates, not independent validation
-results. Both annotation passes were generated by the deterministic rules in
-`scripts/auto_annotate_wave1a.py`.
+Recall cannot exceed `{ceiling["candidate_generation_recall_ceiling"]:.3f}`: candidate
+generation reaches `{ceiling["positive_anchors_with_reviewed_successor_in_pool"]}` of the
+`{ceiling["positive_anchors"]}` reviewed successors, so the remainder is a blocking-stage
+loss rather than a scoring one.
 
-Threshold `0.60` performs better on this particular validation sample, but
-development evidence favours `0.70` for precision and false-positive control.
-The completed production-link diagnostic at `0.70` confirmed only `14/20`
-sampled links conservatively, so the unreviewed lower threshold is not promoted
-post hoc. It remains a required survival sensitivity arm.
+These are reference-sample estimates, not independent validation. The labels are a
+single-pass LLM-assisted review of real BOAMP notices by the project owner, dated
+2026-08-11; they are independent of every method scored, but they are not an
+independent specialist panel.
+
+The threshold was frozen before this reference was consulted and has not been moved
+since. `0.60` remains a required survival sensitivity arm. The completed
+production-link diagnostic at `0.70` confirmed `14/20` sampled links conservatively.
 
 `M_C_weighted_gated` has higher recall but also higher false-positive risk.
-`M_D_fellegi_sunter` is evaluated on the current benchmark, but it does not outperform `M_B`.
+`M_D_fellegi_sunter` is evaluated on the same reference and does not outperform `M_B`.
 
 ## End-to-End Workflow
 
@@ -1180,21 +1297,20 @@ Official BOAMP API, 2015-2025
   -> procurement episode reconstruction
   -> Grand Ouest digital study cohort
   -> broad same-buyer candidate generation
-  -> four linkage algorithms compared on the national development reference
+  -> four linkage algorithms compared on the Grand Ouest regional reference
   -> M_B primary successor selection
-  -> survival dataset and expiry-aware sensitivity audit
+  -> survival dataset, threshold sensitivity, and borderline-band robustness
 ```
 
 The event remains an **observable successor procurement**, not a confirmed legal
 renewal.
 
-## Latest Benchmark State
+## Latest Reference State
 
-- bootstrap-labelled anchors: `{labelled_anchors}`;
-- bootstrap-labelled pairs: `{labelled_pairs:,}`;
-- dev: `{modeling["outputs"]["dev"]["anchors"]}` anchors and `{modeling["outputs"]["dev"]["rows"]:,}` pair rows;
-- validation: `{modeling["outputs"]["validation"]["anchors"]}` anchors and `{modeling["outputs"]["validation"]["rows"]:,}` pair rows;
-- sealed test: not used for method selection.
+- reviewed anchors: `{manifest["reviewed_anchors"]}`, of which `{manifest["remap"]["resolved_to_current_episodes"]}` resolve to a current episode;
+- pilot split: `{pilot["usable_anchors"]}` usable anchors, `{pilot["positive_anchors"]}` with a reviewed successor;
+- locked split: `{locked["usable_anchors"]}` usable anchors, `{locked["positive_anchors"]}` with a reviewed successor;
+- pair rows: `{modeling["outputs"]["dev"]["rows"]:,}` pilot and `{modeling["outputs"]["validation"]["rows"]:,}` locked.
 
 ## Current Study State
 
@@ -1202,16 +1318,14 @@ renewal.
 - candidate pairs: `{load_json(PROCESSED / "linkage_candidates_summary.json")["candidate_pairs"]:,}`;
 - primary accepted links: `{application["cohort_application"]["accepted_links"]}`;
 - primary cohort event rate: `{survival["description"]["event_rate"]:.4f}`;
-- expiry-aware accepted links: `{expiry["cohort_comparison"]["expiry_aware"]["accepted_links"]}`;
-- expiry-aware changed primary anchors: `{expiry["cohort_comparison"]["changed_anchors_for_review"]}`.
 
 ## Canonical Outputs
 
 - `data/processed/boamp/`
-- `data/processed/boamp/benchmark/`
+- `data/processed/boamp/regional_benchmark/`
 - `data/processed/boamp/linkage_evaluation_dev.json`
 - `data/processed/boamp/linkage_evaluation_validation.json`
-- `data/processed/boamp/benchmark/modeling/modeling_summary.json`
+- `data/processed/boamp/regional_benchmark/modeling/modeling_summary.json`
 - `data/processed/boamp/survival_analysis_summary.json`
 - `SURVIVAL_ANALYSIS_REPORT.md`
 - `reports/boamp_methodology_chapter.pdf`
@@ -1232,58 +1346,96 @@ Use `--force` only when intentionally rebuilding all materialised stages.
 """
     (PROJECT_ROOT / "FINAL_PIPELINE.md").write_text(final_pipeline, encoding="utf-8")
 
-    national = f"""# National Development Reference
+    reference = f"""# Regional Reference Datasheet
 
 Generated: `{generated_at}`
 
-## Purpose
+## What This Reference Is
 
-The current national reference is a France-wide bootstrap dataset for developing,
-debugging, and provisionally comparing observable-successor linkage algorithms.
+The active reference for successor linkage is a stratified review of
+`{manifest["reviewed_anchors"]}` awarded digital procurement anchors drawn from the
+study region itself: {manifest["geographical_scope"]}. Each anchor was reviewed
+against the real BOAMP notices and official notice URLs of its candidates on
+`{manifest["review_date"]}`, before the linkage methods compared below existed.
 
-It does not prove legal renewal and it is not independent ground truth. Both
-annotation passes were generated by the deterministic rules in
-`scripts/auto_annotate_wave1a.py`.
+- source: `{manifest["reference_source"]}`;
+- version: `{manifest["reference_version"]}`;
+- construction: {manifest["label_provenance"]};
+- anchor award dates: `{manifest["temporal_scope"]["anchor_award_dates"][0]}` to `{manifest["temporal_scope"]["anchor_award_dates"][1]}`;
+- observation cutoff: `{manifest["temporal_scope"]["study_cutoff"]}`;
+- independent of the linkage algorithms: `{manifest["independent_of_linkage_algorithms"]}`;
+- independent human specialist review: `{manifest["independent_human_specialist_review"]}`.
+
+It is a **regional reference sample**, not ground truth, and not proof of legal
+renewal.
+
+## What It Replaced And Why
+
+It replaced a France-level benchmark whose two annotation passes were both
+emitted by deterministic rules in a single script, built from the same text,
+CPV, and date evidence the linkage methods consume. A method could score well
+there only by agreeing with that rule, so the numbers measured rule agreement
+rather than correctness. Those artifacts have been removed from the repository
+in full; their history remains in version control.
 
 ## Current Materialised State
 
-- labelled anchors: `{labelled_anchors}`;
-- labelled pairs: `{labelled_pairs:,}`;
-- dev split: `{modeling["outputs"]["dev"]["anchors"]}` anchors, `{modeling["outputs"]["dev"]["rows"]:,}` pair rows, `{modeling["outputs"]["dev"]["primary_positive_pairs"]}` primary-positive pairs;
-- validation split: `{modeling["outputs"]["validation"]["anchors"]}` anchors, `{modeling["outputs"]["validation"]["rows"]:,}` pair rows, `{modeling["outputs"]["validation"]["primary_positive_pairs"]}` primary-positive pairs;
-- sealed test: closed for method selection.
+- reviewed anchors: `{manifest["reviewed_anchors"]}`;
+- resolved onto the current episode reconstruction: `{manifest["remap"]["resolved_to_current_episodes"]}`;
+- pilot split: `{pilot["usable_anchors"]}` usable anchors, `{pilot["positive_anchors"]}` positive, `{pilot["negative_anchors"]}` negative;
+- locked split: `{locked["usable_anchors"]}` usable anchors, `{locked["positive_anchors"]}` positive, `{locked["negative_anchors"]}` negative;
+- pair rows: `{modeling["outputs"]["dev"]["rows"]:,}` pilot, `{modeling["outputs"]["validation"]["rows"]:,}` locked;
+- candidate-generation recall ceiling: `{ceiling["candidate_generation_recall_ceiling"]:.4f}`.
 
-## Current Method Comparison
+## Label Definitions
 
-The current internal comparison includes all four methods. `M_D_fellegi_sunter` is no
-longer skipped because `fs_match_probability` is now computed from the fitted
-Fellegi-Sunter model when the current benchmark exposure is evaluated.
+- `OBSERVED_SUCCESSOR`: a later procurement in the reviewed candidate set that
+  plausibly replaces or continues the anchor's need.
+- `NO_OBSERVED_SUCCESSOR_IN_SCOPE`: none among the candidates the reviewer saw.
+  This is corpus-relative, not proof that no renewal occurred.
+- `OUTSIDE_SCOPE` / `INSUFFICIENT_INFORMATION`: the reviewer declined to decide;
+  these anchors are excluded from evaluation rather than counted as negatives.
 
-| Method | Threshold | Internal precision | Internal recall | Internal FPR | Accepted |
-|---|---:|---:|---:|---:|---:|
+## Current Method Comparison On The Locked Split
+
+| Method | Threshold | Precision | 95% CI | Recall | 95% CI | FPR | Accepted |
+|---|---:|---:|---|---:|---|---:|---:|
 """
     for row in validation_frame.itertuples(index=False):
-        national += (
+        reference += (
             f"| `{row.method}` | {row.threshold:.1f} | {row.precision:.3f} | "
-            f"{row.recall:.3f} | {row.fpr:.3f} | {int(row.accepted_links)} |\n"
+            f"{row.precision_low:.3f}-{row.precision_high:.3f} | {row.recall:.3f} | "
+            f"{row.recall_low:.3f}-{row.recall_high:.3f} | {row.fpr:.3f} | "
+            f"{int(row.accepted_links)} |\n"
         )
-    national += """
+    reference += """
+Intervals are Wilson score intervals. They overlap heavily: this reference
+separates the methods only coarsely, and any claim that one method beats another
+must survive that overlap.
+
 ## Decision Rule
 
-The incumbent `M_B_text_ranking @ 0.70` remains the frozen conservative primary
-event definition, not an empirically optimal threshold. `0.60` performs better
-on this small validation split but worse on development precision and
-false-positive control. A replacement requires a pre-specified selection rule,
-direct review of the incremental links, and fresh evaluation evidence.
+`M_B_text_ranking @ 0.70` remains the frozen primary event definition. It was
+fixed before this reference was consulted and has not been moved since, which is
+what allows the locked split to be reported as held out. Choosing a threshold
+from these rows now would convert the locked split into a tuning set. A
+replacement requires a pre-specified selection rule, direct review of the
+incremental links, and fresh evidence.
 
-## Caveat
+## Known Limitations
 
-The current labels are deterministic bootstrap development evidence. Pass A and
-pass B are not independent annotations; their agreement is self-consistency.
-The resulting metrics must not be described as official legal renewal truth,
-independent specialist validation, or human inter-annotator agreement.
 """
-    (PROJECT_ROOT / "NATIONAL_BENCHMARK_REFERENCE.md").write_text(national, encoding="utf-8")
+    for limitation in manifest["known_limitations"]:
+        reference += f"- {limitation}\n"
+    reference += """
+## What It May Legitimately Be Used For
+
+Comparing linkage methods on the same exposed candidate pairs, reading the
+frozen operating point held out, and bounding recall through candidate
+generation. It may not be used to claim externally validated accuracy, national
+prevalence, or legal renewal status.
+"""
+    (PROJECT_ROOT / "REGIONAL_BENCHMARK_REFERENCE.md").write_text(reference, encoding="utf-8")
 
 
 def write_executive_summary(
@@ -1302,6 +1454,8 @@ def write_executive_summary(
     trend_signal = pd.read_csv(PROCESSED / "trend_signal_matrix.csv")
     decreasing_segments = trend_signal.loc[trend_signal["state"].eq("decreasing"), "segment"].tolist()
     standardized_notices = load_json(PROCESSED / "standardized_notice_summary.json")["rows"]
+    temporal = survival_summary["cox"]["temporal_validation"]
+    extended = survival_summary["cox"]["temporal_validation_including_latest_cohort"]
 
     text = f"""# Executive Summary
 
@@ -1323,11 +1477,12 @@ legal renewal.
 - Standardised {standardized_notices:,} BOAMP notices into
   reconstructed procurement episodes and an awarded Grand Ouest digital study
   cohort of `{survival["validation"]["rows"]:,}` episodes.
-- Compared four linkage algorithms on a `{manifest["anchor_totals"]["anchors"]}`-anchor,
-  `{manifest["anchor_totals"]["labelled_pairs"]:,}`-pair national development reference and
-  froze `M_B_text_ranking @ 0.70` as the primary, precision-first rule
-  (precision `{m_b.precision:.3f}`, recall `{m_b.recall:.3f}` on the internal
-  held-out split).
+- Compared four linkage algorithms on a `{manifest["reviewed_anchors"]}`-anchor Grand
+  Ouest regional reference, reviewed against real BOAMP notices before those
+  algorithms existed, and kept the pre-frozen `M_B_text_ranking @ 0.70` as the
+  primary, precision-first rule (precision `{m_b.precision:.3f}`, recall
+  `{m_b.recall:.3f}` on its locked split of
+  `{manifest["splits"]["validation"]["usable_anchors"]}` anchors).
 - Applied it to the full cohort: `{application["cohort_application"]["accepted_links"]}`
   accepted links, `{survival["description"]["event_rate"]:.1%}` event rate.
 - Built a full survival pipeline: Kaplan-Meier, log-rank, Cox (with PH
@@ -1340,14 +1495,17 @@ legal renewal.
   highest-volume segments.
 - Ran a model-assisted (not independent-human) blinded challenge review of 20
   accepted links, 20 structural negatives, and 20 buyer-declared relationships.
-- Documented every provenance caveat honestly: bootstrap-labelled benchmark,
-  model-assisted review, and a CPV-division substitute where the guide asks
-  for a supervised technology classifier.
+- Retired an earlier France-level benchmark whose labels were generated by
+  deterministic rules reading the same evidence the linkage methods use, which
+  made its method comparison circular. It is archived and read by nothing.
+- Documented every provenance caveat honestly: an LLM-assisted single-pass
+  reference sample, a model-assisted review, and a CPV-division substitute
+  where the guide asks for a supervised technology classifier.
 
 ## What Works
 
 - The pipeline is reproducible end to end (`scripts/run_final_pipeline.py`),
-  with `171` automated tests passing and internal consistency checks
+  with the automated test suite passing and internal consistency checks
   (`data/processed/boamp/canonical_state_validation.json`) all green.
 - Kaplan-Meier shows a clear, well-powered separation across CPV segments
   (log-rank statistic `{survival_summary["logrank"]["test_statistic"]:.2f}`,
@@ -1363,20 +1521,26 @@ legal renewal.
 
 ## What Remains Uncertain
 
-- The benchmark's labels come from deterministic rules, not independent human
-  annotation; the model-assisted 60-pair review found `70.0%` conservative
-  precision among accepted links, below the `80%` target -- independent
-  human review is still needed before claiming validated accuracy.
+- The reference's labels are a single-pass LLM-assisted review, not independent
+  human annotation, and its negatives are corpus-relative; the model-assisted
+  60-pair review found `70.0%` conservative precision among accepted links,
+  below the `80%` target -- independent human review is still needed before
+  claiming validated accuracy.
 - Absolute event rates and probabilities are linkage-sensitive: event counts
   range from `{survival_summary["sensitivity"]["minimum_events"]:,}` to
   `{survival_summary["sensitivity"]["maximum_events"]:,}` across retained arms.
-- Cox temporal validation is weak (C-index
-  `{survival_summary["cox"]["temporal_validation"]["train_c_index"]:.3f}` in-sample
-  vs `{survival_summary["cox"]["temporal_validation"]["test_c_index"]:.3f}` out-of-time); the
+- Cox temporal validation is weak (C-index `{temporal["train_c_index"]:.3f}` in-sample
+  vs `{temporal["test_c_index"]:.3f}` out-of-time on the guideline-aligned
+  {temporal["test_years"]} window, `{extended["test_c_index"]:.3f}` on {extended["test_years"]}); the
   model is not validated for individualized operational prediction, and no
   active Gigalis portfolio was available to score.
 - The guide's supervised technology-classification deliverable (L2) was not
-  built; CPV divisions are used as a coarser, reproducible substitute.
+  built inside this reproducible branch. A parallel classification effort exists
+  as an un-integrated export
+  (`data/reference/technology_classification/`, 945 rows dated 2026-08-12) that
+  covers current national opportunities rather than the historical study cohort
+  and arrives without training corpus or validation artifacts, so CPV divisions
+  are used as the coarser, reproducible substitute.
 - The guide's causal-inference question (does a Gigalis framework change
   member behaviour?) is outlined methodologically but not answered -- it
   needs Gigalis-internal membership/adoption-date data not present in BOAMP.
@@ -1386,11 +1550,14 @@ legal renewal.
 1. Commission an independent human procurement-domain reviewer to label the
    prepared blinded 60-pair sample (`INDEPENDENT_LINK_REVIEW_PROTOCOL.md`)
    before any external accuracy claim or threshold change.
-2. If the technology classifier remains a priority, recruit a second
-   qualified annotator and reuse the existing blinded-sample-plus-adjudication
-   tooling (`scripts/prepare_independent_link_review.py`,
-   `scripts/ingest_annotations.py`, `scripts/adjudicate_annotations.py`) for a
-   real 300-500 example corpus with genuine Cohen's kappa.
+2. If the technology classifier remains a priority, recruit a second qualified
+   annotator and build a real 300-500 example corpus with genuine Cohen's kappa,
+   following the blinded-review design in
+   `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`. The scripts that once implemented that
+   workflow were removed with the retired France-level benchmark and are
+   recoverable from version control. Supplying the parallel classification
+   work's training corpus and validation artifacts would be the cheaper route,
+   if they can be obtained.
 3. If a Gigalis-membership causal analysis is wanted, supply member identity
    and adoption-date data so the outlined staggered-adoption
    difference-in-differences design can actually be estimated.
@@ -1420,7 +1587,7 @@ def write_notebook(generated_at: str) -> None:
     }
     cells = [
         nbf.v4.new_markdown_cell(
-            "# 12. Successor linkage and current development-reference evaluation\n\n"
+            "# 12. Successor linkage and regional-reference evaluation\n\n"
             f"Generated: `{generated_at}`\n\n"
             "This notebook is regenerated from the current script outputs. It is the "
             "reader-facing linkage/evaluation notebook for the current evidence state."
@@ -1428,9 +1595,10 @@ def write_notebook(generated_at: str) -> None:
         nbf.v4.new_markdown_cell(
             "## tl;dr\n\n"
             "`M_B_text_ranking @ 0.70` is the frozen conservative primary event "
-            "definition, not a claim of threshold optimality. The latest "
-            "internal held-out comparison includes all four algorithms, including "
-            "`M_D_fellegi_sunter`, which is now scored from the fitted model."
+            "definition, not a claim of threshold optimality. It was fixed before "
+            "the Grand Ouest regional reference was consulted, which is why the "
+            "locked split below can be read as held out. All four algorithms are "
+            "compared, including `M_D_fellegi_sunter`, scored from the fitted model."
         ),
         nbf.v4.new_code_cell(
             "import json\n"
@@ -1441,21 +1609,21 @@ def write_notebook(generated_at: str) -> None:
             "while PROJECT_ROOT != PROJECT_ROOT.parent and not (PROJECT_ROOT / 'scripts').exists():\n"
             "    PROJECT_ROOT = PROJECT_ROOT.parent\n"
             "PROCESSED = PROJECT_ROOT / 'data/processed/boamp'\n"
-            "BENCHMARK = PROCESSED / 'benchmark'\n\n"
+            "BENCHMARK = PROCESSED / 'regional_benchmark'\n\n"
             "def load_json(path):\n"
             "    with open(path, 'r', encoding='utf-8') as f:\n"
             "        return json.load(f)\n\n"
             "dev = load_json(PROCESSED / 'linkage_evaluation_dev.json')\n"
             "validation = load_json(PROCESSED / 'linkage_evaluation_validation.json')\n"
             "modeling = load_json(BENCHMARK / 'modeling/modeling_summary.json')\n"
-            "manifest = load_json(BENCHMARK / 'benchmark_manifest.json')\n"
+            "manifest = load_json(BENCHMARK / 'regional_benchmark_manifest.json')\n"
         ),
         nbf.v4.new_code_cell(
             "def method_frame(summary):\n"
             "    rows = []\n"
             "    for method in summary['methods']:\n"
-            "        metrics = method['unweighted_all_frames']\n"
-            "        weighted = method.get('weighted_national', {})\n"
+            "        metrics = method['unweighted']\n"
+            "        weighted = method.get('design_weighted', {})\n"
             "        rows.append({\n"
             "            'method': method['method'],\n"
             "            'threshold': method['threshold'],\n"
@@ -1464,6 +1632,8 @@ def write_notebook(generated_at: str) -> None:
             "            'recall': metrics['recall_at_1'],\n"
             "            'fpr': metrics['false_positive_rate_on_negatives'],\n"
             "            'coverage': metrics['coverage'],\n"
+            "            'precision_ci': metrics.get('precision_at_1_interval_95'),\n"
+            "            'recall_ci': metrics.get('recall_at_1_interval_95'),\n"
             "            'weighted_precision': weighted.get('precision_at_1', {}).get('estimate'),\n"
             "            'weighted_recall': weighted.get('recall_at_1', {}).get('estimate'),\n"
             "            'weighted_fpr': weighted.get('false_positive_rate_on_verified_negatives', {}).get('estimate'),\n"
@@ -1473,24 +1643,25 @@ def write_notebook(generated_at: str) -> None:
             "validation_methods = method_frame(validation)\n"
             "validation_methods\n"
         ),
-        nbf.v4.new_markdown_cell("## Benchmark State"),
+        nbf.v4.new_markdown_cell("## Reference State"),
         nbf.v4.new_code_cell(
             "pd.DataFrame([\n"
-            "    {'item': 'labelled anchors', 'value': manifest['anchor_totals']['anchors']},\n"
-            "    {'item': 'labelled pairs', 'value': manifest['anchor_totals']['labelled_pairs']},\n"
-            "    {'item': 'dev anchors', 'value': modeling['outputs']['dev']['anchors']},\n"
-            "    {'item': 'dev rows', 'value': modeling['outputs']['dev']['rows']},\n"
-            "    {'item': 'validation anchors', 'value': modeling['outputs']['validation']['anchors']},\n"
-            "    {'item': 'validation rows', 'value': modeling['outputs']['validation']['rows']},\n"
+            "    {'item': 'reviewed anchors', 'value': manifest['reviewed_anchors']},\n"
+            "    {'item': 'resolved to current episodes', 'value': manifest['remap']['resolved_to_current_episodes']},\n"
+            "    {'item': 'pilot usable anchors', 'value': manifest['splits']['dev']['usable_anchors']},\n"
+            "    {'item': 'pilot positive anchors', 'value': manifest['splits']['dev']['positive_anchors']},\n"
+            "    {'item': 'locked usable anchors', 'value': manifest['splits']['validation']['usable_anchors']},\n"
+            "    {'item': 'locked positive anchors', 'value': manifest['splits']['validation']['positive_anchors']},\n"
+            "    {'item': 'candidate recall ceiling', 'value': manifest['candidate_reachability']['candidate_generation_recall_ceiling']},\n"
             "])"
         ),
-        nbf.v4.new_markdown_cell("## Internal Held-Out Method Comparison"),
+        nbf.v4.new_markdown_cell("## Held-Out Method Comparison On The Locked Split"),
         nbf.v4.new_code_cell(
-            "display(validation_methods[['method', 'threshold', 'accepted_links', 'precision', 'recall', 'fpr', 'coverage']])\n\n"
+            "display(validation_methods[['method', 'threshold', 'accepted_links', 'precision', 'precision_ci', 'recall', 'recall_ci', 'fpr', 'coverage']])\n\n"
             "ax = validation_methods.set_index('method')[['precision', 'recall', 'fpr']].plot(\n"
             "    kind='bar', figsize=(9, 4.5), width=0.72\n"
             ")\n"
-            "ax.set_title('Current internal reference metrics')\n"
+            "ax.set_title('Regional reference: locked split')\n"
             "ax.set_ylabel('rate')\n"
             "ax.set_ylim(0, 1)\n"
             "ax.set_xlabel('')\n"
@@ -1504,9 +1675,10 @@ def write_notebook(generated_at: str) -> None:
             "`M_C_weighted_gated` recovers more true successors, but its false-positive "
             "rate is materially higher. For survival analysis, a false link is more "
             "damaging than an abstention because it fabricates both an event and an "
-            "event time. Threshold `0.60` performs better on the small bootstrap "
-            "validation split but worse on development precision and FPR, so it remains "
-            "a sensitivity arm rather than being promoted post hoc. The use of "
+            "event time. Thresholds other than `0.70` are carried as sensitivity arms "
+            "rather than selected from these rows: choosing one now would turn the "
+            "locked split into a tuning set. On a reference this small the intervals "
+            "overlap heavily, so read them before separating any two methods. The use of "
             "precision-recall evidence for this rare-positive "
             "decision follows [Davis and Goadrich (2006)](https://doi.org/10.1145/1143844.1143874) "
             "and [Saito and Rehmsmeier (2015)](https://doi.org/10.1371/journal.pone.0118432). "
@@ -1515,8 +1687,7 @@ def write_notebook(generated_at: str) -> None:
         nbf.v4.new_markdown_cell("## Modeling-Ready Tables"),
         nbf.v4.new_code_cell(
             "pd.DataFrame(modeling['outputs']).T[[\n"
-            "    'rows', 'anchors', 'probability_frame_anchors', 'primary_positive_pairs',\n"
-            "    'strict_positive_pairs', 'broad_positive_pairs', 'verified_negative_anchors'\n"
+            "    'rows', 'anchors', 'primary_positive_pairs', 'positive_anchors'\n"
             "]]"
         ),
         nbf.v4.new_code_cell(
@@ -1526,10 +1697,13 @@ def write_notebook(generated_at: str) -> None:
         ),
         nbf.v4.new_markdown_cell(
             "## Caveat\n\n"
-            "The current labels were generated by deterministic bootstrap rules. "
-            "The two passes are not independent annotations, so their agreement is "
-            "self-consistency rather than specialist inter-annotator agreement. "
-            "These metrics are development evidence, not validated legal-renewal accuracy."
+            "The labels are a single-pass LLM-assisted review of real BOAMP notices by "
+            "the project owner, dated 2026-08-11. They are independent of every method "
+            "scored here, which the retired France-level benchmark's rule-generated "
+            "labels were not, but they are not an independent specialist panel. "
+            "Negatives are corpus-relative: the reviewer saw roughly 25 candidates per "
+            "anchor, so the false-positive rate is an upper bound. These are reference-"
+            "sample estimates, not validated legal-renewal accuracy."
         ),
     ]
     nb["cells"] = cells
@@ -1541,17 +1715,17 @@ def main() -> int:
     dev = load_json(PROCESSED / "linkage_evaluation_dev.json")
     validation = load_json(PROCESSED / "linkage_evaluation_validation.json")
     modeling = load_json(BENCHMARK / "modeling/modeling_summary.json")
-    manifest = load_json(BENCHMARK / "benchmark_manifest.json")
+    manifest = load_json(BENCHMARK / "regional_benchmark_manifest.json")
 
     FIGURES.mkdir(parents=True, exist_ok=True)
     plot_method_metrics(
         method_frame(dev),
-        "Current dev metrics",
+        "Regional reference: pilot split",
         FIGURES / "benchmark_dev_method_metrics.png",
     )
     plot_method_metrics(
         method_frame(validation),
-        "Current internal reference metrics",
+        "Regional reference: locked split",
         FIGURES / "benchmark_validation_method_metrics.png",
     )
     plot_modeling_counts(modeling, FIGURES / "benchmark_modeling_counts.png")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build quality-evidence tables and plots for the national linkage benchmark."""
+"""Build quality-evidence tables and plots for the regional linkage reference."""
 
 from __future__ import annotations
 
@@ -23,10 +23,10 @@ from scripts.evaluate_linkage import (  # noqa: E402
     method_c_weighted_gated,
     predict,
 )
-from boamp_pipeline.benchmark_io import load_truth  # noqa: E402
+from boamp_pipeline.regional_benchmark_io import load_truth, wilson_interval  # noqa: E402
 
 PROCESSED = PROJECT_ROOT / "data/processed/boamp"
-BENCHMARK = PROCESSED / "benchmark"
+BENCHMARK = PROCESSED / "regional_benchmark"
 OUTPUT_DIR = PROCESSED / "quality_evidence"
 FIGURE_DIR = PROJECT_ROOT / "reports/figures"
 
@@ -56,7 +56,7 @@ def anchor_confusion(summary: dict[str, Any]) -> pd.DataFrame:
     """
     rows: list[dict[str, Any]] = []
     for method in summary["methods"]:
-        metrics = method["unweighted_all_frames"]
+        metrics = method["unweighted"]
         exact_tp = int(metrics["true_positive"])
         wrong_successor = int(metrics["false_positive_wrong_successor"])
         fp_no_successor = int(metrics["false_positive_on_no_successor_anchor"])
@@ -204,6 +204,18 @@ def threshold_sweep(
                 "negative_anchors": metrics["negative_anchors"],
             }
         )
+        precision_interval = wilson_interval(
+            metrics["true_positive"], metrics["accepted_links"]
+        ) or [None, None]
+        recall_interval = wilson_interval(
+            metrics["true_positive"], metrics["positive_anchors"]
+        ) or [None, None]
+        rows[-1].update({
+            "precision_ci_low": precision_interval[0],
+            "precision_ci_high": precision_interval[1],
+            "recall_ci_low": recall_interval[0],
+            "recall_ci_high": recall_interval[1],
+        })
     return pd.DataFrame(rows)
 
 
@@ -217,7 +229,7 @@ def assert_frozen_m_b_point(sweep: pd.DataFrame, summary: dict[str, Any]) -> Non
         entry for entry in summary["methods"]
         if entry["method"] == "M_B_text_ranking"
     )
-    official = method["unweighted_all_frames"]
+    official = method["unweighted"]
     comparisons = {
         "accepted_links": official["accepted_links"],
         "precision": official["precision_at_1"],
@@ -318,103 +330,131 @@ def plot_curves(curves: dict[str, dict[str, Any]], path_roc: Path, path_pr: Path
 
 
 def plot_threshold_tradeoff(sweep: pd.DataFrame, path: Path) -> None:
-    """Plot the top-1 threshold trade-off without interpolation or smoothing."""
-    visible = sweep.loc[sweep["threshold"].between(0.10, 0.90)].copy()
-    operating = visible.loc[visible["threshold_percent"].isin([50, 60, 70, 75, 80])]
+    """Plot the top-1 threshold trade-off without interpolation or smoothing.
 
+    The steps are deliberately left as steps. Each riser is one anchor's decision
+    flipping, and at eight accepted links a fitted curve would draw precision
+    values between thresholds where nothing in the data changed. What the eye
+    reads as noise is instead given its proper name: the 95% Wilson band shows
+    that most of the jaggedness sits inside sampling uncertainty.
+    """
+    visible = sweep.loc[sweep["threshold"].between(0.10, 0.90)].copy()
+    operating = visible.loc[visible["threshold_percent"].isin([50, 60, 80])]
+
+    # Categorical slots 1-3 of the validated palette; the previous blue and teal
+    # sat below the chroma floor and read gray beside each other.
     colors = {
-        "precision": "#2F6B9A",
-        "recall": "#C07A24",
-        "false_positive_rate": "#3B8178",
-        "accepted": "#69727D",
-        "correct": "#2F6B9A",
+        "precision": "#2a78d6",
+        "recall": "#eb6834",
+        "false_positive_rate": "#1baf7a",
+        "accepted": "#898781",
+        "correct": "#2a78d6",
     }
-    fig, axes = plt.subplots(1, 3, figsize=(14.2, 4.5), constrained_layout=True)
+    grid = "#e1e0d9"
+    muted = "#898781"
+    ink = "#0b0b0b"
+    fig, axes = plt.subplots(1, 3, figsize=(14.2, 4.6), constrained_layout=True)
+    for ax in axes:
+        ax.grid(color=grid, linewidth=0.8, alpha=1.0)
+        ax.set_axisbelow(True)
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        for spine in ("left", "bottom"):
+            ax.spines[spine].set_color(grid)
+        ax.tick_params(colors=muted, labelsize=9)
 
     ax = axes[0]
-    for metric, label in [
-        ("precision", "Precision"),
-        ("recall", "Recall"),
-        ("false_positive_rate", "FPR"),
+    for metric, label, low, high in [
+        ("precision", "Precision", "precision_ci_low", "precision_ci_high"),
+        ("recall", "Recall", "recall_ci_low", "recall_ci_high"),
+        ("false_positive_rate", "FPR", None, None),
     ]:
+        if low is not None:
+            ax.fill_between(
+                visible["threshold"], visible[low], visible[high],
+                step="post", color=colors[metric], alpha=0.13, linewidth=0,
+            )
         ax.step(
-            visible["threshold"],
-            visible[metric],
-            where="post",
-            linewidth=2,
-            color=colors[metric],
-            label=label,
+            visible["threshold"], visible[metric], where="post",
+            linewidth=2, color=colors[metric], label=label,
         )
-    ax.axvline(0.70, color="#20262E", linestyle="--", linewidth=1.3)
-    ax.text(0.705, 0.04, "Frozen 0.70", rotation=90, va="bottom", fontsize=8)
-    ax.set_title("Metrics by acceptance threshold", fontsize=11)
-    ax.set_xlabel("Minimum text similarity")
-    ax.set_ylabel("Rate")
-    ax.set_xlim(0.10, 0.90)
+    ax.axvline(0.70, color=ink, linestyle="--", linewidth=1.2)
+    ax.text(0.695, 0.055, "Frozen 0.70", rotation=90, va="bottom", ha="right",
+            fontsize=8, color=muted)
+    # Direct labels at the right edge: identity without reading a legend box,
+    # and the relief the aqua slot's contrast warning requires.
+    right = visible.iloc[-1]
+    for metric, label in [("precision", "Precision"), ("recall", "Recall"),
+                          ("false_positive_rate", "FPR")]:
+        ax.annotate(
+            label, (0.90, right[metric]), xytext=(4, 0), textcoords="offset points",
+            fontsize=8.5, color=colors[metric], va="center",
+        )
+    ax.set_title("Metrics by acceptance threshold", fontsize=11, color=ink)
+    ax.set_xlabel("Minimum text similarity", fontsize=9, color=muted)
+    ax.set_ylabel("Rate", fontsize=9, color=muted)
+    ax.set_xlim(0.10, 0.98)
     ax.set_ylim(0, 1.02)
-    ax.grid(alpha=0.22)
-    ax.legend(frameon=False, fontsize=8, loc="upper right")
+    ax.legend(frameon=False, fontsize=8, loc="lower left", labelcolor=muted)
 
     ax = axes[1]
     valid = visible.dropna(subset=["precision"])
-    ax.plot(
-        valid["recall"],
-        valid["precision"],
-        color="#69727D",
-        linewidth=1.5,
-        marker="o",
-        markersize=2.5,
-    )
+    ax.plot(valid["recall"], valid["precision"], color=muted, linewidth=1,
+            alpha=0.55, zorder=1)
     for row in operating.itertuples(index=False):
         if pd.isna(row.precision):
             continue
-        ax.scatter(row.recall, row.precision, color="#C07A24", s=28, zorder=3)
+        ax.scatter(row.recall, row.precision, color=colors["recall"], s=30,
+                   zorder=3, edgecolor="#fcfcfb", linewidth=2)
         ax.annotate(
-            f"{row.threshold:.2f}",
-            (row.recall, row.precision),
-            xytext=(4, 5),
-            textcoords="offset points",
-            fontsize=8,
+            f"{row.threshold:.2f}", (row.recall, row.precision),
+            xytext=(5, 6), textcoords="offset points", fontsize=8.5, color=muted,
         )
     frozen = sweep.loc[sweep["threshold_percent"].eq(70)].iloc[0]
-    ax.scatter(
+    ax.errorbar(
         frozen["recall"], frozen["precision"],
-        facecolor="white", edgecolor="#20262E", linewidth=1.5, s=80, zorder=4,
+        yerr=[[frozen["precision"] - frozen["precision_ci_low"]],
+              [frozen["precision_ci_high"] - frozen["precision"]]],
+        xerr=[[frozen["recall"] - frozen["recall_ci_low"]],
+              [frozen["recall_ci_high"] - frozen["recall"]]],
+        fmt="o", markersize=9, markerfacecolor="#fcfcfb", markeredgecolor=ink,
+        markeredgewidth=1.5, ecolor=ink, elinewidth=1.1, capsize=3, alpha=0.85,
+        zorder=4,
     )
-    ax.set_title("Precision-recall operating points", fontsize=11)
-    ax.set_xlabel("Recall")
-    ax.set_ylabel("Precision")
-    ax.set_xlim(0, 0.75)
-    ax.set_ylim(0, 1.02)
-    ax.grid(alpha=0.22)
+    ax.annotate("Frozen 0.70", (frozen["recall"], frozen["precision"]),
+                xytext=(12, 4), textcoords="offset points", fontsize=8.5, color=ink)
+    ax.set_title("Precision-recall operating points", fontsize=11, color=ink)
+    ax.set_xlabel("Recall", fontsize=9, color=muted)
+    ax.set_ylabel("Precision", fontsize=9, color=muted)
+    ax.set_xlim(0.15, 0.80)
+    ax.set_ylim(0.15, 1.05)
 
     ax = axes[2]
-    ax.step(
-        visible["threshold"], visible["accepted_links"], where="post",
-        color=colors["accepted"], linewidth=2, label="Accepted links",
-    )
-    ax.step(
-        visible["threshold"], visible["true_positive"], where="post",
-        color=colors["correct"], linewidth=2, label="Correct successors",
-    )
-    ax.axvline(0.70, color="#20262E", linestyle="--", linewidth=1.3)
-    ax.set_title("Decision volume by threshold", fontsize=11)
-    ax.set_xlabel("Minimum text similarity")
-    ax.set_ylabel("Validation anchors")
+    ax.step(visible["threshold"], visible["accepted_links"], where="post",
+            color=colors["accepted"], linewidth=2, label="Accepted links")
+    ax.step(visible["threshold"], visible["true_positive"], where="post",
+            color=colors["correct"], linewidth=2, label="Correct successors")
+    ax.axvline(0.70, color=ink, linestyle="--", linewidth=1.2)
+    ax.set_title("Decision volume by threshold", fontsize=11, color=ink)
+    ax.set_xlabel("Minimum text similarity", fontsize=9, color=muted)
+    ax.set_ylabel("Locked-split anchors", fontsize=9, color=muted)
     ax.set_xlim(0.10, 0.90)
     ax.set_ylim(bottom=0)
-    ax.grid(alpha=0.22)
-    ax.legend(frameon=False, fontsize=8)
+    ax.legend(frameon=False, fontsize=8, loc="center right", labelcolor=muted)
 
+    anchors = int(sweep["positive_anchors"].iloc[0] + sweep["negative_anchors"].iloc[0])
+    positives = int(sweep["positive_anchors"].iloc[0])
     fig.suptitle(
-        "M_B top-1 threshold trade-off on the internal validation reference",
+        "M_B top-1 threshold trade-off on the locked regional-reference split",
         fontsize=13,
     )
     fig.text(
         0.5,
         -0.035,
-        "60 anchors (22 with a labelled successor). Empirical steps only; no smoothing. "
-        "Bootstrap labels are development evidence, not independent validation.",
+        f"{anchors} anchors ({positives} with a reviewed successor). Empirical steps only; "
+        "no smoothing - each riser is one anchor changing decision. Shaded bands and "
+        "whiskers are 95% Wilson intervals. A single-pass LLM-assisted reference "
+        "sample, not independent validation.",
         ha="center",
         fontsize=8.5,
         color="#4A535E",
@@ -437,10 +477,52 @@ def markdown_table(frame: pd.DataFrame, columns: list[str]) -> str:
     return "\n".join(lines)
 
 
+def sweep_row(sweep: pd.DataFrame, threshold_percent: float) -> pd.Series:
+    match = sweep.loc[sweep["threshold_percent"].eq(threshold_percent)]
+    if len(match) != 1:
+        raise RuntimeError(f"threshold sweep has no unique row at {threshold_percent}")
+    return match.iloc[0]
+
+
+def describe_point(row: pd.Series) -> str:
+    """One threshold row in words, straight from the row."""
+    return (
+        f"{int(row['true_positive'])} correct of {int(row['accepted_links'])} accepted "
+        f"(precision `{row['precision']:.4f}`), recall `{row['recall']:.4f}`, "
+        f"FPR `{row['false_positive_rate']:.4f}`"
+    )
+
+
+def threshold_narrative(
+    validation_sweep: pd.DataFrame, dev_sweep: pd.DataFrame
+) -> str:
+    """Write the threshold paragraph from the sweeps rather than from memory.
+
+    Every number here is read out of the current sweep tables, so this paragraph
+    cannot drift away from the figures beside it the way a hand-typed one does.
+    """
+    frozen_validation = sweep_row(validation_sweep, 70.0)
+    lower_validation = sweep_row(validation_sweep, 60.0)
+    frozen_dev = sweep_row(dev_sweep, 70.0)
+    lower_dev = sweep_row(dev_sweep, 60.0)
+    return (
+        f"On the locked split the frozen `0.70` gives {describe_point(frozen_validation)}; "
+        f"`0.60` gives {describe_point(lower_validation)}. On the pilot split `0.70` gives "
+        f"{describe_point(frozen_dev)} against {describe_point(lower_dev)} at `0.60`. "
+        "`0.70` was fixed before this reference was read and has not been moved since, "
+        "which is the only reason the locked split can be reported as held out. Selecting "
+        "a threshold now, from these rows, would convert the locked split into a tuning "
+        "set and forfeit that. `0.60` therefore stays a sensitivity arm whatever these "
+        "rows say."
+    )
+
+
 def write_quality_markdown(
     validation_confusion: pd.DataFrame,
     validation_pair_metrics: pd.DataFrame,
     validation_threshold_sweep: pd.DataFrame,
+    dev_threshold_sweep: pd.DataFrame,
+    manifest: dict[str, Any],
 ) -> Path:
     event = validation_confusion.loc[
         validation_confusion["matrix_type"].eq("event_detection")
@@ -461,10 +543,26 @@ def write_quality_markdown(
         ],
     ].copy()
 
+    positive_pairs = int(pair["positive_pairs"].iloc[0])
+    negative_pairs = int(pair["negative_pairs"].iloc[0])
+    splits = manifest["splits"]["validation"]
+    ceiling = manifest["candidate_reachability"]
+
     path = PROJECT_ROOT / "QUALITY_EVIDENCE.md"
     path.write_text(
         "# Linkage Quality Evidence\n\n"
-        "Generated from the held-out split of the current national development reference. These labels come from deterministic bootstrap rules, not independent specialist review.\n\n"
+        f"Generated from the locked split of the Grand Ouest regional reference: "
+        f"`{splits['usable_anchors']}` usable anchors, of which `{splits['positive_anchors']}` "
+        "have a reviewed observable successor. The labels come from a single-pass "
+        "LLM-assisted review of real BOAMP notices carried out on 2026-08-11, before "
+        "these linkage methods existed. They are independent of the algorithms scored "
+        "below, which the retired France-level reference was not, but they are neither "
+        "an independent human specialist panel nor legal renewal truth.\n\n"
+        f"Recall is capped before any method runs: candidate generation reaches "
+        f"`{ceiling['positive_anchors_with_reviewed_successor_in_pool']}` of "
+        f"`{ceiling['positive_anchors']}` reviewed successors, a ceiling of "
+        f"`{ceiling['candidate_generation_recall_ceiling']:.4f}`. No method below can "
+        "exceed it, and the gap is a blocking-stage limitation rather than a scoring one.\n\n"
         "## Academic Basis And Evidence Boundary\n\n"
         "The metric choice is supported by [Davis and Goadrich (2006)](https://doi.org/10.1145/1143844.1143874), who analyse the relationship between ROC and precision-recall curves for skewed binary decisions, and [Saito and Rehmsmeier (2015)](https://doi.org/10.1371/journal.pone.0118432), who show why precision-recall analysis is more informative for imbalanced data. The classical probabilistic linkage comparator follows [Fellegi and Sunter (1969)](https://doi.org/10.1080/01621459.1969.10501049). These sources justify methods and diagnostics; they do not validate this project's labels, numerical results, or `0.70` threshold.\n\n"
         "The figures below are generated from this project's data and code. Generic web or presentation illustrations are explanatory aids only and are not used as academic evidence.\n\n"
@@ -472,21 +570,22 @@ def write_quality_markdown(
         "- **Confusion matrix:** anchor-level evidence, matching the actual pipeline decision: one accepted successor or abstention.\n"
         "- **Exact-successor accounting:** stricter project metric; a wrong successor is both a false accepted link and a missed true successor.\n"
         "- **ROC curve:** pair-level score-ranking diagnostic over exposed candidate pairs. Useful, but less important than precision-recall because positives are rare.\n"
-        "- **Precision-recall curve:** pair-level score-ranking diagnostic. This is the better curve for this project because validation has only 62 positive pairs out of 1,763 candidate pairs.\n"
+        f"- **Precision-recall curve:** pair-level score-ranking diagnostic. This is the better curve for this project because the locked split has only {positive_pairs} positive pairs among {positive_pairs + negative_pairs} candidate pairs.\n"
         "- **Threshold trade-off:** anchor-level sweep of the actual `M_B` top-1 decision. It shows how strict acceptance changes precision, recall, false-positive rate, and link volume.\n\n"
-        "## Held-Out Internal Event-Detection Confusion Matrix\n\n"
+        "## Held-Out Event-Detection Confusion Matrix\n\n"
         "Rows are actual anchor status; columns are predicted link/abstention. Here, a wrong candidate on a positive anchor still counts as detecting that the anchor has a successor.\n\n"
         f"{markdown_table(event, ['method', 'threshold', 'tp', 'fp', 'fn', 'tn'])}\n\n"
-        "## Held-Out Internal Exact-Successor Accounting\n\n"
+        "## Held-Out Exact-Successor Accounting\n\n"
         "This is the stricter accounting behind project precision and recall. Cells do not necessarily sum to the number of anchors because a wrong successor contributes one FP and one FN.\n\n"
         f"{markdown_table(exact, ['method', 'threshold', 'tp', 'fp', 'fn', 'tn'])}\n\n"
-        "## Held-Out Internal Pair-Level ROC and Precision-Recall Metrics\n\n"
+        "## Held-Out Pair-Level ROC and Precision-Recall Metrics\n\n"
         f"{markdown_table(pair, ['method', 'pair_roc_auc', 'pair_average_precision', 'positive_pairs', 'negative_pairs'])}\n\n"
+        "A negative pair here is any exposed candidate that is not the reviewed successor. The reviewer inspected roughly 25 candidates per anchor, so most negatives were never individually rejected; these curves rank scores and do not measure accuracy.\n\n"
         "## M_B Anchor-Level Threshold Trade-Off\n\n"
         f"{markdown_table(operating, ['threshold', 'accepted_links', 'true_positive', 'precision', 'recall', 'false_positive_rate', 'coverage'])}\n\n"
-        "At `0.60`, the internal validation split has 8 correct successors among 9 accepted links (precision `0.8889`) and recall `0.3636`. At the frozen `0.70`, it has 4 correct successors among 5 accepted links (precision `0.8000`) and recall `0.1818`. Thus `0.60` empirically dominates `0.70` on this particular validation sample. The development evidence points the other way: `0.70` has precision `0.8750` and FPR `0.0345`, compared with precision `0.8000` and FPR `0.0575` at `0.60`. The production-link diagnostic at `0.70` also confirmed only 14 of 20 links conservatively. Therefore `0.70` is retained as the previously frozen conservative baseline, not described as optimal; `0.60` remains a required sensitivity arm. Promoting the unreviewed lower threshold after observing four favourable incremental validation cases would be post-hoc tuning.\n\n"
+        f"{threshold_narrative(validation_threshold_sweep, dev_threshold_sweep)}\n\n"
         "## Interpretation\n\n"
-        "`M_B_text_ranking @ 0.70` is the frozen conservative operating baseline, not a claim of threshold optimality. Its role is to provide one reproducible primary event definition while `0.60`, `0.80`, `M_C`, and expiry-aware variants quantify sensitivity. The bootstrap labels support development comparisons but cannot establish external accuracy.\n\n"
+        "`M_B_text_ranking @ 0.70` is the frozen conservative operating baseline, not a claim of threshold optimality. Its role is to provide one reproducible primary event definition while `0.60`, `0.80`, and `M_C @ 0.70` quantify event-definition sensitivity and a fixed borderline band around the threshold tests how much rests on near-boundary decisions. On a reference of this size every figure above should be read with its interval: two methods whose intervals overlap have not been separated by this evidence.\n\n"
         "## Plot Files\n\n"
         "- `reports/figures/benchmark_validation_confusion_matrices.png`\n"
         "- `reports/figures/benchmark_validation_pair_roc.png`\n"
@@ -507,14 +606,8 @@ def build(split: str) -> dict[str, Any]:
 
     confusion = anchor_confusion(summary)
     pair_metrics, curves = pair_curve_tables(modeling)
-    truth, _ = load_truth(
-        BENCHMARK,
-        split,
-        "primary",
-        project_root=PROJECT_ROOT,
-        allow_sealed=False,
-        seal_reason="",
-    )
+    truth = load_truth(BENCHMARK, split, "primary")
+    truth = truth.loc[truth["truth_usable"]].copy()
     sweep = threshold_sweep(modeling, truth)
     assert_frozen_m_b_point(sweep, summary)
     confusion_path = OUTPUT_DIR / f"{split}_anchor_confusion.csv"
@@ -553,14 +646,18 @@ def main() -> int:
     validation_threshold_sweep = pd.read_csv(
         OUTPUT_DIR / "validation_m_b_threshold_sweep.csv"
     )
+    dev_threshold_sweep = pd.read_csv(OUTPUT_DIR / "dev_m_b_threshold_sweep.csv")
+    manifest = load_json(BENCHMARK / "regional_benchmark_manifest.json")
     markdown_path = write_quality_markdown(
         validation_confusion,
         validation_pair_metrics,
         validation_threshold_sweep,
+        dev_threshold_sweep,
+        manifest,
     )
     result = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "benchmark": "national",
+        "benchmark": "regional_grand_ouest",
         "event_set": "primary",
         "notes": {
             "confusion_matrix": (

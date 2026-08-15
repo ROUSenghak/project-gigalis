@@ -61,7 +61,7 @@ def main() -> int:
     main = survival["variants"]["main"]
     method_rows = []
     for item in evaluation["methods"]:
-        metrics = item["unweighted_all_frames"]
+        metrics = item["unweighted"]
         method_rows.append(
             {
                 "method": item["method"],
@@ -72,7 +72,7 @@ def main() -> int:
                 "fpr": metrics["false_positive_rate_on_negatives"],
                 "positive_anchors": metrics["positive_anchors"],
                 "negative_anchors": metrics["negative_anchors"],
-                "reference_status": "deterministic bootstrap labels",
+                "reference_status": "regional reference sample; single-pass LLM-assisted review",
             }
         )
 
@@ -234,7 +234,7 @@ def main() -> int:
             "Held-out internal development-reference evaluation",
             "methods",
             "SELECT * FROM methods",
-            "Anchor-level exact-successor evaluation on the held-out bootstrap-labelled split.",
+            "Anchor-level exact-successor evaluation on the locked split of the regional reference.",
             "data/processed/boamp/linkage_evaluation_validation.json",
             [
                 "Precision = exact true successors / accepted successors.",
@@ -349,7 +349,7 @@ def main() -> int:
         {
             "id": "method-table",
             "title": "Held-Out Internal Method Comparison",
-            "subtitle": "Bootstrap-labelled reference; these are development diagnostics, not independent validation.",
+            "subtitle": "Grand Ouest regional reference sample; independent of the methods scored, but not an independent specialist panel.",
             "dataset": "methods",
             "sourceId": "evaluation",
             "defaultSort": {"field": "precision", "direction": "desc"},
@@ -393,7 +393,7 @@ def main() -> int:
                 "**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is "
                 "reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable "
                 "frozen conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from deterministic "
-                "bootstrap labels rather than independent specialist ground truth. Survival and trend "
+                "a single-pass LLM-assisted reference sample rather than independent specialist ground truth. Survival and trend "
                 "results are therefore descriptive and conditional on the linkage definition. The "
                 "model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. "
                 "Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."
@@ -463,7 +463,7 @@ def main() -> int:
                 "digital cohort with CPV divisions, blocks candidates to the same plausible buyer and 90-2,920 future days, "
                 "compares four linkage algorithms, selects at most one successor or abstains, and builds a right-censored "
                 "survival table. Validated SIREN evidence outranks names; intercommunal legal entities remain distinct; text "
-                "and CPV continuity are evidence rather than legal proof. The expiry-aware rule is retained as an audit arm."
+                "and CPV continuity are evidence rather than legal proof. Event-definition sensitivity is carried by the four threshold and method arms plus the borderline-band check."
             ),
         },
         {"id": "readiness-heading", "type": "markdown", "body": "## Limitations And Readiness\n\nThe table separates completed descriptive evidence from conditions required for stronger future claims."},
@@ -473,7 +473,7 @@ def main() -> int:
             "type": "markdown",
             "body": (
                 "## Final Reporting Requirements And Future Work\n\n"
-                "1. Keep the current threshold frozen and report `0.60`, `0.80`, `M_C`, and expiry-aware sensitivities.\n"
+                "1. Keep the current threshold frozen and report `0.60`, `0.80`, and `M_C @ 0.70` sensitivities plus the borderline-band check.\n"
                 "2. Keep survival conclusions descriptive and linkage-conditioned.\n"
                 "3. State explicitly that the guide's supervised technology classifier and operational individual forecasting are outside the completed scope.\n"
                 "4. Treat independent human review and a compact semantic spot-check as future strengthening work before external accuracy or production claims."
@@ -486,7 +486,7 @@ def main() -> int:
                 "## Further Questions\n\n"
                 "- Does independent review preserve precision near the 0.80 target?\n"
                 "- Which buyer-name cases require additional SIREN/SIRET resolution?\n"
-                "- Do key survival associations persist under strict and expiry-aware event definitions?\n"
+                "- Do key survival associations persist under the strict event definition and with borderline links excluded?\n"
                 "- Can an awarded-amount variable be defined consistently across BOAMP schemas?"
             ),
         },

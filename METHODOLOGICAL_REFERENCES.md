@@ -36,7 +36,7 @@ results.
 4. Keep the 90-2,920 day interval as an operational broad candidate window, not
    a statutory contract-duration rule.
 5. Do not impute missing duration or assume every framework lasts four years.
-6. Treat linkage metrics from deterministic bootstrap labels as development
+6. Treat linkage metrics from a single-pass LLM-assisted reference sample as provisional
    diagnostics until the blinded specialist review is completed.
 7. Use the empirical, unsmoothed anchor-level precision-recall threshold sweep
    as project evidence. Generic web illustrations may explain intuition in a

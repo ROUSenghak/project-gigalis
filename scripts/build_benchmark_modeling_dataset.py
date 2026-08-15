@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-"""Build modeling-ready tables from the canonical benchmark and exposure features.
+"""Build pair-level modeling tables from the regional reference and its exposure.
 
-The output is intentionally split-aware: dev is for calibration, validation is
-for method selection, and sealed test is not read here.
+One row per reviewed anchor and exposed candidate. ``y_primary`` marks the pair
+the reviewer named as the observable successor; every other candidate the
+production blocking step proposed for that anchor is a negative.
+
+That negative definition is corpus-relative and the tables say so: the reviewer
+saw roughly 25 candidates per anchor, so a pair labelled 0 here means "not the
+successor the reviewer identified", not "reviewed and rejected". The curves
+built from these tables are score-ranking diagnostics, not accuracy claims.
+
+Split roles: ``dev`` is the reference's own pilot stratum, kept for display;
+``validation`` is its locked stratum and is where the frozen policy is read.
 """
 
 from __future__ import annotations
@@ -20,11 +29,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from boamp_pipeline.annotation_schema import EVENT_SETS  # noqa: E402
 from boamp_pipeline.fellegi_sunter_scoring import score_with_fitted_model  # noqa: E402
+from boamp_pipeline.regional_benchmark_io import load_truth  # noqa: E402
 
-DEFAULT_BENCHMARK_DIR = Path("data/processed/boamp/benchmark")
+DEFAULT_BENCHMARK_DIR = Path("data/processed/boamp/regional_benchmark")
 
+#: Features carried through from the production candidate pool. This is a
+#: shorter list than the retired national exposure carried, because the study's
+#: own blocking step is what generates these pairs and it does not compute the
+#: benchmark-only enrichment columns.
 FEATURE_COLUMNS = [
     "gap_days",
     "buyer_name_similarity",
@@ -36,121 +49,94 @@ FEATURE_COLUMNS = [
     "time_component",
     "evidence_components",
     "linkage_score",
-    "shared_supplier",
-    "shared_reference_stem",
-    "days_from_expected_end",
-    "candidate_digital_segment",
-    "candidate_main_cpv",
     "buyer_match_type",
-    "gap_bucket",
-    "is_random_tail",
-    "tail_inclusion_probability",
+    "candidate_is_digital",
     "fs_match_weight",
     "fs_match_probability",
 ]
 
-IDENTITY_COLUMNS = [
-    "split",
-    "frame",
-    "stratum_id",
-    "anchor_episode_id",
-    "candidate_episode_id",
-    "buyer_block_key",
+NUMERIC_EVIDENCE = [
+    "buyer_name_similarity", "word_tfidf_similarity", "char_tfidf_similarity",
+    "buyer_component", "text_component", "cpv_component", "time_component",
+    "linkage_score",
 ]
 
-DESIGN_COLUMNS = [
-    "inclusion_probability",
-    "design_weight",
-    "pool_size",
-    "exposure_mode",
+IDENTITY_COLUMNS = [
+    "split", "frame", "stratum_id", "anchor_episode_id", "candidate_episode_id",
 ]
+
+DESIGN_COLUMNS = ["inclusion_probability", "design_weight", "pool_size", "exposure_mode"]
 
 LABEL_COLUMNS = [
-    "label",
-    "confidence",
-    "anchor_verdict",
-    "negative_is_censored",
-    "negative_verification",
+    "label", "anchor_verdict", "negative_is_censored", "negative_verification",
 ]
 
 
 def load_split(benchmark_dir: Path, split: str) -> pd.DataFrame:
-    pairs = pd.read_parquet(benchmark_dir / f"benchmark_{split}_pairs.parquet")
-    anchors = pd.read_parquet(benchmark_dir / f"benchmark_{split}.parquet")
+    truth = load_truth(benchmark_dir, split, "primary")
+    truth = truth.loc[truth["truth_usable"]].copy()
     exposure = pd.read_parquet(benchmark_dir / "exposure_full.parquet")
-    exposure = score_with_fitted_model(exposure, benchmark_dir.parent / "fellegi_sunter_model.json")
+    exposure = score_with_fitted_model(
+        exposure, benchmark_dir.parent / "fellegi_sunter_model.json"
+    )
 
-    anchor_fields = anchors[
-        [
-            "anchor_episode_id",
-            "negative_is_censored",
-            "negative_verification",
-            "has_successor_strict",
-            "has_successor_primary",
-            "has_successor_broad",
-        ]
+    positives = {
+        (record.anchor_episode_id, successor)
+        for record in truth.itertuples(index=False)
+        for successor in record.true_successors
+    }
+    anchor_fields = truth[[
+        "anchor_episode_id", "anchor_verdict", "stratum_id", "inclusion_probability",
+        "design_weight", "pool_size", "exposure_mode", "negative_is_censored",
+        "negative_verification", "has_successor_primary",
+    ]]
+
+    pairs = exposure.loc[
+        exposure["anchor_episode_id"].isin(set(truth["anchor_episode_id"]))
+    ].copy()
+    merged = pairs.merge(
+        anchor_fields, on="anchor_episode_id", how="inner", validate="many_to_one",
+        suffixes=("", "_anchor"),
+    )
+    merged["split"] = split
+    merged["frame"] = "PROBABILITY"
+    merged["y_primary"] = [
+        int(pair in positives)
+        for pair in zip(merged["anchor_episode_id"], merged["candidate_episode_id"])
     ]
-    merged = (
-        pairs.merge(anchor_fields, on="anchor_episode_id", how="left", validate="many_to_one")
-        .merge(
-            exposure[
-                ["anchor_episode_id", "candidate_episode_id", *FEATURE_COLUMNS]
-            ],
-            on=["anchor_episode_id", "candidate_episode_id"],
-            how="left",
-            validate="one_to_one",
-        )
-    )
-
-    for event_set, labels in EVENT_SETS.items():
-        merged[f"y_{event_set}"] = merged["label"].isin(labels).astype("int8")
-    merged["y_nonmatch"] = (merged["label"] == "UNRELATED").astype("int8")
-    merged["sample_weight"] = merged["design_weight"].where(
-        merged["frame"].eq("PROBABILITY"), pd.NA
-    )
+    merged["label"] = merged["y_primary"].map({1: "RENEWAL_OF_EXPIRING", 0: "UNRELATED"})
+    merged["y_nonmatch"] = 1 - merged["y_primary"]
+    merged["sample_weight"] = merged["design_weight"]
 
     keep = [
-        *IDENTITY_COLUMNS,
-        *DESIGN_COLUMNS,
-        *LABEL_COLUMNS,
-        "y_strict",
-        "y_primary",
-        "y_broad",
-        "y_nonmatch",
-        "has_successor_strict",
-        "has_successor_primary",
-        "has_successor_broad",
-        "sample_weight",
+        *IDENTITY_COLUMNS, *DESIGN_COLUMNS, *LABEL_COLUMNS,
+        "y_primary", "y_nonmatch", "has_successor_primary", "sample_weight",
         *FEATURE_COLUMNS,
     ]
     missing = [column for column in keep if column not in merged.columns]
     if missing:
         raise RuntimeError(f"{split} modeling table is missing columns: {missing}")
-    return merged[keep].sort_values(["anchor_episode_id", "candidate_episode_id"]).reset_index(drop=True)
+    return (
+        merged[keep]
+        .sort_values(["anchor_episode_id", "candidate_episode_id"])
+        .reset_index(drop=True)
+    )
 
 
 def profile(frame: pd.DataFrame) -> dict[str, Any]:
-    probability = frame.loc[frame["frame"].eq("PROBABILITY")]
     return {
         "rows": int(len(frame)),
         "anchors": int(frame["anchor_episode_id"].nunique()),
-        "probability_frame_anchors": int(probability["anchor_episode_id"].nunique()),
         "primary_positive_pairs": int(frame["y_primary"].sum()),
-        "strict_positive_pairs": int(frame["y_strict"].sum()),
-        "broad_positive_pairs": int(frame["y_broad"].sum()),
-        "verified_negative_anchors": int(
-            frame.drop_duplicates("anchor_episode_id")["negative_verification"]
-            .eq("EXHAUSTIVE_POOL")
-            .sum()
+        "positive_anchors": int(
+            frame.drop_duplicates("anchor_episode_id")["has_successor_primary"].sum()
         ),
         "feature_missing_rate": {
             column: round(float(frame[column].isna().mean()), 4)
             for column in FEATURE_COLUMNS
             if column in frame.columns
         },
-        "label_counts": {
-            str(k): int(v) for k, v in frame["label"].value_counts().items()
-        },
+        "label_counts": {str(k): int(v) for k, v in frame["label"].value_counts().items()},
     }
 
 
@@ -168,18 +154,20 @@ def build(benchmark_dir: Path, force: bool) -> dict[str, Any]:
 
     result: dict[str, Any] = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
+        "benchmark": "regional_grand_ouest",
         "source_benchmark_dir": str(benchmark_dir),
         "role": {
-            "dev": "calibration and threshold tuning",
-            "validation": "method selection and adoption checks",
-            "sealed_test": "not read by this script",
+            "dev": "pilot stratum of the reference; threshold display only",
+            "validation": "locked stratum of the reference; held-out reading of the frozen policy",
         },
         "target_columns": {
-            "y_strict": sorted(EVENT_SETS["strict"]),
-            "y_primary": sorted(EVENT_SETS["primary"]),
-            "y_broad": sorted(EVENT_SETS["broad"]),
-            "y_nonmatch": ["UNRELATED"],
+            "y_primary": ["reviewed observable successor"],
+            "y_nonmatch": ["every other exposed candidate of a reviewed anchor"],
         },
+        "negative_definition": (
+            "Corpus-relative. A zero means the pair is not the successor the reviewer "
+            "named, not that the reviewer inspected and rejected it."
+        ),
         "feature_columns": FEATURE_COLUMNS,
         "outputs": {},
     }
@@ -188,13 +176,12 @@ def build(benchmark_dir: Path, force: bool) -> dict[str, Any]:
         frame = load_split(benchmark_dir, split)
         if frame[["anchor_episode_id", "candidate_episode_id"]].duplicated().any():
             raise RuntimeError(f"{split} contains duplicate anchor-candidate rows")
-        if frame[FEATURE_COLUMNS].drop(columns=["candidate_digital_segment", "candidate_main_cpv", "buyer_match_type", "gap_bucket"], errors="ignore").isna().all(axis=1).any():
+        if frame[NUMERIC_EVIDENCE].isna().all(axis=1).any():
             raise RuntimeError(f"{split} contains a row with no numeric feature evidence")
+        if frame["y_primary"].sum() == 0:
+            raise RuntimeError(f"{split} has no positive pair; curves would be undefined")
         frame.to_parquet(path, index=False, compression="zstd")
-        result["outputs"][split] = {
-            "file": str(path),
-            **profile(frame),
-        }
+        result["outputs"][split] = {"file": str(path), **profile(frame)}
 
     result["validation_passed"] = True
     summary_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -4,11 +4,20 @@ Generated: `2026-08-13T23:10:59`
 
 Pairs prepared: `60`
 
+> **Status: frozen, not reproducible.** This sample was drawn once and reviewed.
+> Its sampler and two of its three strata came from the France-level benchmark,
+> which was removed from the repository on 2026-08-15, so the draw cannot be
+> repeated. The completed labels are kept because the `PRIMARY_ACCEPTED`
+> stratum was drawn from production accepted links and is independent of that
+> benchmark; it is the only stratum quoted as active evidence. The two challenge
+> strata are retained for failure-mode reading only — see
+> `data/review/review_provenance.json`.
+
 ## Purpose
 
 This review is the minimum independent check needed before reporting linkage
 precision as externally validated. The reviewer file is blinded: it contains
-descriptions, buyer fields, CPVs, and dates, but no bootstrap label, algorithm
+descriptions, buyer fields, CPVs, and dates, but no reference label, algorithm
 decision, score, or sampling stratum.
 
 ## Sample Composition

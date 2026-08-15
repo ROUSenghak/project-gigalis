@@ -1,10 +1,11 @@
-"""Weighted estimation for the v3 benchmark.
+"""Design-weighted estimation for a stratified linkage reference.
 
-The v1 benchmark computed an inclusion probability and a sampling weight for
-each of its 120 anchors and then used them in no metric: every precision and
-recall it reports is an unweighted sample quantity presented as though it
-described a population. Its strata also varied 68-fold in inclusion
-probability, so the unweighted and weighted answers were never going to agree.
+The Grand Ouest reference drew its 120 anchors under a stratified design and
+recorded an inclusion probability and a sampling weight for every one of them,
+but computed no metric from either: its own precision and recall are unweighted
+sample quantities presented as though they described a population. Its strata
+vary 68-fold in inclusion probability, so the unweighted and weighted answers
+were never going to agree, and both are now reported side by side.
 
 This module supplies the layer that was missing. Precision, recall, the
 false-positive rate and coverage are all ratios of two survey totals, so each
@@ -29,7 +30,28 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 import pandas as pd
 
-from boamp_pipeline.benchmark_frame import assert_no_frame_mixing
+
+def assert_no_frame_mixing(sample: pd.DataFrame) -> None:
+    """Refuse to estimate from probability and purposive rows together.
+
+    Purposively recruited anchors carry no inclusion probability, so averaging
+    them into a design-weighted estimate silently invents one. The regional
+    reference is a pure probability sample and this never fires on it; the guard
+    stays so that adding an enrichment arm later cannot quietly corrupt an
+    estimate.
+    """
+    if "frame" not in sample.columns:
+        raise ValueError("sample has no 'frame' column; cannot verify frame separation")
+    frames = set(sample["frame"].dropna().unique())
+    probability = {f for f in frames if f == "PROBABILITY"}
+    enrichment = {f for f in frames if str(f).startswith("ENRICHMENT")}
+    if probability and enrichment:
+        raise ValueError(
+            "refusing to mix frames in one estimate: "
+            f"{sorted(probability)} with {sorted(enrichment)}. "
+            "Purposively recruited anchors carry no inclusion probability; "
+            "estimate on PROBABILITY rows only."
+        )
 
 
 def stratified_ratio_estimate(
@@ -49,8 +71,9 @@ def stratified_ratio_estimate(
         R = sum_h sum_i w_i y_i / sum_h sum_i w_i x_i
 
     with the standard linearised variance on the residual ``e = y - R x``. The
-    interval is what makes these numbers quotable: on samples this size a point
-    estimate alone invites exactly the over-reading that v1 suffered.
+    interval is what makes these numbers quotable: on a sample this size a point
+    estimate alone invites exactly the over-reading the reference's own
+    unweighted figures invite.
     """
     if frame.empty:
         return {"estimate": None, "standard_error": None, "n": 0}
@@ -195,10 +218,13 @@ def hard_negative_suite_metrics(
 ) -> dict[str, Any]:
     """How often a method accepts a pair that is provably not a renewal.
 
-    Unweighted by design: this suite has no inclusion probability. It is the
-    part of the evaluation that owes nothing to the bootstrap label generator,
-    which matters because those deterministic rules use some of the same text
-    and CPV evidence as the methods under evaluation.
+    Unweighted by design: this suite has no inclusion probability.
+
+    Retired with the France-level benchmark, which supplied the rule-generated
+    negative suite this scores. It existed to give that benchmark one stress
+    test its own label generator had not written; the regional reference does
+    not need the workaround, because its labels were never generated from the
+    methods' evidence in the first place.
     """
     accepted_pairs = set(
         zip(predictions["anchor_episode_id"], predictions["candidate_episode_id"])
@@ -273,9 +299,12 @@ def annotator_bias_report(
             if (usable & ~positive.astype(bool)).any() else None
         ),
         "interpretation": (
-            "A high correlation does not invalidate the benchmark, but it does mean "
-            "the labels and a text-ranking method share a source of error. The "
-            "rule-generated hard-negative challenge suite supplies a different "
-            "stress test, but still requires semantic validation."
+            "Association between the reference labels and the incumbent text score. "
+            "Under the retired rule-generated benchmark a high value was a warning, "
+            "because the labels were computed from that evidence. Under the regional "
+            "reference, whose labels were established by reading notices, a positive "
+            "association is expected and is evidence that the score tracks something "
+            "real; it is the size of the gap between the positive and negative medians "
+            "that says how separable the two classes are."
         ),
     }

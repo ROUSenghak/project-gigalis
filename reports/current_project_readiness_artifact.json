@@ -5,7 +5,7 @@
     "surface": "report",
     "title": "BOAMP Project: Current Methodological Readiness",
     "description": "Evidence-backed status of data quality, linkage, survival, trends, limitations, and next actions.",
-    "generatedAt": "2026-08-14T00:18:07",
+    "generatedAt": "2026-08-15T15:51:15",
     "cards": [
       {
         "id": "cohort-card",
@@ -141,7 +141,7 @@
       {
         "id": "method-table",
         "title": "Held-Out Internal Method Comparison",
-        "subtitle": "Bootstrap-labelled reference; these are development diagnostics, not independent validation.",
+        "subtitle": "Grand Ouest regional reference sample; independent of the methods scored, but not an independent specialist panel.",
         "dataset": "methods",
         "sourceId": "evaluation",
         "defaultSort": {
@@ -277,7 +277,7 @@
           "engine": "SQLite",
           "language": "sql",
           "sql": "SELECT * FROM methods",
-          "description": "Anchor-level exact-successor evaluation on the held-out bootstrap-labelled split.",
+          "description": "Anchor-level exact-successor evaluation on the locked split of the regional reference.",
           "tables_used": [
             "reports/current_project_readiness.db::methods",
             "data/processed/boamp/linkage_evaluation_validation.json"
@@ -361,7 +361,7 @@
       {
         "id": "summary",
         "type": "markdown",
-        "body": "## Executive Summary\n\n**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable frozen conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from deterministic bootstrap labels rather than independent specialist ground truth. Survival and trend results are therefore descriptive and conditional on the linkage definition. The model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."
+        "body": "## Executive Summary\n\n**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable frozen conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from deterministic a single-pass LLM-assisted reference sample rather than independent specialist ground truth. Survival and trend results are therefore descriptive and conditional on the linkage definition. The model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."
       },
       {
         "id": "headline-metrics",
@@ -415,7 +415,7 @@
       {
         "id": "methodology",
         "type": "markdown",
-        "body": "## Methodology And Logic\n\nThe pipeline standardises official BOAMP notices, reconstructs procurement episodes, defines a Grand Ouest digital cohort with CPV divisions, blocks candidates to the same plausible buyer and 90-2,920 future days, compares four linkage algorithms, selects at most one successor or abstains, and builds a right-censored survival table. Validated SIREN evidence outranks names; intercommunal legal entities remain distinct; text and CPV continuity are evidence rather than legal proof. The expiry-aware rule is retained as an audit arm."
+        "body": "## Methodology And Logic\n\nThe pipeline standardises official BOAMP notices, reconstructs procurement episodes, defines a Grand Ouest digital cohort with CPV divisions, blocks candidates to the same plausible buyer and 90-2,920 future days, compares four linkage algorithms, selects at most one successor or abstains, and builds a right-censored survival table. Validated SIREN evidence outranks names; intercommunal legal entities remain distinct; text and CPV continuity are evidence rather than legal proof. Event-definition sensitivity is carried by the four threshold and method arms plus the borderline-band check."
       },
       {
         "id": "readiness-heading",
@@ -430,18 +430,18 @@
       {
         "id": "next-steps",
         "type": "markdown",
-        "body": "## Final Reporting Requirements And Future Work\n\n1. Keep the current threshold frozen and report `0.60`, `0.80`, `M_C`, and expiry-aware sensitivities.\n2. Keep survival conclusions descriptive and linkage-conditioned.\n3. State explicitly that the guide's supervised technology classifier and operational individual forecasting are outside the completed scope.\n4. Treat independent human review and a compact semantic spot-check as future strengthening work before external accuracy or production claims."
+        "body": "## Final Reporting Requirements And Future Work\n\n1. Keep the current threshold frozen and report `0.60`, `0.80`, and `M_C @ 0.70` sensitivities plus the borderline-band check.\n2. Keep survival conclusions descriptive and linkage-conditioned.\n3. State explicitly that the guide's supervised technology classifier and operational individual forecasting are outside the completed scope.\n4. Treat independent human review and a compact semantic spot-check as future strengthening work before external accuracy or production claims."
       },
       {
         "id": "questions",
         "type": "markdown",
-        "body": "## Further Questions\n\n- Does independent review preserve precision near the 0.80 target?\n- Which buyer-name cases require additional SIREN/SIRET resolution?\n- Do key survival associations persist under strict and expiry-aware event definitions?\n- Can an awarded-amount variable be defined consistently across BOAMP schemas?"
+        "body": "## Further Questions\n\n- Does independent review preserve precision near the 0.80 target?\n- Which buyer-name cases require additional SIREN/SIRET resolution?\n- Do key survival associations persist under the strict event definition and with borderline links excluded?\n- Can an awarded-amount variable be defined consistently across BOAMP schemas?"
       }
     ]
   },
   "snapshot": {
     "version": 1,
-    "generatedAt": "2026-08-14T00:18:07",
+    "generatedAt": "2026-08-15T15:51:15",
     "status": "ready",
     "datasets": {
       "headline": [
@@ -456,46 +456,46 @@
         {
           "method": "M_A_deterministic",
           "threshold": 0.7,
-          "accepted_links": 6,
-          "precision": 0.1667,
-          "recall": 0.0455,
-          "fpr": 0.1053,
-          "positive_anchors": 22,
-          "negative_anchors": 38,
-          "reference_status": "deterministic bootstrap labels"
+          "accepted_links": 15,
+          "precision": 0.5333,
+          "recall": 0.4444,
+          "fpr": 0.1296,
+          "positive_anchors": 18,
+          "negative_anchors": 54,
+          "reference_status": "regional reference sample; single-pass LLM-assisted review"
         },
         {
           "method": "M_B_text_ranking",
           "threshold": 0.7,
-          "accepted_links": 5,
-          "precision": 0.8,
-          "recall": 0.1818,
+          "accepted_links": 8,
+          "precision": 0.875,
+          "recall": 0.3889,
           "fpr": 0.0,
-          "positive_anchors": 22,
-          "negative_anchors": 38,
-          "reference_status": "deterministic bootstrap labels"
+          "positive_anchors": 18,
+          "negative_anchors": 54,
+          "reference_status": "regional reference sample; single-pass LLM-assisted review"
         },
         {
           "method": "M_C_weighted_gated",
           "threshold": 0.7,
-          "accepted_links": 15,
-          "precision": 0.6,
-          "recall": 0.4091,
-          "fpr": 0.1053,
-          "positive_anchors": 22,
-          "negative_anchors": 38,
-          "reference_status": "deterministic bootstrap labels"
+          "accepted_links": 23,
+          "precision": 0.5217,
+          "recall": 0.6667,
+          "fpr": 0.1852,
+          "positive_anchors": 18,
+          "negative_anchors": 54,
+          "reference_status": "regional reference sample; single-pass LLM-assisted review"
         },
         {
           "method": "M_D_fellegi_sunter",
           "threshold": 0.65,
-          "accepted_links": 1,
-          "precision": 0.0,
-          "recall": 0.0,
-          "fpr": 0.0263,
-          "positive_anchors": 22,
-          "negative_anchors": 38,
-          "reference_status": "deterministic bootstrap labels"
+          "accepted_links": 5,
+          "precision": 0.2,
+          "recall": 0.0556,
+          "fpr": 0.0185,
+          "positive_anchors": 18,
+          "negative_anchors": 54,
+          "reference_status": "regional reference sample; single-pass LLM-assisted review"
         }
       ],
       "sensitivity": [
@@ -971,7 +971,7 @@
         "engine": "SQLite",
         "language": "sql",
         "sql": "SELECT * FROM methods",
-        "description": "Anchor-level exact-successor evaluation on the held-out bootstrap-labelled split.",
+        "description": "Anchor-level exact-successor evaluation on the locked split of the regional reference.",
         "tables_used": [
           "reports/current_project_readiness.db::methods",
           "data/processed/boamp/linkage_evaluation_validation.json"

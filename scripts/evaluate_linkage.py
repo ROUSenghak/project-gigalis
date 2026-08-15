@@ -24,10 +24,16 @@ Four methods are compared, then one is frozen:
 Every method may abstain: an anchor with no candidate clearing its rule
 returns *no automatic successor* rather than its best guess.
 
-Threshold analysis uses the national development split; method comparison uses
-the disjoint national validation split. The sealed test can only be opened
-through the audited loader. Without ``--evaluate-split``, the script applies
-the frozen production policy to the complete study cohort.
+Evaluation runs against the Grand Ouest regional reference sample
+(``scripts/build_regional_benchmark.py``). Its labels were established by
+review of real BOAMP notices before these methods existed, so unlike the
+retired France-level benchmark it does not score a method against a rule built
+from the method's own evidence. ``dev`` is the reference's own pilot stratum
+and exists for threshold display; ``validation`` is its locked stratum, and the
+operating point below was frozen before either was consulted.
+
+Without ``--evaluate-split``, the script applies the frozen production policy
+to the complete study cohort.
 """
 
 from __future__ import annotations
@@ -47,14 +53,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from boamp_pipeline.benchmark_io import load_truth
-from boamp_pipeline.benchmark_metrics import (
-    annotator_bias_report,
-    hard_negative_suite_metrics,
-    weighted_evaluate,
-)
+from boamp_pipeline.benchmark_metrics import annotator_bias_report, weighted_evaluate
 from boamp_pipeline.fellegi_sunter_scoring import score_with_fitted_model
 from boamp_pipeline.linkage import DEFAULT_WEIGHTS
+from boamp_pipeline.regional_benchmark_io import load_manifest, load_truth, wilson_interval
 
 DEFAULT_OUTPUT_DIR = Path("data/processed/boamp")
 EVALUATION_SCHEMA = "boamp_linkage_evaluation_schema_1.0"
@@ -79,8 +81,10 @@ FUZZY_BUYER_MIN_SIMILARITY = 0.82
 #: comment deliberately avoids frozen numeric claims.
 #:
 #: The choice remains a frozen conservative baseline rather than a claim that
-#: 0.70 is universally optimal. Development and validation threshold evidence
-#: disagree, so 0.60 is carried as a required sensitivity arm.
+#: 0.70 is universally optimal, and 0.60 is carried as a required sensitivity
+#: arm. The operating point was fixed before the regional reference was
+#: consulted and was not moved afterwards, which is what allows the regional
+#: locked split to be read as held-out rather than as a tuning set.
 PRIMARY_METHOD = "M_B_text_ranking"
 PRIMARY_THRESHOLD = 70.0
 
@@ -299,6 +303,8 @@ def evaluate(predictions: pd.DataFrame, truth: pd.DataFrame) -> dict[str, Any]:
     total = positives + negatives
     return {
         "anchors_evaluated": total,
+        "precision_at_1_interval_95": wilson_interval(tp, accepted),
+        "recall_at_1_interval_95": wilson_interval(tp, positives),
         "positive_anchors": positives,
         "negative_anchors": negatives,
         "accepted_links": accepted,
@@ -357,10 +363,12 @@ def apply_primary_linkage(output_dir: Path) -> dict[str, Any]:
         "contrast_threshold": CONTRAST_THRESHOLD,
         "weights": dict(DEFAULT_WEIGHTS),
         "gate_parameters": M_C_DEFAULTS,
+        "reference": "regional_grand_ouest",
         "selection_rule": (
-            "Frozen conservative baseline, not an optimal-threshold claim. The national "
-            "development and validation evidence disagree between 0.60 and 0.70, so 0.70 "
-            "defines the primary event while 0.60 remains a required sensitivity arm."
+            "Frozen conservative baseline, not an optimal-threshold claim. 0.70 was fixed "
+            "a priori on a precision-first principle - a false link fabricates both a "
+            "survival event and its event time - and was not moved after the regional "
+            "reference was consulted. 0.60 remains a required sensitivity arm."
         ),
     }
     (output_dir / "linkage_config.json").write_text(
@@ -390,22 +398,43 @@ def apply_primary_linkage(output_dir: Path) -> dict[str, Any]:
 
 
 
+def reference_label_frame(truth: pd.DataFrame, exposure: pd.DataFrame) -> pd.DataFrame:
+    """Pair-level labels for the anchors in one split.
+
+    Every exposed pair of a reviewed anchor is a label: the reviewed successor
+    is positive, everything else the reviewer had in front of them is negative.
+    Feeding this to :func:`annotator_bias_report` answers the question the
+    retired benchmark could not - whether the labels track the incumbent text
+    score - with an answer that means something, because these labels were not
+    produced from that score.
+    """
+    positives = {
+        (record.anchor_episode_id, successor)
+        for record in truth.itertuples(index=False)
+        for successor in record.true_successors
+    }
+    labels = exposure.loc[
+        exposure["anchor_episode_id"].isin(set(truth["anchor_episode_id"])),
+        ["anchor_episode_id", "candidate_episode_id"],
+    ].copy()
+    labels["label"] = [
+        "RENEWAL_OF_EXPIRING" if pair in positives else "UNRELATED"
+        for pair in zip(labels["anchor_episode_id"], labels["candidate_episode_id"])
+    ]
+    return labels
+
+
 def evaluate_benchmark(
     project_root: Path,
     output_dir: Path,
     split: str,
     event_set: str,
-    open_sealed: bool,
-    seal_reason: str,
 ) -> dict[str, Any]:
-    """Evaluate all frozen methods against one national benchmark split."""
-    benchmark_dir = output_dir / "benchmark"
+    """Evaluate all frozen methods against one regional reference split."""
+    benchmark_dir = output_dir / "regional_benchmark"
     exposure = pd.read_parquet(benchmark_dir / "exposure_full.parquet")
     exposure = score_with_fitted_model(exposure, output_dir / "fellegi_sunter_model.json")
-    truth, access_record = load_truth(
-        benchmark_dir, split, event_set,
-        project_root=project_root, allow_sealed=open_sealed, seal_reason=seal_reason,
-    )
+    truth = load_truth(benchmark_dir, split, event_set)
     truth = truth.loc[truth["truth_usable"]].copy()
     logging.info(
         "benchmark: split=%s event_set=%s anchors=%s", split, event_set, len(truth)
@@ -420,9 +449,6 @@ def evaluate_benchmark(
     scored = exposure.copy()
     evaluable = scored.loc[scored["anchor_episode_id"].isin(set(truth["anchor_episode_id"]))]
 
-    negatives_path = benchmark_dir / "structural_negatives.parquet"
-    negatives = pd.read_parquet(negatives_path) if negatives_path.exists() else pd.DataFrame()
-
     results: list[dict[str, Any]] = []
     for method in METHODS:
         if method == "M_D_fellegi_sunter" and "fs_match_probability" not in evaluable.columns:
@@ -432,43 +458,36 @@ def evaluate_benchmark(
             if method == "M_D_fellegi_sunter" else PRIMARY_THRESHOLD
         )
         predictions = predict(evaluable, method, threshold)
-        top1 = predictions.loc[predictions["predicted_rank"] == 1] if len(predictions) else predictions
         entry = {
             "method": method,
             "threshold": threshold,
-            "unweighted_all_frames": evaluate(predictions, truth),
+            "unweighted": evaluate(predictions, truth),
         }
-        # Design-weighted estimation is only meaningful on the probability
-        # frame. Enrichment anchors were purposively recruited and carry no
-        # inclusion probability, so they are reported unweighted and separately
-        # rather than averaged into a national figure.
-        probability = truth.loc[truth.get("frame", "PROBABILITY") == "PROBABILITY"]
-        enrichment = truth.loc[truth.get("frame", "PROBABILITY") != "PROBABILITY"]
-        if len(probability):
-            entry["weighted_national"] = weighted_evaluate(
-                predictions, probability, pool_membership=pool_membership
-            )
-        else:
-            entry["weighted_national"] = {
-                "anchors": 0,
-                "note": "no probability-frame anchors labelled yet; no national estimate possible",
-            }
-        if len(enrichment):
-            entry["unweighted_enrichment"] = evaluate(predictions, enrichment)
-        if len(negatives):
-            entry["hard_negatives"] = hard_negative_suite_metrics(top1, negatives)
+        # The reference is a stratified probability sample of the Grand Ouest
+        # cohort, so it also supports a design-weighted estimate. It is reported
+        # beside the unweighted figure, not instead of it: the stratum
+        # populations behind the weights were computed on the earlier episode
+        # reconstruction, which the unweighted sample quantity does not depend on.
+        entry["design_weighted"] = weighted_evaluate(
+            predictions, truth, pool_membership=pool_membership
+        )
+        entry["design_weighted"]["interpretation"] = (
+            "Design weights span 1 to 68, so this answers a different question from the "
+            "unweighted figure: it re-weights the reviewed sample back to the v1 Grand "
+            "Ouest frame, in which the well-identified strata this method links inside "
+            "were deliberately oversampled. Where a stratum contributes fewer than two "
+            "accepted rows the linearised variance is zero and the interval collapses; "
+            "a collapsed interval is missing information, not precision."
+        )
         results.append(entry)
 
-    labels_path = benchmark_dir / "labels_adjudicated.parquet"
-    bias = {}
-    if labels_path.exists():
-        labels = pd.read_parquet(labels_path)
-        settled = labels.loc[labels["label"].notna()]
-        bias = annotator_bias_report(settled, exposure)
+    manifest = load_manifest(benchmark_dir)
+    bias = annotator_bias_report(reference_label_frame(truth, evaluable), evaluable)
 
     summary = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
-        "benchmark": "national",
+        "benchmark": "regional_grand_ouest",
+        "reference_version": manifest["reference_version"],
         "split": split,
         "event_set": event_set,
         "scoring_sources": {
@@ -476,19 +495,29 @@ def evaluate_benchmark(
             "fellegi_sunter_model": str(output_dir / "fellegi_sunter_model.json"),
         },
         "anchors_evaluated": int(len(truth)),
+        "positive_anchors": int(truth["has_successor"].sum()),
+        "candidate_reachability": manifest["candidate_reachability"],
         "methods": results,
-        "annotator_bias": bias,
-        "sealed_access_record": access_record,
+        "label_score_association": bias,
         "caveats": {
-            "annotation_source": (
-                "Labels were produced by deterministic bootstrap rules in "
-                "scripts/auto_annotate_wave1a.py. Pass A and pass B repeat the same "
-                "rules under reordered framing, so kappa measures rule repeatability, "
-                "not independent inter-annotator agreement."
+            "label_source": (
+                "Labels come from a single-pass LLM-assisted evidence review of real "
+                "BOAMP notices by the project owner, dated 2026-08-11. They are "
+                "independent of every linkage method evaluated here, but they are not "
+                "an independent human specialist panel and not legal renewal truth."
             ),
-            "exposure_universe": (
-                "A negative means no successor inside the benchmark's candidate pool. "
-                "Predictions outside that pool are reported separately."
+            "negative_definition": (
+                "A negative means no successor among the roughly 25 candidates the "
+                "reviewer was shown, not no successor in the pool. The false-positive "
+                "rate on these anchors is therefore an upper bound."
+            ),
+            "sample_size": (
+                "Fewer than 100 usable anchors. Read every interval; a difference "
+                "between two methods that both fit inside one interval is not a result."
+            ),
+            "recall_ceiling": (
+                "Recall is bounded by candidate generation: see "
+                "candidate_reachability.candidate_generation_recall_ceiling."
             ),
         },
         "validation_passed": bool(results),
@@ -504,21 +533,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--project-root", type=Path, default=PROJECT_ROOT)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument(
-        "--evaluate-split", choices=["dev", "validation", "sealed_test"],
-        help="Evaluate one national benchmark split. Omit to apply the primary "
+        "--evaluate-split", choices=["dev", "validation"],
+        help="Evaluate one regional reference split. Omit to apply the primary "
              "method to the complete study cohort.",
     )
     parser.add_argument(
-        "--event-set", choices=["strict", "primary", "broad"], default="primary",
-        help="Which benchmark label classes count as an event.",
-    )
-    parser.add_argument(
-        "--open-sealed-test", action="store_true",
-        help="Authorise reading the sealed split. Every opening is logged.",
-    )
-    parser.add_argument(
-        "--seal-reason", default="",
-        help="Why the sealed split is being opened. Required with --open-sealed-test.",
+        "--event-set", choices=["primary"], default="primary",
+        help="Which reference label classes count as an event. The regional "
+             "reference records one relationship per anchor, so only the primary "
+             "event set exists.",
     )
     return parser.parse_args()
 
@@ -531,7 +554,6 @@ def main() -> int:
     if args.evaluate_split:
         summary = evaluate_benchmark(
             project_root, output_dir, args.evaluate_split, args.event_set,
-            args.open_sealed_test, args.seal_reason,
         )
     else:
         summary = apply_primary_linkage(output_dir)
