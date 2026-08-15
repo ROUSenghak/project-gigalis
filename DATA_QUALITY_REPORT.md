@@ -1,6 +1,6 @@
 # BOAMP Data Quality Report
 
-Generated: `2026-08-15T16:23:55`  
+Generated: `2026-08-15T18:57:55`  
 Data through: `2025-12-31`  
 Assessment: **Share with caveats**
 
@@ -129,9 +129,20 @@ by candidate generation, before any method runs. Intervals matter at this sample
 size — see `QUALITY_EVIDENCE.md`.
 
 A caveat binds cell 6 in particular: reference negatives are corpus-relative,
-because roughly 25 candidates per anchor were considered rather than the full
-pool, so the reported false-positive rate is an upper bound on correctness rather
-than a measured error rate.
+because roughly 25 candidates per anchor were considered rather than the full pool.
+An accepted link on an anchor labelled negative counts as an error even when the
+research pass never saw that candidate, so the figure is conservative by
+construction: it can overstate error but not understate it. It remains a
+diagnostic on this sample rather than a population-wide false-positive rate — the
+reference is a stratified sample with design weights spanning 1 to 68, and
+`0.000` on
+`54` negative anchors still carries a wide interval.
+
+The checks in cells 6 to 9 — reference scoring, threshold and borderline
+sensitivity, and the linked-versus-unlinked comparison — follow the
+linkage-quality evaluation strategy set out by
+[Harron et al. (2017)](https://doi.org/10.1093/ije/dyx177). That source supports
+the strategy, not these numbers.
 
 **7. Threshold sensitivity.** Four retained arms span the event definition:
 

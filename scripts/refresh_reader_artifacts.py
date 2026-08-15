@@ -234,6 +234,24 @@ def latex_cox_sensitivity_rows(frame: pd.DataFrame) -> str:
     return "\n".join(rows)
 
 
+def latex_trend_recommendation_items(signal_matrix: pd.DataFrame) -> str:
+    """The operational reading already carried in ``trend_signal_matrix.csv``.
+
+    The recommendation column is computed once by the trend generator; this only
+    surfaces it in the report so the PDF and the CSV cannot drift apart. The
+    wording is deliberately monitoring-oriented: a PELT break dates a level
+    shift, it does not explain one.
+    """
+    items = []
+    for row in signal_matrix.itertuples(index=False):
+        items.append(
+            r"\item \textbf{" + latex_escape(row.segment) + "} ("
+            + latex_escape(row.state) + "): "
+            + latex_escape(str(row.business_recommendation))
+        )
+    return "\n".join(items)
+
+
 def latex_trend_signal_rows(signal_matrix: pd.DataFrame) -> str:
     rows = []
     for row in signal_matrix.itertuples(index=False):
@@ -536,7 +554,8 @@ not ground truth. The sources behind each individual label were not recorded, so
 a given anchor's evidence trail cannot be fully reconstructed or independently
 re-executed. Negatives are corpus-relative: roughly 25 candidates per anchor were
 considered rather than the full pool, so a false-positive rate computed on them
-is an upper bound. And while no linkage method existed or was consulted when the
+is conservative by construction and is a diagnostic on this sample rather than a
+population-wide rate. And while no linkage method existed or was consulted when the
 labels were made, judging whether later notice text continues an earlier need
 draws on the same text, CPV, and date evidence the text-ranking method scores, so
 the labels are method-independent without being fully evidence-independent. The sample is small enough that every point estimate needs its
@@ -630,8 +649,11 @@ abandonment.
 \paragraph{{Kaplan--Meier.}} The non-parametric survivor function
 \(S(t)=P(T>t)\) is estimated by
 \href{{https://doi.org/10.1080/01621459.1958.10501452}}{{Kaplan and Meier
-(1958)}}'s product-limit estimator, stratified by CPV segment, buyer type, and
-other covariates of interest. Group differences use the log-rank test.
+(1958)}}'s product-limit estimator. It is reported overall and stratified by CPV
+segment, which is the only stratification this study estimates; group differences
+use a multivariate log-rank test across those segments. Region and framework
+status enter the Cox model as covariates but are not estimated as separate
+Kaplan--Meier strata.
 
 \paragraph{{Cox proportional hazards.}} The semi-parametric model is
 \[
@@ -663,6 +685,13 @@ window is 2022--2024, as specified by the internship guideline; 2022--2025 is
 carried as a sensitivity read that adds the shortest-follow-up award cohort.
 Harrell's concordance index \(C\) is reported on each split to assess
 discrimination and out-of-time stability, not to target a specific value.
+
+\paragraph{{Evaluation strategy.}} The three checks applied to the linkage --
+scoring it against a reference subset, comparing linked with unlinked episodes,
+and re-running the analysis under alternative linkage rules -- follow the guidance
+of \href{{https://doi.org/10.1093/ije/dyx177}}{{Harron et al. (2017)}} for
+evaluating linkage quality in linked-data analyses. That source supports the
+strategy; it does not validate the precision, recall, or threshold reported here.
 
 \paragraph{{Borderline-link robustness.}} Threshold sensitivity swaps one event
 definition for another; a separate check asks how much rests on the anchors the
@@ -955,7 +984,11 @@ if individualized prediction were required.
 {extended["test_years"]} ({extended["test_contracts"]:,} episodes,
 {extended["test_events"]:,} events), without refitting, gives
 {extended["test_c_index"]:.3f}. Both are close to the \(0.5\) chance line:
-individualized out-of-time discrimination is weak. That is a result, not a
+individualized out-of-time discrimination is weak. The two windows also differ in
+follow-up, and \href{{https://doi.org/10.1002/sim.4154}}{{Uno et al. (2011)}} show
+that the concordance statistic for right-censored data converges to a quantity
+depending on the censoring distribution, so the gap between the two figures should
+not be read as a change in discriminative ability. That is a result, not a
 prompt to retune -- the model is retained as a descriptive risk-factor summary
 and nothing in the operational deliverable rests on it. Part of the gap is
 structural, because episodes awarded from 2022 onwards can contribute only
@@ -1053,6 +1086,17 @@ CPV-48 is the only segment with a statistically distinguishable 12-quarter
 decline at the exploratory \(\alpha=0.10\) level; the rest are
 \code{{stable\_or\_uncertain}} by this signal.
 
+\paragraph{{Operational reading.}} Each segment's signals translate into a
+monitoring action, carried in the \code{{business\_recommendation}} column of
+\pathcode{{trend\_signal\_matrix.csv}} so that this text and the materialised
+table cannot drift apart. These are readings of descriptive evidence, not
+forecasts and not causal explanations: a PELT break dates a level shift without
+explaining it, and none of the statements below should be quoted as attributing a
+shift to policy, COVID, regulation, or technology.
+\begin{{itemize}}
+{latex_trend_recommendation_items(trend_signal_matrix)}
+\end{{itemize}}
+
 \begin{{table}}[H]
 \centering
 \small
@@ -1093,7 +1137,10 @@ $0.70$ conservatively, so lowering an unreviewed threshold would not support a
 stronger accuracy claim. This is a precision-first design. Low recall is
 accepted as an explicit trade-off, but the
 observed event rate is not a mathematical lower bound: missed successors push it
-downward while residual false links can push it upward. It is therefore a
+downward while residual false links can push it upward.
+\href{{https://doi.org/10.1093/ije/dyz203}}{{Doidge and Harron (2019)}} make the
+general point that missed and false links misclassify in opposite directions, which
+is why no one-sided bound follows from a linkage-conditioned event rate. It is therefore a
 linkage-conditioned indicator whose absolute value must be read with the strict,
 looser, and weighted-gated sensitivity results and the borderline-band check.
 Independent specialist review is required only before claiming externally
@@ -1110,7 +1157,8 @@ observable successor procurements, not legal renewal proof.
 spot-checked on a subset by the project owner, not verified anchor-by-anchor and
 not reviewed by an independent specialist panel. Its negatives are
 corpus-relative: roughly 25 candidates per anchor were considered, so the
-reported false-positive rate is an upper bound.
+reported false-positive rate is conservative by construction rather than a
+population-wide rate.
 \item The held-out reference is small: {locked["positive_anchors"]}
 positive anchors and {int(m_b.accepted_links)} accepted \code{{M\_B}} links.
 The selected threshold should not be over-tuned and its accuracy remains provisional.
@@ -1717,7 +1765,8 @@ def write_notebook(generated_at: str) -> None:
             "rule-generated labels were not, but they were not verified "
             "anchor-by-anchor and are not an independent specialist panel. "
             "Negatives are corpus-relative: roughly 25 candidates per anchor were "
-            "considered, so the false-positive rate is an upper bound. These are "
+            "considered, so the false-positive rate is conservative by construction "
+            "rather than a population-wide rate. These are "
             "reference-sample estimates, not validated legal-renewal accuracy."
         ),
     ]

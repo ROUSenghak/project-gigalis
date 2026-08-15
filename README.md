@@ -95,7 +95,8 @@ Accuracy values come only from the regional reference. They are reference-sample
 estimates, not independently validated accuracy: the labels are a single-pass
 LLM-assisted review rather than an independent panel of procurement specialists,
 and reference negatives are corpus-relative, so the reported false-positive rate
-is an upper bound. The completed 60-pair production review is a separate frozen
+is conservative by construction rather than a population-wide rate. The
+completed 60-pair production review is a separate frozen
 diagnostic and does not estimate recall.
 
 ## Run Everything

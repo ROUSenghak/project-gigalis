@@ -1,6 +1,6 @@
 # Final Defensible Pipeline
 
-Generated: `2026-08-15T16:23:39`
+Generated: `2026-08-15T18:58:06`
 
 ## Current Decision
 

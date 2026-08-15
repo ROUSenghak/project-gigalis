@@ -17,6 +17,9 @@ results.
 | [Davis and Goadrich (2006)](https://doi.org/10.1145/1143844.1143874) | Precision-recall curves are appropriate for highly skewed binary decisions and must not be interpreted through invalid linear interpolation between operating points | The paper does not validate this project's labels, scores, or chosen threshold |
 | [Saito and Rehmsmeier (2015)](https://doi.org/10.1371/journal.pone.0118432) | Precision-recall analysis can reveal performance differences hidden by ROC analysis when positives are rare | It does not establish that `0.70`, or any other threshold, generalises beyond this reference sample |
 | [Fellegi and Sunter (1969)](https://doi.org/10.1080/01621459.1969.10501049) | `M_D` is a recognized probabilistic record-linkage approach based on match/non-match comparison likelihoods | Its assumptions do not guarantee good performance on rare successor events with dependent candidate pairs |
+| [Harron, Doidge, Knight, Gilbert, Goldstein, Cromwell and van der Meulen (2017)](https://doi.org/10.1093/ije/dyx177) | The three-part strategy this project uses to evaluate linkage quality: apply the algorithm to a reference subset with known status, compare linked with unlinked records using standardized differences, and test whether conclusions survive changes to the linkage procedure | It endorses the strategy, not this project's precision, recall, or threshold; a reference subset this small still yields wide intervals |
+| [Doidge and Harron (2019)](https://doi.org/10.1093/ije/dyz203) | Missed links and false links cause misclassification in opposite directions, so a linkage-conditioned event rate is not a one-sided bound; linkage error surfaces as information bias or selection bias depending on how it correlates with the analysis variables | It does not quantify this project's error rates, and it does not license a correction that would require knowing them |
+| [Uno, Cai, Pencina, D'Agostino and Wei (2011)](https://doi.org/10.1002/sim.4154) | Harrell's C for right-censored data converges to a quantity that depends on the censoring distribution, so concordance figures computed on windows with different follow-up are not strictly comparable | It does not rescue a weak C-index, and this project reports the standard estimator rather than implementing the paper's IPCW alternative |
 | [Kaplan and Meier (1958)](https://doi.org/10.1080/01621459.1958.10501452) | Kaplan-Meier estimation handles administrative right-censoring | It cannot correct event misclassification created by linkage errors |
 | [Cox (1972)](https://doi.org/10.1111/j.2517-6161.1972.tb00899.x) | The Cox model estimates covariate associations with the event hazard without specifying a baseline hazard | Hazard ratios are not causal effects without stronger identification assumptions |
 | [Grambsch and Therneau (1994)](https://doi.org/10.1093/biomet/81.3.515) | Schoenfeld-residual diagnostics test the proportional-hazards assumption | Passing a diagnostic would not validate linkage or causal interpretation |
@@ -42,12 +45,16 @@ results.
    as project evidence. Generic web illustrations may explain intuition in a
    presentation but are not academic evidence.
 8. Report survival estimates as linkage-conditioned and non-causal, with event
-   definition sensitivity.
-9. Treat PELT breaks and recent slopes as exploratory signals requiring domain
-   corroboration.
-10. Treat HMM regime labels as a descriptive complement to PELT, not a
+   definition sensitivity. Because missed and false links misclassify in opposite
+   directions, never state a one-sided bound on true re-procurement.
+9. Read the out-of-time concordance as weak discrimination, and do not treat the
+   difference between the 2022-2024 and 2022-2025 figures as a change in model
+   quality: the two windows have different censoring distributions.
+10. Treat PELT breaks and recent slopes as exploratory signals requiring domain
+    corroboration.
+11. Treat HMM regime labels as a descriptive complement to PELT, not a
     forecast; report disagreement between the two honestly rather than
     reconciling it.
-11. Keep the causal-inference discussion of Gigalis membership effects as a
+12. Keep the causal-inference discussion of Gigalis membership effects as a
     design outline only until Gigalis-internal membership and adoption-date
     data are available; do not substitute a BOAMP-only proxy treatment.
