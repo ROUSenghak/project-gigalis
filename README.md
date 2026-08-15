@@ -59,8 +59,9 @@ active pipeline — see `notebooks/archive/README.md`.
   official notice URLs, before the linkage methods in this repository existed.
   `112` anchors re-resolve onto the current episode reconstruction and `88` are
   usable. Its labels are independent of every method it scores. They are a
-  single-pass LLM-assisted review by the project owner, so it is a **reference
-  sample**, not ground truth. See `REGIONAL_BENCHMARK_REFERENCE.md`.
+  single LLM research pass over the notices, their official URLs, and wider
+  public sources, spot-checked on a subset by the project owner rather than
+  verified anchor-by-anchor, so it is a **reference sample**, not ground truth. See `REGIONAL_BENCHMARK_REFERENCE.md`.
 - **France-level benchmark (retired, removed).** Both of its annotation passes
   were emitted by deterministic rules built from the same text, CPV, and date
   evidence the linkage methods consume, so a method could score well on it only

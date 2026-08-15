@@ -1,6 +1,6 @@
 # Survival Analysis Report
 
-Generated: `2026-08-15T15:51:08`  
+Generated: `2026-08-15T16:23:50`  
 Event: **accepted observable successor procurement**, not certified legal renewal.
 
 ## Cohort And Event Definition

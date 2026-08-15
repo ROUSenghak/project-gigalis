@@ -5,7 +5,7 @@
     "surface": "report",
     "title": "BOAMP Project: Current Methodological Readiness",
     "description": "Evidence-backed status of data quality, linkage, survival, trends, limitations, and next actions.",
-    "generatedAt": "2026-08-15T15:51:15",
+    "generatedAt": "2026-08-15T16:24:00",
     "cards": [
       {
         "id": "cohort-card",
@@ -361,7 +361,7 @@
       {
         "id": "summary",
         "type": "markdown",
-        "body": "## Executive Summary\n\n**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable frozen conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from deterministic a single-pass LLM-assisted reference sample rather than independent specialist ground truth. Survival and trend results are therefore descriptive and conditional on the linkage definition. The model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."
+        "body": "## Executive Summary\n\n**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable frozen conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from deterministic an LLM-generated, subset-spot-checked reference sample rather than independent specialist ground truth. Survival and trend results are therefore descriptive and conditional on the linkage definition. The model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."
       },
       {
         "id": "headline-metrics",
@@ -441,7 +441,7 @@
   },
   "snapshot": {
     "version": 1,
-    "generatedAt": "2026-08-15T15:51:15",
+    "generatedAt": "2026-08-15T16:24:00",
     "status": "ready",
     "datasets": {
       "headline": [
@@ -462,7 +462,7 @@
           "fpr": 0.1296,
           "positive_anchors": 18,
           "negative_anchors": 54,
-          "reference_status": "regional reference sample; single-pass LLM-assisted review"
+          "reference_status": "regional reference sample; LLM-generated labels, spot-checked on a subset"
         },
         {
           "method": "M_B_text_ranking",
@@ -473,7 +473,7 @@
           "fpr": 0.0,
           "positive_anchors": 18,
           "negative_anchors": 54,
-          "reference_status": "regional reference sample; single-pass LLM-assisted review"
+          "reference_status": "regional reference sample; LLM-generated labels, spot-checked on a subset"
         },
         {
           "method": "M_C_weighted_gated",
@@ -484,7 +484,7 @@
           "fpr": 0.1852,
           "positive_anchors": 18,
           "negative_anchors": 54,
-          "reference_status": "regional reference sample; single-pass LLM-assisted review"
+          "reference_status": "regional reference sample; LLM-generated labels, spot-checked on a subset"
         },
         {
           "method": "M_D_fellegi_sunter",
@@ -495,7 +495,7 @@
           "fpr": 0.0185,
           "positive_anchors": 18,
           "negative_anchors": 54,
-          "reference_status": "regional reference sample; single-pass LLM-assisted review"
+          "reference_status": "regional reference sample; LLM-generated labels, spot-checked on a subset"
         }
       ],
       "sensitivity": [

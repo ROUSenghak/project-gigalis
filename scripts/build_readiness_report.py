@@ -72,7 +72,7 @@ def main() -> int:
                 "fpr": metrics["false_positive_rate_on_negatives"],
                 "positive_anchors": metrics["positive_anchors"],
                 "negative_anchors": metrics["negative_anchors"],
-                "reference_status": "regional reference sample; single-pass LLM-assisted review",
+                "reference_status": "regional reference sample; LLM-generated labels, spot-checked on a subset",
             }
         )
 
@@ -393,7 +393,7 @@ def main() -> int:
                 "**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is "
                 "reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable "
                 "frozen conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from deterministic "
-                "a single-pass LLM-assisted reference sample rather than independent specialist ground truth. Survival and trend "
+                "an LLM-generated, subset-spot-checked reference sample rather than independent specialist ground truth. Survival and trend "
                 "results are therefore descriptive and conditional on the linkage definition. The "
                 "model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. "
                 "Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."

@@ -149,8 +149,14 @@ def build() -> dict[str, Any]:
             for split in ("dev", "validation")
         ),
         "materialized_metadata_has_no_legacy_paths": not stale_metadata,
+        # Every provenance note must disclose all three facts that bound what the
+        # reference can support: the labels came from a model, the model's output
+        # was only spot-checked rather than verified anchor-by-anchor, and no
+        # independent specialist panel ever saw them. Dropping any one of the
+        # three makes the reference sound stronger than it is.
         "reference_provenance_is_truthful": all(
-            "LLM-assisted" in note
+            "LLM" in note
+            and "spot-checked" in note
             and "not an independent human specialist panel" in note
             for note in evaluation_provenance
         ),
