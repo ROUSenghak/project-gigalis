@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.3.16)  16 AUG 2026 13:05
+This is pdfTeX, Version 3.141592653-2.6-1.40.26 (TeX Live 2024) (preloaded format=pdflatex 2024.3.16)  16 AUG 2026 16:28
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -586,7 +586,7 @@ File: mt-msb.cfg 2005/06/01 v1.0 microtype config. file: AMS symbols (b) (RS)
 )
 (./boamp_methodology_chapter.toc
 LaTeX Font Info:    External font `lmex10' loaded for size
-(Font)              <10.95> on input line 51.
+(Font)              <10.95> on input line 3.
 )
 \tf@toc=\write4
 \openout4 = `boamp_methodology_chapter.toc'.
@@ -594,7 +594,7 @@ LaTeX Font Info:    External font `lmex10' loaded for size
  [1
 
 {/usr/local/texlive/2024/texmf-var/fonts/map/pdftex/updmap/pdftex.map}{/usr/loc
-al/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}]
+al/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ec.enc}] [2]
 LaTeX Font Info:    Trying to load font information for T1+lmtt on input line 4
 8.
  (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/t1lmtt.fd
@@ -605,141 +605,127 @@ Package microtype Info: Loading generic protrusion settings for font family
 (microtype)             For optimal results, create family-specific settings.
 (microtype)             See the microtype manual for details.
 
-[2{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}]
-[3{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}{/usr/local/
+[3{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathit.enc}]
+[4{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-rm.enc}{/usr/local/
 texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-mathex.enc}{/usr/local/texlive/20
-24/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}] [4] [5] [6] [7]
-Underfull \hbox (badness 10000) in paragraph at lines 460--469
- []\T1/lmr/bx/n/10.95 (+20) Recent di-rec-tion.[] \T1/lmr/m/n/10.95 (+20) An OL
-S slope over the lat-est 12 quar-ters gives an
- []
-
-
-Underfull \hbox (badness 1490) in paragraph at lines 460--469
-\T1/lmtt/m/n/10.95 increasing\T1/lmr/m/n/10.95 (+20) /\T1/lmtt/m/n/10.95 decrea
-sing\T1/lmr/m/n/10.95 (+20) /\T1/lmtt/m/n/10.95 stable_or_uncertain \T1/lmr/m/n
-/10.95 (+20) la-bel at ex-ploratory $\OML/lmm/m/it/10.95  \OT1/lmr/m/n/10.95 (
-+20) = 0\OML/lmm/m/it/10.95 :\OT1/lmr/m/n/10.95 (+20) 10$\T1/lmr/m/n/10.95 (+20
-) , un-cor-
- []
-
-
-Underfull \hbox (badness 5417) in paragraph at lines 483--492
+24/texmf-dist/fonts/enc/dvips/lm/lm-mathsy.enc}] [5] [6] [7] [8] [9] [10]
+[11]
+Underfull \hbox (badness 5417) in paragraph at lines 720--729
 []\T1/lmr/m/n/10.95 (+20) A finer technology-classification ef-fort ex-ists in 
 par-al-lel, out-side this pipeline:
  []
 
-
-Underfull \hbox (badness 10000) in alignment at lines 517--517
+[12]
+Underfull \hbox (badness 10000) in alignment at lines 754--754
 [][][][][][][] 
  []
 
-[8]
-<figures/benchmark_dev_method_metrics.png, id=199, 656.051pt x 323.609pt>
+<figures/benchmark_dev_method_metrics.png, id=237, 656.051pt x 323.609pt>
 File: figures/benchmark_dev_method_metrics.png Graphic file (type png)
 <use figures/benchmark_dev_method_metrics.png>
 Package pdftex.def Info: figures/benchmark_dev_method_metrics.png  used on inpu
-t line 523.
+t line 762.
 (pdftex.def)             Requested size: 418.82375pt x 206.59549pt.
-
-Underfull \hbox (badness 10000) in alignment at lines 552--552
+[13 <./figures/benchmark_dev_method_metrics.png>]
+Underfull \hbox (badness 10000) in alignment at lines 823--823
 [][][][][][][] 
  []
 
-<figures/benchmark_validation_method_metrics.png, id=201, 656.051pt x 323.609pt
+<figures/benchmark_validation_method_metrics.png, id=249, 656.051pt x 323.609pt
 >
 File: figures/benchmark_validation_method_metrics.png Graphic file (type png)
 <use figures/benchmark_validation_method_metrics.png>
 Package pdftex.def Info: figures/benchmark_validation_method_metrics.png  used 
-on input line 558.
+on input line 877.
 (pdftex.def)             Requested size: 418.82375pt x 206.59549pt.
-[9 <./figures/benchmark_dev_method_metrics.png>]
-<figures/benchmark_validation_m_b_threshold_tradeoff.png, id=212, 1150.2975pt x
+[14]
+<figures/benchmark_validation_m_b_threshold_tradeoff.png, id=260, 1150.2975pt x
  356.1305pt>
 File: figures/benchmark_validation_m_b_threshold_tradeoff.png Graphic file (typ
 e png)
 <use figures/benchmark_validation_m_b_threshold_tradeoff.png>
 Package pdftex.def Info: figures/benchmark_validation_m_b_threshold_tradeoff.pn
-g  used on input line 589.
+g  used on input line 908.
 (pdftex.def)             Requested size: 450.69417pt x 139.53156pt.
- [10 <./figures/benchmark_validation_method_metrics.png> <./figures/benchmark_v
+ [15 <./figures/benchmark_validation_method_metrics.png> <./figures/benchmark_v
 alidation_m_b_threshold_tradeoff.png>]
-<figures/benchmark_modeling_counts.png, id=222, 583.781pt x 295.504pt>
+<figures/benchmark_modeling_counts.png, id=270, 583.781pt x 295.504pt>
 File: figures/benchmark_modeling_counts.png Graphic file (type png)
 <use figures/benchmark_modeling_counts.png>
 Package pdftex.def Info: figures/benchmark_modeling_counts.png  used on input l
-ine 633.
+ine 952.
 (pdftex.def)             Requested size: 391.51021pt x 198.18504pt.
- [11 <./figures/benchmark_modeling_counts.png>]
-<figures/survival_kaplan_meier.png, id=230, 823.4765pt x 318.791pt>
+ [16 <./figures/benchmark_modeling_counts.png>]
+<figures/survival_kaplan_meier.png, id=277, 823.4765pt x 318.791pt>
 File: figures/survival_kaplan_meier.png Graphic file (type png)
 <use figures/survival_kaplan_meier.png>
 Package pdftex.def Info: figures/survival_kaplan_meier.png  used on input line 
-666.
+1003.
 (pdftex.def)             Requested size: 450.69417pt x 174.4746pt.
 
-Underfull \hbox (badness 10000) in alignment at lines 691--691
+Underfull \hbox (badness 10000) in alignment at lines 1030--1030
+[][][][] 
+ []
+
+[17 <./figures/survival_kaplan_meier.png>]
+Underfull \hbox (badness 10000) in alignment at lines 1070--1070
 [][][][] 
  []
 
 
-Underfull \hbox (badness 10000) in alignment at lines 716--716
-[][][][] 
- []
-
-
-Underfull \hbox (badness 4429) in paragraph at lines 719--724
+Underfull \hbox (badness 4429) in paragraph at lines 1075--1082
  []\T1/lmr/bx/n/10.95 (+20) Proportional-hazards di-ag-nos-tic.[] \T1/lmr/m/n/1
 0.95 (+20) The as-sump-tion is re-jected ($\OML/lmm/m/it/10.95 p < \OT1/lmr/m/n
 /10.95 (+20) 0\OML/lmm/m/it/10.95 :\OT1/lmr/m/n/10.95 (+20) 05$\T1/lmr/m/n/10.9
 5 (+20) ) for
  []
 
-[12 <./figures/survival_kaplan_meier.png>]
-Underfull \hbox (badness 10000) in alignment at lines 774--774
+
+Underfull \hbox (badness 10000) in alignment at lines 1138--1138
 [][][][][] 
  []
 
-
-Underfull \hbox (badness 10000) in alignment at lines 813--813
+[18]
+Underfull \hbox (badness 10000) in alignment at lines 1189--1189
 [][][][][] 
  []
 
-<figures/survival_conditional_probabilities.png, id=241, 656.854pt x 318.791pt>
+<figures/survival_conditional_probabilities.png, id=298, 656.854pt x 318.791pt>
 
 File: figures/survival_conditional_probabilities.png Graphic file (type png)
 <use figures/survival_conditional_probabilities.png>
 Package pdftex.def Info: figures/survival_conditional_probabilities.png  used o
-n input line 819.
+n input line 1209.
 (pdftex.def)             Requested size: 427.93057pt x 207.6884pt.
-[13]
-Underfull \hbox (badness 10000) in paragraph at lines 857--857
+[19]
+Underfull \hbox (badness 10000) in paragraph at lines 1258--1258
 []|\T1/lmr/m/n/10 (+20) Re-censoring tem-plate
  []
 
-[14 <./figures/survival_conditional_probabilities.png>]
-Underfull \hbox (badness 10000) in alignment at lines 899--899
+[20 <./figures/survival_conditional_probabilities.png>]
+Underfull \hbox (badness 10000) in alignment at lines 1318--1318
 [][][][][][] 
  []
 
-
-Underfull \hbox (badness 10000) in alignment at lines 920--920
+[21]
+Underfull \hbox (badness 10000) in alignment at lines 1344--1344
 [][][][][][] 
  []
 
-<figures/trend_quarterly_episode_counts.png, id=261, 823.075pt x 650.0285pt>
+<figures/trend_quarterly_episode_counts.png, id=323, 823.075pt x 650.0285pt>
 File: figures/trend_quarterly_episode_counts.png Graphic file (type png)
 <use figures/trend_quarterly_episode_counts.png>
 Package pdftex.def Info: figures/trend_quarterly_episode_counts.png  used on in
-put line 930.
+put line 1354.
 (pdftex.def)             Requested size: 450.69417pt x 355.93971pt.
-[15]
-LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 9
-44.
- (/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd
+[22 <./figures/trend_quarterly_episode_counts.png>]
+LaTeX Font Info:    Trying to load font information for TS1+lmr on input line 1
+368.
+
+(/usr/local/texlive/2024/texmf-dist/tex/latex/lm/ts1lmr.fd
 File: ts1lmr.fd 2015/05/01 v1.6.1 Font defs for Latin Modern
-) [16{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc} <./figu
-res/trend_quarterly_episode_counts.png>] [17] [18] [19] [20] [21]
+) [23{/usr/local/texlive/2024/texmf-dist/fonts/enc/dvips/lm/lm-ts1.enc}] [24] [
+25] [26] [27]
 (./boamp_methodology_chapter.aux)
  ***********
 LaTeX2e <2023-11-01> patch level 1
@@ -747,32 +733,37 @@ L3 programming layer <2024-02-20>
  ***********
 Package rerunfilecheck Info: File `boamp_methodology_chapter.out' has not chang
 ed.
-(rerunfilecheck)             Checksum: 15097AC11D41A314C9C9E9E5B91313B6;3652.
+(rerunfilecheck)             Checksum: F7708DA83E84650EA4834EC3925F9554;3927.
  ) 
 Here is how much of TeX's memory you used:
- 13546 strings out of 474116
- 211965 string characters out of 5743682
- 1943187 words of memory out of 5000000
- 35395 multiletter control sequences out of 15000+600000
- 635015 words of font info for 194 fonts, out of 8000000 for 9000
+ 13647 strings out of 474116
+ 213180 string characters out of 5743682
+ 1946187 words of memory out of 5000000
+ 35415 multiletter control sequences out of 15000+600000
+ 661207 words of font info for 231 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 75i,11n,79p,1022b,579s stack positions out of 10000i,1000n,20000p,200000b,200000s
+ 75i,11n,79p,1022b,567s stack positions out of 10000i,1000n,20000p,200000b,200000s
 </usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmbx10.pfb></usr/lo
 cal/texlive/2024/texmf-dist/fonts/type1/public/lm/lmbx12.pfb></usr/local/texliv
 e/2024/texmf-dist/fonts/type1/public/lm/lmex10.pfb></usr/local/texlive/2024/tex
 mf-dist/fonts/type1/public/lm/lmmi10.pfb></usr/local/texlive/2024/texmf-dist/fo
 nts/type1/public/lm/lmmi6.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/p
-ublic/lm/lmmi8.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lm
-r10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr12.pfb></u
-sr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr17.pfb></usr/local/te
-xlive/2024/texmf-dist/fonts/type1/public/lm/lmr8.pfb></usr/local/texlive/2024/t
-exmf-dist/fonts/type1/public/lm/lmri10.pfb></usr/local/texlive/2024/texmf-dist/
-fonts/type1/public/lm/lmsy10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type
-1/public/lm/lmtt10.pfb>
-Output written on boamp_methodology_chapter.pdf (21 pages, 1029512 bytes).
+ublic/lm/lmmi7.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lm
+mi8.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr10.pfb></u
+sr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr12.pfb></usr/local/te
+xlive/2024/texmf-dist/fonts/type1/public/lm/lmr17.pfb></usr/local/texlive/2024/
+texmf-dist/fonts/type1/public/lm/lmr6.pfb></usr/local/texlive/2024/texmf-dist/f
+onts/type1/public/lm/lmr7.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/p
+ublic/lm/lmr8.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmr
+i10.pfb></usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy10.pfb></
+usr/local/texlive/2024/texmf-dist/fonts/type1/public/lm/lmsy5.pfb></usr/local/t
+exlive/2024/texmf-dist/fonts/type1/public/lm/lmsy8.pfb></usr/local/texlive/2024
+/texmf-dist/fonts/type1/public/lm/lmtt10.pfb></usr/local/texlive/2024/texmf-dis
+t/fonts/type1/public/amsfonts/symbols/msbm10.pfb>
+Output written on boamp_methodology_chapter.pdf (27 pages, 1133319 bytes).
 PDF statistics:
- 418 PDF objects out of 1000 (max. 8388607)
- 349 compressed objects within 4 object streams
- 95 named destinations out of 1000 (max. 500000)
- 42196 words of extra memory for PDF output out of 42996 (max. 10000000)
+ 504 PDF objects out of 1000 (max. 8388607)
+ 414 compressed objects within 5 object streams
+ 111 named destinations out of 1000 (max. 500000)
+ 58596 words of extra memory for PDF output out of 61914 (max. 10000000)
 

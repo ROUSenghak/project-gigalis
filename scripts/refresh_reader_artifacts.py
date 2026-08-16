@@ -77,10 +77,15 @@ def plot_method_metrics(frame: pd.DataFrame, title: str, path: Path) -> None:
     plot = frame.set_index("method")[["precision", "recall", "fpr"]]
     ax = plot.plot(kind="bar", figsize=(9.2, 4.6), width=0.72)
     ax.set_title(title)
-    ax.set_ylabel("rate")
+    ax.set_ylabel("probability")
     ax.set_ylim(0, 1.0)
     ax.set_xlabel("")
-    ax.legend(["precision@1", "recall@1", "FPR on negatives"], frameon=False)
+    # Named by the conditional question each one answers, so the figure carries
+    # the same reading as the metric definitions in the report and notebook 12.
+    ax.legend(
+        ["precision  P(C=1 | A=1)", "recall  P(C=1 | P=1)", "FPR  P(A=1 | P=0)"],
+        frameon=False,
+    )
     ax.tick_params(axis="x", rotation=28)
     ax.grid(axis="y", alpha=0.25)
     plt.tight_layout()
@@ -137,6 +142,22 @@ def format_metric(value: Any) -> str:
     if value is None:
         return "--"
     return f"{float(value):.3f}"
+
+
+def latex_pvalue(value: float, digits: int = 3) -> str:
+    """Render a p-value as maths rather than as Python's ``3.26e-05``.
+
+    Inside ``\\(...\\)`` the exponent form typesets as an italic ``e`` next to a
+    minus sign, which reads as a variable. Only the small values need the
+    scientific form, so ordinary ones are left alone.
+    """
+    number = float(value)
+    if number == 0.0:
+        return "p<10^{-16}"
+    if 1e-4 <= number < 1:
+        return f"p={number:.{digits}g}"
+    mantissa, exponent = f"{number:.{digits - 1}e}".split("e")
+    return rf"p={mantissa}\times 10^{{{int(exponent)}}}"
 
 
 def latex_method_rows(frame: pd.DataFrame) -> str:
@@ -349,6 +370,14 @@ def write_methodology_report(
     m_b = validation_frame.loc[validation_frame["method"].eq("M_B_text_ranking")].iloc[0]
     m_c = validation_frame.loc[validation_frame["method"].eq("M_C_weighted_gated")].iloc[0]
     m_d = validation_frame.loc[validation_frame["method"].eq("M_D_fellegi_sunter")].iloc[0]
+    # The raw anchor-level cell counts behind M_B's locked-split rates. They are
+    # quoted rather than the rates alone so a reader can see that the two kinds
+    # of miss -- abstention and wrong acceptance -- are counted separately.
+    m_b_cells = next(
+        method["unweighted"]
+        for method in validation["methods"]
+        if method["method"] == "M_B_text_ranking"
+    )
 
     survival_summary = load_json(PROCESSED / "survival_analysis_summary.json")
     cox_results = pd.read_csv(PROCESSED / "survival_cox_results.csv")
@@ -470,11 +499,11 @@ observable successor procurements under a precision-first linkage rule, then
 assesses how sensitive its descriptive conclusions are to that rule.
 
 \section{{What The Pipeline Measures}}
-Let \(i\) index an earlier awarded procurement episode and \(j\) index a later
-candidate episode. The object of interest is not a legal renewal certificate,
-because BOAMP notices do not provide that ground truth consistently. Instead,
-the pipeline estimates whether the data show a later procurement episode that is
-credible enough to be treated as a successor:
+Let \(i\) index an earlier awarded procurement episode (the \emph{{anchor}}) and
+\(j\) index a later candidate episode. The object of interest is not a legal
+renewal certificate, because BOAMP notices do not provide that ground truth
+consistently. Instead, the pipeline estimates whether the data show a later
+procurement episode that is credible enough to be treated as a successor:
 \[
 Y_i =
 \begin{{cases}}
@@ -484,12 +513,88 @@ Y_i =
 \]
 The event time is
 \[
-\tau_i = C_{{\hat{{j}}}} - A_i,
+\tau_i = v_{{\hat{{j}}}} - u_i,
 \]
-where \(A_i\) is the award-date origin of episode \(i\), \(C_{{\hat{{j}}}}\) is
+where \(u_i\) is the award-date origin of episode \(i\), \(v_{{\hat{{j}}}}\) is
 the first-publication date of the accepted successor, and \(\hat{{j}}\) is the
 selected candidate. If no accepted successor is found before 2025-12-31, the
 episode is right-censored.
+
+\subsection{{Notation}}
+\label{{sec:notation}}
+Three layers are chained -- candidate generation, linkage decision, survival --
+and each answers a different conditional question. One symbol table serves the
+whole report so that no quantity below is undefined at the point it is used.
+
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{llX}}
+\toprule
+Layer & Symbol & Meaning \\
+\midrule
+Data      & \(u_i\)                & award-date origin of anchor \(i\) (calendar date) \\
+Data      & \(v_j\)                & first-publication date of candidate \(j\) (calendar date) \\
+Data      & \(J_i\)                & set of candidates for anchor \(i\) surviving blocking \\
+Data      & \(T_{{ij}}, B_{{ij}}, K_{{ij}}, G_{{ij}}\) & pairwise text, buyer, CPV-continuity and timing evidence \\
+\midrule
+Reference & \(R_i \in J_i\cup\{{\varnothing\}}\) & reviewed successor identity, \(\varnothing\) if the review found none \\
+Reference & \(P_i=\mathbf{{1}}\{{R_i\neq\varnothing\}}\) & the reference identifies a successor for anchor \(i\) \\
+Reference & \(E_i=\mathbf{{1}}\{{R_i\in J_i\}}\) & the reviewed successor survived candidate generation \\
+\midrule
+Decision  & \(\hat{{R}}_i \in J_i\cup\{{\varnothing\}}\) & successor accepted by the linkage rule, \(\varnothing\) if it abstains \\
+Decision  & \(A_i=\mathbf{{1}}\{{\hat{{R}}_i\neq\varnothing\}}\) & the method accepted some successor \\
+Decision  & \(C_i=\mathbf{{1}}\{{\hat{{R}}_i=R_i\neq\varnothing\}}\) & the accepted successor is exactly the reviewed one \\
+Decision  & \(\mathcal{{L}}_m\)      & one linkage definition (method and threshold), \(m\) indexing the arms \\
+\midrule
+Survival  & \(T_i\)                & months from award to an observable successor (latent) \\
+Survival  & \(L_i\)                & follow-up months from award to the 2025-12-31 cutoff \\
+Survival  & \(Y_i=\mathbf{{1}}\{{T_i\le L_i\}}\) & an accepted observable successor was seen before the cutoff \\
+Survival  & \(S(t), F(t), \lambda(t)\) & survivor, cumulative-event and hazard functions of \(T\) \\
+Survival  & \(a, h\)               & current episode age and forward horizon, in months \\
+\bottomrule
+\end{{tabularx}}
+\caption{{Symbols used throughout, grouped by the layer they belong to. Reading
+across the three middle blocks gives the logic of the study: blocking decides
+whether \(E_i=1\), the linkage rule decides \(A_i\) and hence \(C_i\), and the
+survival layer turns \(A_i\) into the event indicator \(Y_i\).}}
+\end{{table}}
+
+Two conventions are worth stating because they prevent the two collisions a
+reader would otherwise hit. Calendar dates are lower-case (\(u_i, v_j\)) so that
+the upper-case \(A_i\) and \(C_i\) can carry their usual meaning as decision
+indicators. The hazard is written \(\lambda(t)\) rather than the equally common
+\(h(t)\), because \(h\) is already the forward horizon in the operational
+quantity \(P(T\le a+h\mid T>a)\), which is the report's headline number. Pairwise
+evidence always carries two indices (\(T_{{ij}}\) is a text similarity); a single
+index means an episode-level quantity (\(T_i\) is a survival time).
+
+\subsection{{One Chain Of Questions}}
+The methods below are not a collection of separate exercises. Each stage hands
+the next one its input, and each is best remembered by the question it answers.
+
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{rlX}}
+\toprule
+Step & Quantity & Question it answers \\
+\midrule
+1 & \(P(E=1\mid P=1)\)          & If a reviewed successor exists, did blocking keep it reachable? \\
+2 & \(P(C=1\mid A=1)\)          & If the method accepts a link, is the accepted candidate the reviewed one? \\
+2 & \(P(C=1\mid P=1)\)          & If a reviewed successor exists, is it recovered exactly? \\
+3 & \(Y_i=\mathbf{{1}}\{{A_i=1\}}\) & Does this episode contribute an event or censored exposure? \\
+4 & \(S(t)=P(T>t)\)             & How long do episodes go without an observable successor? \\
+5 & \(P(T\le a+h\mid T>a)\)     & Given none by age \(a\), how likely is one in the next \(h\) months? \\
+6 & \(\lambda(t\mid X)=\lambda_0(t)e^{{\beta^{{\top}}X}}\) & Which episode characteristics go with a sooner successor? \\
+7 & \(P_m(T\le t)\), \(\mathrm{{HR}}_{{k,m}}\) & Which of those conclusions survive a change of linkage definition? \\
+8 & PELT, HMM, OLS              & When did the market's level shift, and where is it now? \\
+\bottomrule
+\end{{tabularx}}
+\caption{{The study as one chain. Steps 1--2 measure the instrument, step 3
+builds the data, steps 4--6 estimate, step 7 stress-tests, step 8 describes the
+surrounding market.}}
+\end{{table}}
 
 \section{{End-to-End Pipeline}}
 The implemented pipeline is:
@@ -525,10 +630,10 @@ notice, or lot-level administrative notice as separate renewals.
 
 \paragraph{{Candidate generation.}}
 Candidate generation is intentionally broad and is not the final model. For an
-anchor episode with award date \(A_i\) and candidate publication date \(C_j\),
-the candidate is exposed only if
+anchor episode with award date \(u_i\) and candidate publication date \(v_j\),
+the candidate enters the exposed set \(J_i\) only if
 \[
-A_i+90 \leq C_j \leq A_i+2920.
+u_i+90 \leq v_j \leq u_i+2920 .
 \]
 The lower bound removes very near follow-up notices and parallel administrative
 activity. The upper bound is approximately eight years; it keeps the candidate
@@ -538,18 +643,35 @@ blocking rule generates {candidates["candidate_pairs"]:,} candidate
 pairs, with a median of {candidates["candidates_per_anchor"]["median"]:.0f}
 candidates per anchor.
 
-Candidate generation is deliberately recall-oriented, and it is a separate stage
-from final linkage. A candidate episode must satisfy buyer-identity
-plausibility and the broad future-time window above, but exact CPV continuity is
-\emph{{not}} imposed as a hard blocking rule, because CPV coding is incomplete,
-often generic, and assigned by the contracting authority rather than validated.
-Retaining plausible successors is the blocking stage's job; final precision is
-controlled by the linkage scorer and the frozen acceptance threshold. In
-record-linkage terms this quantity is \emph{{pairs completeness}}, the share of
-true matches surviving the blocking step, which
+The question this stage must answer is \emph{{not}} how often it is right. It is
+whether a successor that genuinely exists can still be found downstream, which
+is the conditional probability
+\[
+P(E_i=1 \mid P_i=1)
+\quad\text{{estimated by}}\quad
+\hat{{P}}(E=1\mid P=1)=\frac{{{ceiling["positive_anchors_with_reviewed_successor_in_pool"]}}}{{{ceiling["positive_anchors"]}}}={ceiling["candidate_generation_recall_ceiling"]:.3f} .
+\]
+In words: given that the reference identifies a successor for an anchor,
+blocking retained that successor in
+{ceiling["positive_anchors_with_reviewed_successor_in_pool"]} of the
+{ceiling["positive_anchors"]} reviewed cases. This is candidate-generation
+reachability measured on this reference sample -- in record-linkage terms
+\emph{{pairs completeness}} -- and it is not an estimate of population recall.
+It is a hard ceiling: a successor discarded here can never be recovered by any
+scorer, which is why the two stages are given opposite objectives. Candidate
+generation maximises \(P(E=1\mid P=1)\); the linkage rule then maximises
+\(P(C=1\mid A=1)\) (\S\ref{{sec:locked-results}}). High recall first, high
+precision later.
+
+That objective is why exact CPV continuity is \emph{{not}} imposed as a hard
+blocking rule, even though it would raise precision: CPV coding is incomplete,
+often generic, and assigned by the contracting authority rather than validated,
+so a same-division requirement would remove reviewed successors from \(J_i\) and
+lower \(P(E=1\mid P=1)\) permanently.
 \href{{https://doi.org/10.1007/978-3-540-44918-8_6}}{{Christen and Goiser (2007)}}
-identify as a confounder that must be published alongside any linkage-quality
-figure rather than folded into it.
+identify pairs completeness as a confounder that must be published alongside any
+linkage-quality figure rather than folded into it, which is why it is reported
+here as its own conditional probability rather than absorbed into recall.
 
 Relaxing hard same-CPV blocking is checked against the reference rather than
 asserted. Among the {cpv_continuity["reviewed_reference_pairs"]} reviewed
@@ -610,15 +732,9 @@ recall rather than a scoring failure. Anchor-level metrics use
 curves use {modeling["outputs"]["validation"]["anchors"]}.
 
 Candidate generation, not scoring, sets the ceiling on recall against this
-reference. The exposed candidate pool contains
-{ceiling["positive_anchors_with_reviewed_successor_in_pool"]} of the
-{ceiling["positive_anchors"]} reviewed successors, so no method evaluated here can
-exceed a recall of {ceiling["candidate_generation_recall_ceiling"]:.3f}; the gap
-is a blocking-stage limitation rather than a scoring failure. The wording matters:
-candidate generation \emph{{exposed}}
-{ceiling["positive_anchors_with_reviewed_successor_in_pool"]} of
-{ceiling["positive_anchors"]} reviewed successors in this sample. That is a
-property of the reference, not an estimate of population recall.
+reference: \(P(C=1\mid P=1)\le P(E=1\mid P=1)={ceiling["candidate_generation_recall_ceiling"]:.3f}\),
+as quantified above. No method evaluated here can exceed that, and the gap is a
+blocking-stage limitation rather than a scoring failure.
 
 Both unreachable cases were attributed to the specific blocking condition that
 rejected them, evaluated in the order the generator applies them, and neither is
@@ -669,12 +785,12 @@ primary method is not comparing text over the whole BOAMP universe. Buyer and
 time plausibility are imposed before text ranking.
 
 \paragraph{{\(M_A\): deterministic evidence.}}
-Define \(B_{{ij}}\) as buyer-identity support, \(P_{{ij}}\) as CPV continuity, and
+Define \(B_{{ij}}\) as buyer-identity support, \(K_{{ij}}\) as CPV continuity, and
 \(T_{{ij}}\) as text similarity. The deterministic rule accepts a link only when
 strong buyer evidence is present, CPV continuity is positive, and a minimum text
 signal is present:
 \[
-B_{{ij}}=1,\quad P_{{ij}}>0,\quad T_{{ij}}\geq t_A .
+B_{{ij}}=1,\quad K_{{ij}}>0,\quad T_{{ij}}\geq t_A .
 \]
 It is interpretable, but it loses recall when CPV or buyer identifiers are
 missing or noisy.
@@ -685,21 +801,25 @@ For each episode, the text fields are converted to TF--IDF vectors \(x_i\) and
 \[
 T_{{ij}}=\cos(x_i,x_j)=\frac{{x_i\cdot x_j}}{{\|x_i\|\|x_j\|}}.
 \]
-Within the same-buyer, plausible-time candidate set, the method selects
+Within the exposed candidate set \(J_i\), the method selects
 \[
-\hat{{j}}_i=\arg\max_j T_{{ij}},
+\hat{{j}}_i=\arg\max_{{j\in J_i}} T_{{ij}},
 \]
-and accepts the selected candidate only if
+and accepts that candidate as \(\hat{{R}}_i\) only if
 \[
-T_{{i\hat{{j}}_i}}\geq 0.70.
+T_{{i\hat{{j}}_i}}\geq 0.70,
+\qquad\text{{otherwise}}\quad \hat{{R}}_i=\varnothing .
 \]
+The abstention branch is not a formality: it is what makes \(A_i\) a genuine
+decision and what turns a non-accepted anchor into a censored observation rather
+than a negative one.
 This is the primary method because it is simple, reproducible, auditable, and
 best matches the precision-first objective.
 
 \paragraph{{\(M_C\): weighted gated score.}}
 This method combines evidence components into a score:
 \[
-S_{{ij}}=0.50B_{{ij}}+0.25T_{{ij}}+0.20P_{{ij}}+0.05G_{{ij}},
+S_{{ij}}=0.50B_{{ij}}+0.25T_{{ij}}+0.20K_{{ij}}+0.05G_{{ij}},
 \]
 where \(G_{{ij}}\) is a timing-plausibility score. Missing components are handled
 by the implemented score-normalisation logic rather than imputation. The method
@@ -717,7 +837,7 @@ w_{{ij}}=\log\frac{{P(\gamma_{{ij}}\mid M)}}{{P(\gamma_{{ij}}\mid U)}}.
 \]
 The fitted model provides \code{{fs\_match\_weight}} and
 \code{{fs\_match\_probability}}. On this cohort it does not outperform the
-simple text-ranking rule, likely because true successors are rare and
+simple text-ranking rule, likely because reviewed successors are rare and
 same-buyer procurement activity contains many non-renewal lookalikes.
 
 \paragraph{{Declared duration.}} Declared contract duration is not imposed as a
@@ -739,52 +859,141 @@ moves the event set, together with the borderline-band check described in
 
 \section{{Survival Modeling}}
 \label{{sec:survival-methods}}
-The accepted-link decision from \(M_B\) defines the survival event. For episode
-\(i\), \(\tau_i\) is the time from award date \(A_i\) to the accepted successor's
-publication date if \(Y_i=1\), or to the study cutoff (2025-12-31) if
-\(Y_i=0\) (administrative right-censoring). \(Y_i=0\) means no accepted
-observable successor was found before the cutoff; it is not proof of
-abandonment.
+\paragraph{{Event and censoring.}} The accepted-link decision from \(M_B\)
+defines the survival event. Let \(T_i\) be the months from award to an
+observable successor and \(L_i\) the months from award to the 2025-12-31 cutoff.
+The pipeline observes
+\[
+\tilde{{T}}_i=\min(T_i,L_i),
+\qquad
+Y_i=\mathbf{{1}}\{{T_i\le L_i\}}=\mathbf{{1}}\{{A_i=1\}} ,
+\]
+so \(\tau_i=\tilde{{T}}_i\) is the follow-up time actually stored and \(Y_i\)
+the event indicator stored beside it. For a censored episode the data assert
+\(T_i>L_i\) and nothing more: the eventual \(T_i\) is unobserved, and it is
+\emph{{not}} the case that \(T_i=L_i\). Writing the follow-up limit as \(L_i\)
+rather than the conventional \(C_i\) keeps it clear of the linkage correctness
+indicator of \S\ref{{sec:notation}}.
 
-\paragraph{{Kaplan--Meier.}} The non-parametric survivor function
-\(S(t)=P(T>t)\) is estimated by
+\(Y_i=0\) means no accepted observable successor was found before the cutoff.
+It does not mean ``not renewed'': the contract may have been re-procured through
+a central purchasing body, below publication thresholds, or under a link the
+precision-first rule declined to accept.
+
+\paragraph{{Kaplan--Meier.}} The survivor function and its complement are
+\[
+S(t)=P(T>t),
+\qquad
+F(t)=P(T\le t)=1-S(t) ,
+\]
+read as ``the probability that an episode is still without an observable
+successor at age \(t\)'' and ``the probability that one has appeared by age
+\(t\)''. Both are estimated non-parametrically by
 \href{{https://doi.org/10.1080/01621459.1958.10501452}}{{Kaplan and Meier
-(1958)}}'s product-limit estimator. It is reported overall and stratified by CPV
-segment, which is the only stratification this study estimates; group differences
-use a multivariate log-rank test across those segments. Region and framework
-status enter the Cox model as covariates but are not estimated as separate
+(1958)}}'s product-limit estimator
+\[
+\hat{{S}}(t)=\prod_{{t_k\le t}}\left(1-\frac{{d_k}}{{n_k}}\right),
+\]
+where \(d_k\) is the number of observable-successor events at event time
+\(t_k\) and \(n_k\) the number of episodes still at risk immediately before it.
+At each observed event time the estimator multiplies in the probability of
+getting past that instant among the episodes still under observation, which is
+what lets censored episodes contribute their exposure up to the moment they
+leave. It is reported overall and stratified by CPV segment, the only
+stratification this study estimates; group differences use a multivariate
+log-rank test across those segments, whose hypotheses are
+\[
+\begin{{aligned}}
+H_0&:\; S_{{32}}(t)=S_{{35}}(t)=S_{{48}}(t)=S_{{72}}(t)
+\quad\text{{over the observation window}},\\
+H_1&:\;\text{{at least one segment survivor function differs}}.
+\end{{aligned}}
+\]
+This is an omnibus test: rejecting \(H_0\) says the four curves are not all
+equal, not that every pair of segments differs. Region and framework status
+enter the Cox model as covariates but are not estimated as separate
 Kaplan--Meier strata.
 
-\paragraph{{Cox proportional hazards.}} The semi-parametric model is
+\paragraph{{Hazard and the Cox model.}} The hazard is the conditional event rate
+among episodes that have survived to \(t\):
 \[
-h(t\mid X)=h_0(t)\exp(\beta_1X_1+\cdots+\beta_pX_p),
+\lambda(t)=\lim_{{\Delta t\to 0}}
+\frac{{P(t\le T<t+\Delta t\mid T\ge t)}}{{\Delta t}} .
 \]
-with covariates selected for substantive relevance and data quality rather than
-automated search: CPV digital segment, buyer region, framework-agreement flag,
+It answers ``among episodes that have reached age \(t\) with no observable
+successor, how fast are successors appearing right now?'' A hazard is a rate,
+not a probability: it is not bounded by 1, and a hazard ratio is consequently
+not a risk ratio. The semi-parametric model is
+\[
+\lambda(t\mid X)=\lambda_0(t)\exp(\beta_1X_1+\cdots+\beta_pX_p),
+\qquad
+\mathrm{{HR}}_k=\exp(\beta_k),
+\]
+which leaves the baseline \(\lambda_0(t)\) unspecified and reads each covariate
+as a multiplicative shift of the hazard. \(\mathrm{{HR}}_k>1\) means a higher
+instantaneous observable-successor hazard at every \(t\), holding the other
+included covariates fixed; \(\mathrm{{HR}}_k<1\) a lower one. Covariates are
+selected for substantive relevance and data quality rather than automated
+search: CPV digital segment, buyer region, framework-agreement flag,
 validated-SIREN availability, and centered award year. The rule of one
 covariate per ten observed events (Van Belle et al., 2002) is respected with
 {survival_summary["cox"]["events"]:,} events supporting
-{survival_summary["cox"]["covariates"]} covariates. The proportional-hazards
-assumption is tested with Schoenfeld residuals (Grambsch and Therneau, 1994);
-violations are reported and interpreted descriptively rather than silently
-dropped or used to discard the model.
+{survival_summary["cox"]["covariates"]} covariates.
+
+\paragraph{{Proportional-hazards diagnostic.}} The model above assumes
+\(\mathrm{{HR}}_k(t)=\exp(\beta_k)\) does not vary with \(t\). The
+Schoenfeld-residual test (Grambsch and Therneau, 1994) takes
+\[
+H_0:\;\text{{the hazard ratio for covariate }} k \text{{ is constant in }} t,
+\]
+and a \(p<0.05\) is evidence against it. Where it fails, the coefficient is
+still a well-defined summary -- a time-averaged association -- and is reported
+as such rather than silently dropped or used to discard the model.
 
 \paragraph{{Parametric models.}} Exponential, Weibull, log-logistic, log-normal,
-and generalized-gamma models are compared by log-likelihood, AIC, and BIC and
-checked graphically against the Kaplan--Meier curve. Their role is to identify
-the best-fitting family and to provide the instrument any extrapolation past the
-observation window would require. They are \emph{{not}} the source of the reported
-12/24-month probabilities: every horizon quoted in this report falls inside the
-observed window, and the smooth families flatten the empirical renewal shoulder,
-so the operational conditional probabilities are read off the Kaplan--Meier
-estimator, which imposes no shape.
+and generalized-gamma models are compared by log-likelihood \(\ell\) and the
+penalised criteria
+\[
+\mathrm{{AIC}}=2k-2\ell,
+\qquad
+\mathrm{{BIC}}=k\log n-2\ell ,
+\]
+with \(k\) the number of fitted parameters and \(n\) the number of episodes.
+Lower is better \emph{{within the compared set}}: these criteria rank the five
+families against one another on a fit-versus-complexity trade-off and say
+nothing about whether the winner fits in absolute terms, which is why the choice
+is also checked graphically against the Kaplan--Meier curve. Their role is to
+identify the best-fitting family and to provide the instrument any extrapolation
+past the observation window would require. They are \emph{{not}} the source of
+the reported 12/24-month probabilities: every horizon quoted in this report
+falls inside the observed window, and the smooth families flatten the empirical
+renewal shoulder, so the operational conditional probabilities are read off the
+Kaplan--Meier estimator, which imposes no shape.
 
 \paragraph{{Temporal validation.}} The model is fit once on episodes awarded
 2015--2021 and scored out of time without refitting. The primary evaluation
 window is 2022--2024, as specified by the internship guideline; 2022--2025 is
 carried as a sensitivity read that adds the shortest-follow-up award cohort.
-Harrell's concordance index \(C\) is reported on each split to assess
-discrimination and out-of-time stability, not to target a specific value.
+Harrell's concordance index is a probability about \emph{{pairs}}, not a
+classification accuracy:
+\[
+C\approx P\big(\text{{the model ranks the earlier-event episode as higher risk}}
+\ \big|\ \text{{the pair is comparable}}\big),
+\]
+where a pair is comparable when censoring allows their orderings to be
+determined. \(C=0.5\) is ordering no better than chance and \(C=1\) is perfect
+ordering. It is reported on each split to assess discrimination and out-of-time
+stability, not to target a specific value.
+
+\paragraph{{Interval estimation.}} The operational conditional probabilities are
+ratios of two points on the same fitted Kaplan--Meier curve, so their sampling
+error is not the sum of two independent errors. For a statistic
+\(\hat{{\theta}}\) the pipeline therefore resamples episodes with replacement,
+refits Kaplan--Meier on each resample, and reports the empirical percentiles of
+the replicates \(\hat{{\theta}}^{{(1)}},\dots,\hat{{\theta}}^{{(B)}}\) with
+\(B=500\). Resampling whole episodes carries the dependence between \(S(a)\) and
+\(S(a+h)\) through without a delta-method derivation or further distributional
+assumptions.
 
 \paragraph{{Evaluation strategy.}} The three checks applied to the linkage --
 scoring it against a reference subset, comparing linked with unlinked episodes,
@@ -804,44 +1013,101 @@ is fixed a priori and is not searched over.
 \paragraph{{Linkage sensitivity.}} Because the event is linkage-conditioned, the
 same Kaplan--Meier and Cox analyses are repeated under the strict
 (\(M_B@0.80\)), main (\(M_B@0.70\)), looser (\(M_B@0.60\)), and high-recall
-contrast (\(M_C@0.70\)) event definitions. A conclusion is reported as robust
-only when it is stable in sign and approximate magnitude across these arms.
+contrast (\(M_C@0.70\)) event definitions. Writing \(\mathcal{{L}}_m\) for
+linkage definition \(m\) makes the dependence explicit: every survival quantity
+in this report is really
+\[
+P_m(T\le t)
+\quad\text{{and}}\quad
+\mathrm{{HR}}_{{k,m}},
+\]
+that is, a probability and a hazard ratio computed \emph{{under}}
+\(\mathcal{{L}}_m\). The subscript is dropped elsewhere only because
+\(\mathcal{{L}}_{{\text{{main}}}}\) is fixed. The arms are deterministic
+pre-specified scenarios, not draws from a distribution over linkage rules, so
+varying \(m\) bounds a sensitivity rather than estimating an uncertainty. A
+conclusion is reported as robust only when it is stable in sign and approximate
+magnitude across these arms; the recurring finding is that \(P_m(T\le t)\) moves
+a great deal with \(m\) while the sign and rough size of the leading
+\(\mathrm{{HR}}_{{k,m}}\) do not.
 
 \section{{Trend And Change-Point Detection}}
 Quarterly awarded-episode counts \(N_{{s,q}}\) are built for the overall cohort
 and each CPV digital segment from 2015Q2 (the first complete quarter) through
 2025Q4, including zero-count quarters.
 
+These are time-series methods and are stated in their natural forms; forcing
+them into conditional-probability notation would obscure rather than clarify.
+The one exception is the hidden Markov model, whose output genuinely is a
+conditional probability and is written as one below. Greek letters in this
+section are local to it: the penalty multiplier \(\lambda\) is unrelated to the
+hazard \(\lambda(t)\) of \S\ref{{sec:survival-methods}}.
+
 \paragraph{{Change-point detection (PELT).}}
 \href{{https://doi.org/10.1080/01621459.2012.737745}}{{Killick, Fearnhead and
-Eckley (2012)}}'s PELT algorithm minimizes a penalized segmentation objective on
-the z-standardized series with penalty \(\beta=\lambda\log(n)\); the central
-result uses \(\lambda=1\) with sensitivity at \(0.5\) and \(2.0\), and a break
-is called stable only if it lies within one quarter under all three penalties.
+Eckley (2012)}}'s PELT algorithm minimizes, over the number of change points
+\(K\) and their positions \(\tau_1<\cdots<\tau_K\),
+\[
+\sum_{{k=0}}^{{K}}\mathcal{{C}}\!\left(y_{{\tau_k+1:\tau_{{k+1}}}}\right)+K\beta,
+\qquad
+\beta=\lambda\log(n),
+\]
+on the z-standardized series, where \(\mathcal{{C}}\) is within-segment squared
+error. The first term rewards fitting each segment well; the second charges a
+fixed price \(\beta\) per break, which is what stops the optimum from putting a
+break between every pair of quarters. The central result uses \(\lambda=1\) with
+sensitivity at \(0.5\) and \(2.0\), and a break is called stable only if it lies
+within one quarter under all three multipliers. PELT answers \emph{{when}} the
+level of the series shifted; it never answers \emph{{why}}.
 
-\paragraph{{Stationarity.}} Augmented Dickey--Fuller (unit-root null) and KPSS
-(level-stationary null) tests are run on each segment's series. The two tests
-have opposite null hypotheses and are read together, not individually.
+\paragraph{{Stationarity.}} Augmented Dickey--Fuller and KPSS are run on each
+segment's series with deliberately opposite nulls,
+\[
+H_0^{{\mathrm{{ADF}}}}:\ \text{{the series has a unit root (non-stationary)}},
+\qquad
+H_0^{{\mathrm{{KPSS}}}}:\ \text{{the series is level-stationary}},
+\]
+so they are read jointly. Rejecting the ADF null while failing to reject the
+KPSS null is coherent evidence of stationarity; when the two disagree the
+correct report is ambiguity over this short window, not a forced binary label.
 
 \paragraph{{Regime detection (HMM).}} A 3-state Gaussian hidden Markov model is
-fit on the quarter-over-quarter \emph{{change}} in episode count -- not the
-level -- for the overall cohort and the two highest-volume CPV segments, so
-states describe typical period-over-period direction (decline, plateau,
-growth) rather than absolute activity level. The Viterbi-decoded state
-sequence gives the current-quarter regime and its posterior probability. This
-complements PELT (which finds discrete historical breaks) with a continuously
-updated regime read; the two are not required to agree, and disagreement is
-reported honestly rather than reconciled.
+fit on the quarter-over-quarter \emph{{change}}
+\(\Delta N_t=N_t-N_{{t-1}}\) -- not the level -- for the overall cohort and the
+two highest-volume CPV segments. The hidden state
+\(Z_t\in\{{\text{{decline}},\text{{plateau}},\text{{growth}}\}}\) is governed by
+transition probabilities \(P(Z_t=k\mid Z_{{t-1}}=l)\), and the reported quantity
+is the filtered posterior
+\[
+P(Z_t=k \mid \Delta N_1,\dots,\Delta N_t),
+\]
+read as: given the observed sequence of quarterly changes and the fitted model,
+how probable is regime \(k\) in the current quarter? States therefore describe
+typical period-over-period direction rather than absolute activity level. This
+probability is conditional on the fitted model, not an observed property of the
+market: a high posterior on \texttt{{growth}} says the model finds that regime
+most consistent with recent changes, not that the market is demonstrably
+growing. It complements PELT, which finds discrete historical breaks, with a
+continuously updated regime read; the two are not required to agree, and
+disagreement is reported honestly rather than reconciled.
 
-\paragraph{{Recent direction.}} An OLS slope over the latest 12 quarters gives
-an \texttt{{increasing}}/\texttt{{decreasing}}/\texttt{{stable\_or\_uncertain}}
-label at exploratory \(\alpha=0.10\), uncorrected for multiple testing. None of
-these methods forecasts future values or identifies the cause of a break;
-causal attribution requires documentary or stakeholder evidence not available
-in BOAMP alone. Monetary and duration trend series are omitted because no
-canonical awarded-amount field is validated at episode grain, and 2025's
-duration-field completeness jump is a measurement change, not a genuine shift
-in contract durations.
+\paragraph{{Recent direction.}} The recent direction comes from an ordinary
+least-squares fit over the latest 12 quarters,
+\[
+N_t=\alpha+\beta t+\varepsilon_t,
+\]
+where \(\hat{{\beta}}\) is the estimated change in awarded episodes per quarter
+over that window. A segment is labelled \texttt{{increasing}} or
+\texttt{{decreasing}} only when \(\hat{{\beta}}\)'s two-sided \(p\)-value falls
+below the pre-declared exploratory \(\alpha=0.10\), uncorrected for multiple
+testing; otherwise it is \texttt{{stable\_or\_uncertain}}. \(\hat{{\beta}}\)
+describes the last 12 quarters. It is not a forecast, and no value of \(N_t\)
+beyond the window is implied. None of these methods forecasts future values or
+identifies the cause of a break; causal attribution requires documentary or
+stakeholder evidence not available in BOAMP alone. Monetary and duration trend
+series are omitted because no canonical awarded-amount field is validated at
+episode grain, and 2025's duration-field completeness jump is a measurement
+change, not a genuine shift in contract durations.
 
 \section{{Technology Segmentation}}
 \label{{sec:nlp-scope}}
@@ -888,27 +1154,61 @@ Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 {latex_method_rows(dev_frame)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Unweighted metrics on the pilot split of the regional reference.}}
+\caption{{Anchor-level metrics on the pilot split, on which the threshold was
+frozen. The pilot carries {pilot["positive_anchors"]} reviewed-positive anchors,
+so these rates are read for direction only.}}
 \end{{table}}
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{{figures/benchmark_dev_method_metrics.png}}
-\caption{{Pilot split method comparison generated from the regional-reference evaluation JSON.}}
+\caption{{The pilot split as conditional probabilities. It is shown for
+completeness; the held-out reading is the locked split below.}}
 \end{{figure}}
 
 \section{{Locked Reference Results}}
+\label{{sec:locked-results}}
 The table below is an internal method-comparison diagnostic. It must not be
-presented as external validation. The primary comparison is
-anchor-level exact-successor performance: each anchor can produce one accepted
-successor or abstain.
+presented as external validation.
+
+\paragraph{{What is being scored.}} The decision is not a yes/no call on a
+pre-formed pair. For each anchor \(i\), the reference names a successor identity
+\(R_i\in J_i\cup\{{\varnothing\}}\) and the method returns an identity
+\(\hat{{R}}_i\in J_i\cup\{{\varnothing\}}\), so an anchor with a reviewed
+successor can still be scored wrong by accepting the \emph{{wrong}} candidate.
+That is why the three indicators of \S\ref{{sec:notation}} are needed rather than
+a single ``correct/incorrect'' bit:
 \[
-\text{{precision}}=\frac{{TP}}{{TP+FP}},\quad
-\text{{recall}}=\frac{{TP}}{{TP+FN}},\quad
-\text{{FPR}}=\frac{{FP}}{{FP+TN}}.
+P_i=\mathbf{{1}}\{{R_i\neq\varnothing\}},\qquad
+A_i=\mathbf{{1}}\{{\hat{{R}}_i\neq\varnothing\}},\qquad
+C_i=\mathbf{{1}}\{{\hat{{R}}_i=R_i\neq\varnothing\}} .
 \]
-For this project, false-positive control is prioritised because false links
-fabricate survival events.
+The familiar counts follow from them: \(TP=\sum_i C_i\); a false positive is
+either \(A_i=1, P_i=0\) (accepted where the reference has nothing) or
+\(A_i=1, P_i=1, C_i=0\) (accepted the wrong candidate); a false negative is
+either an abstention on a positive anchor or that same wrong acceptance. Note
+that a wrong acceptance is counted on both sides, which is exactly right and is
+invisible in the \(TP/(TP+FP)\) shorthand.
+
+\paragraph{{The four metrics as conditional probabilities.}} Each answers a
+different question, distinguished by what is conditioned on:
+\[
+\underbrace{{P(C_i=1\mid A_i=1)}}_{{\text{{precision}}}},\qquad
+\underbrace{{P(C_i=1\mid P_i=1)}}_{{\text{{recall}}}},\qquad
+\underbrace{{P(A_i=1\mid P_i=0)}}_{{\text{{false-positive rate}}}},\qquad
+\underbrace{{P(A_i=1)}}_{{\text{{coverage}}}} .
+\]
+Precision and recall are the \emph{{same event under reversed conditioning}}, and
+this is the single most useful thing for a reader to hold on to. Precision asks:
+given that the method committed to a successor, how often was it the reviewed
+one? Recall asks: given that a reviewed successor exists, how often did the
+method recover it? \(P(C=1\mid P=1)\) and \(P(C=1\mid A=1)\) are not
+interchangeable and need not be close, because the conditioning sets --
+{m_b_cells["positive_anchors"]} reviewed-positive anchors and
+{m_b_cells["accepted_links"]} accepted links -- are different populations. The
+false-positive rate conditions on the \emph{{third}} population, the
+{m_b_cells["negative_anchors"]} anchors the reference found nothing for, so it is
+not \(1-\text{{precision}}\); the two share no denominator.
 
 \begin{{table}}[H]
 \centering
@@ -920,24 +1220,72 @@ Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 {latex_method_rows(validation_frame)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Unweighted held-out metrics on the locked split of the regional reference.}}
+\caption{{Anchor-level linkage performance on the locked split of the regional
+reference. Precision \(P(C=1\mid A=1)\) is the probability that an accepted
+successor is exactly the reviewed one; recall \(P(C=1\mid P=1)\) the probability
+of recovering the reviewed successor when one exists; FPR \(P(A=1\mid P=0)\) the
+probability of accepting anything where the reference found nothing; coverage
+\(P(A=1)\) the share of anchors that receive a link rather than an abstention.
+Unweighted sample estimates on {m_b_cells["anchors_evaluated"]} anchors.}}
 \end{{table}}
+
+\paragraph{{The frozen rule, read cell by cell.}} On the locked split
+\code{{M\_B\_text\_ranking @ 0.70}} accepts
+{m_b_cells["accepted_links"]} successors across
+{m_b_cells["anchors_evaluated"]} anchors, of which
+{m_b_cells["true_positive"]} are the reviewed successor and
+{m_b_cells["false_positive_wrong_successor"]} is a wrong candidate on an anchor
+that does have one. It abstains on {m_b_cells["false_negative_abstained"]}
+reviewed-positive anchors and on all
+{m_b_cells["true_negative_abstained"]} reviewed-negative anchors. Hence
+\[
+\hat{{P}}(C=1\mid A=1)=\frac{{{m_b_cells["true_positive"]}}}{{{m_b_cells["accepted_links"]}}}={m_b.precision:.3f},
+\qquad
+\hat{{P}}(C=1\mid P=1)=\frac{{{m_b_cells["true_positive"]}}}{{{m_b_cells["positive_anchors"]}}}={m_b.recall:.3f},
+\]
+\[
+\hat{{P}}(A=1\mid P=0)=\frac{{{m_b_cells["false_positive_on_no_successor_anchor"]}}}{{{m_b_cells["negative_anchors"]}}}={m_b.fpr:.3f},
+\qquad
+\hat{{P}}(A=1)=\frac{{{m_b_cells["accepted_links"]}}}{{{m_b_cells["anchors_evaluated"]}}}={m_b.coverage:.3f} .
+\]
+Read them as follows. Among the {m_b_cells["accepted_links"]} links the method
+committed to, {m_b_cells["true_positive"]} matched the reviewed successor. Of
+the {m_b_cells["positive_anchors"]} anchors the reference says have a successor,
+the method recovered {m_b_cells["true_positive"]}; the
+{m_b_cells["positive_anchors"] - m_b_cells["true_positive"]} it did not are
+{m_b_cells["false_negative_abstained"]} abstentions and
+{m_b_cells["false_positive_wrong_successor"]} wrong acceptance, and both count
+identically against recall even though only the second is a fabricated link.
+
+Four caveats travel with these four numbers and none of them is optional.
+The precision estimate rests on {m_b_cells["accepted_links"]} accepted links, so
+its 95\% interval is [{m_b.precision_low:.3f}, {m_b.precision_high:.3f}]: one
+changed decision moves it materially. Recall's ceiling is not 1 but
+{ceiling["candidate_generation_recall_ceiling"]:.3f}, because
+\(P(C=1\mid P=1)\le P(E=1\mid P=1)\) -- a successor that blocking discarded
+cannot be recovered by any scorer. An FPR of {m_b.fpr:.3f} is a diagnostic on
+{m_b_cells["negative_anchors"]} corpus-relative negatives on this small sample,
+not evidence that the population false-positive rate is zero. And coverage is
+deliberately low: it is a consequence of prioritising \(P(C=1\mid A=1)\), not a
+target to raise, because in a survival dataset a false link fabricates both an
+event and an event time whereas an abstention is handled honestly as
+right-censoring.
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{{figures/benchmark_validation_method_metrics.png}}
-\caption{{Held-out method comparison generated from the regional-reference evaluation JSON.}}
+\caption{{The same three conditional probabilities per method. \(M_C\) buys
+recall \(P(C=1\mid P=1)\) with a materially higher \(P(A=1\mid P=0)\); \(M_B\)
+takes the opposite trade, which is the one this study needs.}}
 \end{{figure}}
 
 \section{{Quality Evidence And Interpretation}}
-The held-out internal result supports retaining a conservative baseline for
-continued work; it does not establish final accuracy. \code{{M\_B}} has
-only {int(m_b.accepted_links)} accepted held-out links, so its precision
-estimate is necessarily sample-sensitive; one changed decision would move the
-number materially. Within this reference, the direction is coherent:
-\code{{M\_B}} gives the best precision and the lowest false-positive
-rate among useful methods, while \code{{M\_C}} shows the expected precision-recall
-trade-off.
+The held-out result supports retaining a conservative baseline for continued
+work; it does not establish final accuracy. Within this reference the direction
+is coherent, with \code{{M\_B}} best on \(P(C=1\mid A=1)\) and lowest on
+\(P(A=1\mid P=0)\) among useful methods and \code{{M\_C}} showing the expected
+trade-off, but the intervals in \S\ref{{sec:locked-results}} overlap heavily and
+must be read before separating any two methods.
 
 The pair-level ROC and precision-recall curves should be read as score-ranking
 diagnostics, not as the final operating decision. The final pipeline decision is
@@ -1001,7 +1349,8 @@ evaluation use the same feature state.
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.86\textwidth]{{figures/benchmark_modeling_counts.png}}
-\caption{{Regional-reference modeling table sizes and label support.}}
+\caption{{Row and label counts behind each modelling table, so a reader can
+see how thin the positive support is before reading any metric computed on it.}}
 \end{{figure}}
 
 \section{{Survival Results}}
@@ -1016,27 +1365,46 @@ for CPV-35, {survival_main["description"]["by_digital_segment"]["CPV-48"]["event
 for CPV-48, and {survival_main["description"]["by_digital_segment"]["CPV-72"]["event_rate"]:.3f}
 for CPV-72. CPV-35 has the highest observed successor rate in the main arm.
 
-\paragraph{{Kaplan--Meier.}} The estimated probability of an observable
-successor is {km_horizons.loc[12, 'cumulative_successor_probability'] * 100:.3f}\%
-by 12 months,
-{km_horizons.loc[24, 'cumulative_successor_probability'] * 100:.3f}\% by 24
-months, and
+\paragraph{{Kaplan--Meier.}} The cumulative event probability
+\(F(t)=1-S(t)\) is estimated at
+\[
+\hat{{F}}(12)={km_horizons.loc[12, 'cumulative_successor_probability']:.5f},
+\qquad
+\hat{{F}}(24)={km_horizons.loc[24, 'cumulative_successor_probability']:.5f},
+\qquad
+\hat{{F}}(60)={km_horizons.loc[60, 'cumulative_successor_probability']:.5f},
+\]
+that is {km_horizons.loc[12, 'cumulative_successor_probability'] * 100:.3f}\% by
+12 months, {km_horizons.loc[24, 'cumulative_successor_probability'] * 100:.3f}\%
+by 24 months and
 {km_horizons.loc[60, 'cumulative_successor_probability'] * 100:.3f}\% by 60
-months. The Kaplan--Meier median survival time is
-\textbf{{{survival_summary["km"]["median_status"].replace('_', ' ')}}}: the curve
+months. These are linkage-conditioned probabilities that an observable successor
+procurement becomes visible in BOAMP for an episode of the
+{survival_main["validation"]["rows"]:,}-episode study cohort under
+\(M_B@0.70\). They are not certified renewal probabilities, and because missed
+successors push the level down while residual false links push it up, they are
+not one-sided bounds either.
+
+The Kaplan--Meier median survival time is
+\textbf{{{survival_summary["km"]["median_status"].replace('_', ' ')}}}: \(\hat{{S}}(t)\)
 never falls below 0.5 within the observation window, so no median is reported.
 This is distinct from the {survival_main["description"]["median_time_to_successor_months"]:.2f}-month
 median delay \emph{{among linked events only}}, which conditions on the event
-having occurred. A multivariate log-rank test across CPV segments gives
-statistic {survival_summary["logrank"]["test_statistic"]:.2f}
-(\(p={survival_summary["logrank"]["p_value"]:.3g}\)).
+having occurred. A multivariate log-rank test of
+\(H_0: S_{{32}}=S_{{35}}=S_{{48}}=S_{{72}}\) across CPV segments gives statistic
+{survival_summary["logrank"]["test_statistic"]:.2f}
+(\({latex_pvalue(survival_summary["logrank"]["p_value"])}\)), so the data reject
+equality of the four segment curves. Being an omnibus test, it does not
+establish that every pair of segments differs.
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.99\textwidth]{{figures/survival_kaplan_meier.png}}
-\caption{{Kaplan--Meier survivor functions. The left panel carries the absolute
-level, which is linkage-conditioned and quoted only with that caveat; the right
-panel carries the segment ordering, which survives every sensitivity arm.}}
+\caption{{Estimated \(\hat{{S}}(t)=\hat{{P}}(T>t)\), the probability that an
+episode is still without an observable successor at age \(t\). The left panel
+carries the absolute level, which is linkage-conditioned and quoted only with
+that caveat; the right panel carries the segment ordering, which survives every
+sensitivity arm.}}
 \end{{figure}}
 
 \paragraph{{Cox model.}} The parsimonious model
@@ -1052,12 +1420,27 @@ Covariate & HR & 95\% CI & p \\
 {latex_cox_rows(cox_results)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Cox hazard ratios, main linkage arm. In-sample C-index
+\caption{{Cox hazard ratios \(\mathrm{{HR}}_k=\exp(\beta_k)\) for the
+observable-successor hazard, main linkage arm. \(\mathrm{{HR}}_k>1\) means the
+covariate is associated with a successor appearing sooner. In-sample C-index
 {survival_summary["cox"]["in_sample_c_index"]:.3f}.}}
 \end{{table}}
 Framework-agreement episodes and CPV-35 carry the largest hazard ratios among
-substantively interpretable covariates. These are descriptive associations with
-the observed hazard, not causal effects.
+substantively interpretable covariates. The framework coefficient reads:
+conditional on an episode still having no observable successor at time \(t\),
+and holding the other included covariates fixed, framework episodes have an
+estimated hazard {cox_results.loc[cox_results["covariate"].eq("framework_flag"), "exp(coef)"].iloc[0]:.3f}
+times that of non-framework episodes -- roughly
+{(cox_results.loc[cox_results["covariate"].eq("framework_flag"), "exp(coef)"].iloc[0] - 1) * 100:.1f}\%
+higher. CPV-35 reads the same way at
+{cox_results.loc[cox_results["covariate"].eq("digital_segment_CPV-35"), "exp(coef)"].iloc[0]:.3f}
+against the CPV-32 reference segment. Three qualifications apply to both. These
+are descriptive associations with the observed hazard, not causal effects. A
+hazard ratio is not a risk ratio, so neither number says an episode is
+{(cox_results.loc[cox_results["covariate"].eq("framework_flag"), "exp(coef)"].iloc[0] - 1) * 100:.1f}\%
+more likely to be renewed. And the proportional-hazards assumption is rejected
+for \code{{framework\_flag}} below, so its ratio is a time-averaged association
+rather than a constant multiplier.
 
 \paragraph{{Proportional-hazards diagnostic.}}
 \begin{{table}}[H]
@@ -1070,13 +1453,17 @@ Covariate & Test statistic & p & PH assumption \\
 {latex_ph_rows(ph_diagnostics)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Schoenfeld-residual proportional-hazards tests.}}
+\caption{{Schoenfeld-residual tests of \(H_0\): the hazard ratio for this
+covariate is constant over time. A small \(p\) is evidence against
+proportionality, not evidence that the covariate does not matter.}}
 \end{{table}}
 The assumption is rejected (\(p<0.05\)) for
 \code{{{latex_escape(', '.join(ph_violations))}}}. These coefficients are
 therefore reported as time-averaged associations rather than constant hazard
 ratios; stratification or time-interaction terms would be the next refinement
-if individualized prediction were required.
+if individualized prediction were required. Nothing in the operational
+deliverable depends on proportionality, because the 12/24-month probabilities
+come from the Kaplan--Meier estimator, which makes no such assumption.
 
 \paragraph{{Temporal validation.}} Training on
 {temporal["train_years"]} ({temporal["train_contracts"]:,} episodes,
@@ -1087,8 +1474,14 @@ if individualized prediction were required.
 {temporal["test_c_index"]:.3f} out-of-time. Extending the test window to
 {extended["test_years"]} ({extended["test_contracts"]:,} episodes,
 {extended["test_events"]:,} events), without refitting, gives
-{extended["test_c_index"]:.3f}. Both are close to the \(0.5\) chance line:
-individualized out-of-time discrimination is weak. The two windows also differ in
+{extended["test_c_index"]:.3f}. Read these as pairwise ranking probabilities:
+among comparable pairs of episodes drawn from the test window, the model puts
+the one that gets its successor first at higher risk about
+{temporal["test_c_index"] * 100:.1f}\% of the time, where 50\% is chance. This is
+\emph{{not}} a classification accuracy of
+{temporal["test_c_index"] * 100:.1f}\%; no episode is being classified. Both
+figures sit close to the \(0.5\) chance line, so individualized out-of-time
+discrimination is weak. The two windows also differ in
 follow-up, and \href{{https://doi.org/10.1002/sim.4154}}{{Uno et al. (2011)}} show
 that the concordance statistic for right-censored data converges to a quantity
 depending on the censoring distribution, so the gap between the two figures should
@@ -1124,7 +1517,9 @@ Model & Parameters & Log-likelihood & AIC & BIC \\
 {latex_parametric_rows(parametric_comparison)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Parametric survival model comparison.}}
+\caption{{Parametric survival model comparison by \(\mathrm{{AIC}}=2k-2\ell\) and
+\(\mathrm{{BIC}}=k\log n-2\ell\). Lower is better \emph{{among these five
+families}}; neither criterion establishes that the winner fits the data.}}
 \end{{table}}
 \code{{{survival_summary["parametric"]["selected_model"]}}} has the lowest AIC
 and BIC and was checked graphically against the Kaplan--Meier curve. It is
@@ -1144,30 +1539,55 @@ Gigalis portfolio was available to score, so they cover the study cohort rather
 than a live deployment set.
 
 \paragraph{{Operational 12- and 24-month probabilities.}} This is the quantity
-the business question actually asks for. For an episode that has reached age
-\(a\) months with no accepted successor, the probability that one becomes
-visible within the next \(h\) months is
-\(P(T \le a+h \mid T > a) = 1 - S(a+h)/S(a)\), read off the Kaplan--Meier
-estimator with 500-draw episode-bootstrap intervals.
+the business question actually asks for, and it is the clearest mathematical
+statement of the internship's operational problem. For an episode that has
+reached age \(a\) months with no accepted observable successor, the probability
+that one becomes visible within the next \(h\) months is
+\[
+P(T\le a+h \mid T>a)
+= P(a<T\le a+h \mid T>a)
+= 1-\frac{{S(a+h)}}{{S(a)}} ,
+\]
+the two left-hand forms being identical because the conditioning event
+\(\{{T>a\}}\) already excludes \(T\le a\). Here \(a\) is the episode's current
+age, \(h\) the forward horizon, and \(\{{T>a\}}\) the statement that no
+observable successor has appeared yet. The quantity is read off the
+Kaplan--Meier estimator with the {int(conditional_probabilities["interval_method"].iloc[0].split()[-2])}-draw
+episode-bootstrap intervals described in \S\ref{{sec:survival-methods}}.
 \begin{{table}}[H]
 \centering
 \small
 \begin{{tabularx}}{{\textwidth}}{{lrlrl}}
 \toprule
-Age at assessment & \(P\)(12m) & 95\% CI & \(P\)(24m) & 95\% CI \\
+Age \(a\) at assessment & \(P(T\le a{{+}}12\mid T{{>}}a)\) & 95\% CI & \(P(T\le a{{+}}24\mid T{{>}}a)\) & 95\% CI \\
 \midrule
 {latex_conditional_rows(conditional_probabilities)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Conditional probability that an observable successor appears within
-the next 12 or 24 months, by current episode age.}}
+\caption{{Given that an episode has reached age \(a\) with no accepted
+observable successor, the estimated probability that one becomes visible in the
+following 12 or 24 months. Kaplan--Meier on the
+{survival_main["validation"]["rows"]:,}-episode cohort under \(M_B@0.70\).}}
 \end{{table}}
+Worked example, the row a purchasing body would use most. At
+\(a=36\) months and \(h=12\),
+\[
+\hat{{P}}(T\le 48\mid T>36)={float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "probability"].iloc[0]):.4f},
+\qquad
+\text{{95\% CI }}[{float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "ci_95_low"].iloc[0]):.4f},\,
+{float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "ci_95_high"].iloc[0]):.4f}].
+\]
+In words: conditional on an episode reaching 36 months with no accepted
+observable successor, the estimated probability that one becomes visible in the
+following 12 months is
+{float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "probability"].iloc[0]) * 100:.2f}\%.
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.94\textwidth]{{figures/survival_conditional_probabilities.png}}
 \caption{{The same quantities with their bootstrap intervals. The profile is not
-monotone in age: it rises into the 36--48 month renewal shoulder and falls away
-after it, which is the empirical feature every parametric family smooths out.}}
+monotone in \(a\): it rises into the 36--48 month renewal shoulder and falls
+away after it, which is the empirical feature every parametric family smooths
+out.}}
 \end{{figure}}
 The intervals are wide relative to the estimates, and these numbers rank ages
 and segments rather than calibrating individual forecasts. They estimate an
@@ -1182,16 +1602,26 @@ analyser high between unrelated objects, and because \(M_B\) ranks candidates
 within each anchor independently, one such episode can be accepted for several
 anchors. A stricter threshold does not remove either signature and can enrich for
 them. Two observable signatures, both published by the candidate-generation
-audit, define the at-risk group: word-level similarity below
-{template_risk["carried_by_char_threshold"]:.2f}
-({template_risk["carried_by_char_similarity"]} links) or a successor episode
-shared with another anchor ({template_risk["successor_shared_with_another_anchor"]}
-links), flagging {template_risk["flagged_links"]} of the
-{template_risk["accepted_links"]} accepted links
-({template_risk["flagged_share_of_events"] * 100:.1f}\%). Those anchors are
-re-censored at the cutoff rather than dropped, because a spurious link means the
-anchor had no observed successor and should still contribute its full follow-up
-as censored exposure.
+audit, define a risk flag on each accepted link:
+\[
+Q_i=\mathbf{{1}}\{{\text{{word-level similarity}}<{template_risk["carried_by_char_threshold"]:.2f}
+\ \ \text{{or}}\ \ \text{{successor reused across anchors}}\}} ,
+\]
+carrying {template_risk["carried_by_char_similarity"]} and
+{template_risk["successor_shared_with_another_anchor"]} links respectively and
+{template_risk["flagged_links"]} in union, so that
+\[
+\hat{{P}}(Q=1\mid A=1)=\frac{{{template_risk["flagged_links"]}}}{{{template_risk["accepted_links"]}}}
+={template_risk["flagged_share_of_events"]:.3f} .
+\]
+\textbf{{This is the share of accepted production links carrying a conservative
+risk signature. It is emphatically not
+\(P(\text{{false link}}\mid A=1)={template_risk["flagged_share_of_events"]:.3f}\).}}
+A flag is a reason to stress-test a link, not a finding that it is wrong;
+inspection says most flagged links are legitimate rewordings and multi-lot
+programmes. Those anchors are re-censored at the cutoff rather than dropped,
+because if a link were spurious the anchor had no observed successor and should
+still contribute its full follow-up as censored exposure.
 \begin{{table}}[H]
 \centering
 \small
@@ -1203,31 +1633,49 @@ Main & {template_main["contracts"]:,} & {template_main["events"]} & {template_ma
 Re-censoring template risk & {template_kept["contracts"]:,} & {template_kept["events"]} & {template_kept["km_successor_by_12m"] * 100:.2f}\% & {template_kept["km_successor_by_24m"] * 100:.2f}\% & {template_kept["cox_hr_cpv_35"]:.3f} & {template_kept["cox_hr_framework"]:.3f} \\
 \bottomrule
 \end{{tabularx}}
-\caption{{Headline results with template-risk links re-censored.}}
+\caption{{Headline results with the \(Q_i=1\) links re-censored. The absolute
+event level moves strongly; the relative associations barely move. That
+contrast, not either row on its own, is the finding.}}
 \end{{table}}
 This is the check the framework-agreement finding most needs, since framework
 boilerplate is the text driving the mechanism: were the higher framework hazard
-an artefact of shared legal wording, re-censoring would collapse it. Both
-headline hazard ratios keep their side of 1 and move little, so the comparative
-findings are not products of the documented false-positive mechanism. The
-absolute Kaplan--Meier level falls by roughly the share of events re-censored,
-which is arithmetic rather than evidence. The check bounds the mechanism's
-influence; it does not establish that the flagged links are false, and most of
-them are not.
+an artefact of shared legal wording, re-censoring would collapse it. It does
+not. Events fall from {template_main["events"]} to {template_kept["events"]} and
+\(\hat{{F}}(12)\) from {template_main["km_successor_by_12m"] * 100:.2f}\% to
+{template_kept["km_successor_by_12m"] * 100:.2f}\%, while CPV-35 moves
+{template_main["cox_hr_cpv_35"]:.3f} to {template_kept["cox_hr_cpv_35"]:.3f} and
+framework {template_main["cox_hr_framework"]:.3f} to
+{template_kept["cox_hr_framework"]:.3f}. Both hazard ratios keep their side of 1,
+so the comparative findings are not products of the documented false-positive
+mechanism. The fall in the absolute Kaplan--Meier level is roughly the share of
+events re-censored, which is arithmetic rather than evidence. The check
+\emph{{bounds}} how much the mechanism could be moving the results; it does not
+establish that the flagged links are false, and most of them are not.
 
-\paragraph{{Detectability and selection diagnostic.}} Comparing linked and
-censored episodes on standardized mean differences, the largest gap is
+\paragraph{{Detectability and selection diagnostic.}} If links were found mainly
+where records happen to be well documented, the event set would be a biased
+sample and the survival estimates would inherit that bias. Linked
+(\(Y_i=1\)) and censored (\(Y_i=0\)) episodes are therefore compared on the
+standardized mean difference
+\[
+\mathrm{{SMD}}=\frac{{\bar{{X}}_1-\bar{{X}}_0}}{{\sqrt{{(s_1^2+s_0^2)/2}}}},
+\]
+which measures the gap between the two groups in pooled within-group standard
+deviations and so is comparable across variables on different scales. The
+largest observed gap is
 \code{{{latex_escape(survival_summary["selection_diagnostic"]["largest_absolute_smd"]["variable"])}}}
-(SMD {survival_summary["selection_diagnostic"]["largest_absolute_smd"]["absolute_smd"]:.3f}).
-This indicates possible differential detectability across episode
-characteristics, not proof of causal linkage bias; it cannot be fully separated
-from genuine heterogeneity in renewal behaviour using BOAMP alone.
+at {survival_summary["selection_diagnostic"]["largest_absolute_smd"]["absolute_smd"]:.3f}.
+This indicates possible differential detectability -- longer notice text gives
+the text scorer more to match on -- not proof of causal linkage bias, and it
+cannot be fully separated from genuine heterogeneity in renewal behaviour using
+BOAMP alone.
 
 \paragraph{{Linkage sensitivity.}} Event counts range from
 {survival_summary["sensitivity"]["minimum_events"]:,} to
 {survival_summary["sensitivity"]["maximum_events"]:,} across the four retained
-linkage arms, so absolute probabilities are linkage-sensitive by construction.
-Cox effects under the same four arms:
+linkage arms, so \(P_m(T\le t)\) is linkage-sensitive by construction: a looser
+\(\mathcal{{L}}_m\) manufactures more events. The question the table below
+answers is whether \(\mathrm{{HR}}_{{k,m}}\) is equally sensitive.
 \begin{{table}}[H]
 \centering
 \small
@@ -1238,11 +1686,16 @@ Covariate & Strict & Main & Looser & High-recall & Robustness \\
 {latex_cox_sensitivity_rows(cox_sensitivity)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Cox hazard ratios across linkage-definition sensitivity arms.}}
+\caption{{\(\mathrm{{HR}}_{{k,m}}\) for each covariate \(k\) under each linkage
+definition \(\mathcal{{L}}_m\). Reading a row across is the robustness test: a
+covariate whose ratio keeps its side of 1 across a fourfold change in event
+count is not an artefact of where the acceptance bar was placed.}}
 \end{{table}}
 Framework flag, CPV-35, and centered award year are the most robust
 associations; buyer-region and CPV-72 effects are linkage-sensitive and should
-not be over-interpreted.
+not be over-interpreted. The overall pattern is the one the notation was
+introduced to name: \(P_m(T\le t)\) varies considerably with \(m\), while the
+direction and rough size of the leading \(\mathrm{{HR}}_{{k,m}}\) do not.
 
 \section{{Trend Results}}
 \begin{{table}}[H]
@@ -1855,7 +2308,17 @@ legal renewal.
     return path
 
 
-def write_notebook(generated_at: str) -> None:
+def write_notebook(
+    validation: dict[str, Any], manifest: dict[str, Any], generated_at: str
+) -> None:
+    ceiling = manifest["candidate_reachability"]
+    # Anchor-level cell counts for the frozen rule, so the notebook can show the
+    # arithmetic behind each conditional probability rather than only its value.
+    cells_m_b = next(
+        method["unweighted"]
+        for method in validation["methods"]
+        if method["method"] == "M_B_text_ranking"
+    )
     nb = nbf.v4.new_notebook()
     nb["metadata"] = {
         "kernelspec": {
@@ -1923,6 +2386,59 @@ def write_notebook(generated_at: str) -> None:
             "validation_methods = method_frame(validation)\n"
             "validation_methods\n"
         ),
+        nbf.v4.new_markdown_cell(
+            "## What Is Actually Being Scored\n\n"
+            "The decision here is **not** a yes/no call on a pre-formed pair, so an "
+            "ordinary binary confusion matrix would hide the failure mode that matters "
+            "most. For each anchor $i$ the reference names a *successor identity* and "
+            "the method returns one, and the method can be wrong by naming the wrong "
+            "candidate rather than by naming one at all.\n\n"
+            "Let $J_i$ be the candidate set that survived blocking for anchor $i$. Then\n\n"
+            "$$R_i \\in J_i \\cup \\{\\varnothing\\}, \\qquad \\hat R_i \\in J_i \\cup \\{\\varnothing\\},$$\n\n"
+            "where $R_i$ is the **reviewed successor** the reference identifies "
+            "($\\varnothing$ if it found none) and $\\hat R_i$ is the successor the "
+            "linkage rule **accepts** ($\\varnothing$ if it abstains). Three indicators "
+            "follow, and they are what every metric below is built from:\n\n"
+            "$$P_i = \\mathbf{1}\\{R_i \\neq \\varnothing\\}, \\qquad "
+            "A_i = \\mathbf{1}\\{\\hat R_i \\neq \\varnothing\\}, \\qquad "
+            "C_i = \\mathbf{1}\\{\\hat R_i = R_i \\neq \\varnothing\\}.$$\n\n"
+            "In words: $P_i$ says the reference found a successor, $A_i$ says the method "
+            "committed to one, and $C_i$ says the one it committed to is exactly the "
+            "reviewed one. A fourth indicator belongs to the stage *before* linkage:\n\n"
+            "$$E_i = \\mathbf{1}\\{R_i \\in J_i\\},$$\n\n"
+            "the reviewed successor survived candidate generation. An anchor with "
+            "$E_i = 0$ is unrecoverable by any scorer, however good.\n\n"
+            "The reason this notation earns its place: an anchor can have $P_i = 1$ and "
+            "$A_i = 1$ and still have $C_i = 0$, because the method accepted the wrong "
+            "candidate. That single case is counted against precision *and* against "
+            "recall, and it is invisible in the $TP/(TP+FP)$ shorthand."
+        ),
+        nbf.v4.new_markdown_cell(
+            "## The Metrics As Conditional Probabilities\n\n"
+            "Each metric conditions on a different population, which is why they can "
+            "move in opposite directions.\n\n"
+            "| Quantity | Form | Question it answers |\n"
+            "|---|---|---|\n"
+            "| Candidate reachability | $P(E=1 \\mid P=1)$ | If a reviewed successor exists, did blocking keep it? |\n"
+            "| Precision | $P(C=1 \\mid A=1)$ | If the method accepts, is the accepted candidate the reviewed one? |\n"
+            "| Recall | $P(C=1 \\mid P=1)$ | If a reviewed successor exists, is it recovered exactly? |\n"
+            "| False-positive rate | $P(A=1 \\mid P=0)$ | If no reviewed successor exists, did the method accept anyway? |\n"
+            "| Coverage | $P(A=1)$ | What share of anchors get a link rather than an abstention? |\n\n"
+            "**Precision and recall are the same event under reversed conditioning.** "
+            "$P(C=1 \\mid P=1)$ conditions on the reference; $P(C=1 \\mid A=1)$ conditions "
+            "on the algorithm. They are not interchangeable and need not be close, "
+            "because the two conditioning sets are different populations. The "
+            "false-positive rate conditions on a *third* population -- anchors the "
+            "reference found nothing for -- so it is **not** $1 - \\text{precision}$; the "
+            "two share no denominator.\n\n"
+            "The two stages are deliberately given opposite objectives. Candidate "
+            "generation maximises $P(E=1 \\mid P=1)$, because a successor it discards is "
+            "gone for good; the linkage rule then maximises $P(C=1 \\mid A=1)$, because a "
+            "false link fabricates both a survival event and an event time. High recall "
+            "first, high precision later. This also fixes the ceiling: since a correct "
+            "acceptance requires the successor to be in $J_i$ at all,\n\n"
+            "$$P(C=1 \\mid P=1) \\le P(E=1 \\mid P=1).$$"
+        ),
         nbf.v4.new_markdown_cell("## Reference State"),
         nbf.v4.new_code_cell(
             "pd.DataFrame([\n"
@@ -1932,8 +2448,23 @@ def write_notebook(generated_at: str) -> None:
             "    {'item': 'pilot positive anchors', 'value': manifest['splits']['dev']['positive_anchors']},\n"
             "    {'item': 'locked usable anchors', 'value': manifest['splits']['validation']['usable_anchors']},\n"
             "    {'item': 'locked positive anchors', 'value': manifest['splits']['validation']['positive_anchors']},\n"
-            "    {'item': 'candidate recall ceiling', 'value': manifest['candidate_reachability']['candidate_generation_recall_ceiling']},\n"
+            "    {'item': 'reviewed successors in the reference', 'value': manifest['candidate_reachability']['positive_anchors']},\n"
+            "    {'item': 'of those, reachable after blocking', 'value': manifest['candidate_reachability']['positive_anchors_with_reviewed_successor_in_pool']},\n"
+            "    {'item': 'P(E=1 | P=1), the recall ceiling', 'value': manifest['candidate_reachability']['candidate_generation_recall_ceiling']},\n"
             "])"
+        ),
+        nbf.v4.new_markdown_cell(
+            "Candidate generation retained the reviewed successor in "
+            f"`{ceiling['positive_anchors_with_reviewed_successor_in_pool']}` of the "
+            f"`{ceiling['positive_anchors']}` reviewed cases, so "
+            f"$\\hat P(E=1 \\mid P=1) = {ceiling['positive_anchors_with_reviewed_successor_in_pool']}/"
+            f"{ceiling['positive_anchors']} = "
+            f"{ceiling['candidate_generation_recall_ceiling']:.3f}$. This is "
+            "candidate-generation reachability measured on this reference sample -- "
+            "*pairs completeness* in record-linkage terms -- and **not** population "
+            "recall. Both unreachable cases are attributed to a named blocking "
+            "condition in `CANDIDATE_GENERATION_AUDIT.md`; neither is an "
+            "implementation defect."
         ),
         nbf.v4.new_markdown_cell("## Held-Out Method Comparison On The Locked Split"),
         nbf.v4.new_code_cell(
@@ -1941,18 +2472,74 @@ def write_notebook(generated_at: str) -> None:
             "ax = validation_methods.set_index('method')[['precision', 'recall', 'fpr']].plot(\n"
             "    kind='bar', figsize=(9, 4.5), width=0.72\n"
             ")\n"
-            "ax.set_title('Regional reference: locked split')\n"
-            "ax.set_ylabel('rate')\n"
+            "ax.set_title('Locked split: the same three conditional probabilities per method')\n"
+            "ax.set_ylabel('probability')\n"
             "ax.set_ylim(0, 1)\n"
             "ax.set_xlabel('')\n"
-            "ax.legend(['precision@1', 'recall@1', 'FPR on negatives'], frameon=False)\n"
+            "ax.legend(['precision  P(C=1 | A=1)', 'recall  P(C=1 | P=1)',\n"
+            "           'FPR  P(A=1 | P=0)'], frameon=False)\n"
             "ax.tick_params(axis='x', rotation=28)\n"
             "ax.grid(axis='y', alpha=0.25)\n"
             "plt.tight_layout()"
         ),
+        nbf.v4.new_code_cell(
+            "# The frozen rule read cell by cell, so each rate above can be traced to\n"
+            "# the anchors that produced it.\n"
+            "m_b = next(m['unweighted'] for m in validation['methods']\n"
+            "           if m['method'] == 'M_B_text_ranking')\n"
+            "display(pd.DataFrame([\n"
+            "    {'cell': 'C=1 (accepted the reviewed successor)', 'anchors': m_b['true_positive']},\n"
+            "    {'cell': 'A=1, P=1, C=0 (accepted the wrong candidate)', 'anchors': m_b['false_positive_wrong_successor']},\n"
+            "    {'cell': 'A=0, P=1 (abstained on a positive anchor)', 'anchors': m_b['false_negative_abstained']},\n"
+            "    {'cell': 'A=1, P=0 (accepted where the reference has none)', 'anchors': m_b['false_positive_on_no_successor_anchor']},\n"
+            "    {'cell': 'A=0, P=0 (abstained on a negative anchor)', 'anchors': m_b['true_negative_abstained']},\n"
+            "]).set_index('cell'))\n\n"
+            "print(f\"P(C=1 | A=1) = {m_b['true_positive']}/{m_b['accepted_links']}\"\n"
+            "      f\" = {m_b['precision_at_1']:.3f}   precision\")\n"
+            "print(f\"P(C=1 | P=1) = {m_b['true_positive']}/{m_b['positive_anchors']}\"\n"
+            "      f\" = {m_b['recall_at_1']:.3f}   recall\")\n"
+            "print(f\"P(A=1 | P=0) = {m_b['false_positive_on_no_successor_anchor']}/{m_b['negative_anchors']}\"\n"
+            "      f\" = {m_b['false_positive_rate_on_negatives']:.3f}   false-positive rate\")\n"
+            "print(f\"P(A=1)       = {m_b['accepted_links']}/{m_b['anchors_evaluated']}\"\n"
+            "      f\" = {m_b['coverage']:.3f}   coverage\")\n"
+        ),
+        nbf.v4.new_markdown_cell(
+            "### Reading those four numbers\n\n"
+            f"**Precision, $\\hat P(C=1 \\mid A=1) = {cells_m_b['true_positive']}/"
+            f"{cells_m_b['accepted_links']} = {cells_m_b['precision_at_1']:.3f}$.** Among the "
+            f"`{cells_m_b['accepted_links']}` links `M_B` accepted on the locked reference, "
+            f"`{cells_m_b['true_positive']}` matched the reviewed successor. This is a "
+            f"reference-sample estimate on `{cells_m_b['accepted_links']}` accepted links with a wide "
+            f"interval (95% CI "
+            f"`{cells_m_b['precision_at_1_interval_95'][0]:.3f}`-`{cells_m_b['precision_at_1_interval_95'][1]:.3f}`): "
+            "one changed decision moves it materially. It is not population accuracy and "
+            "not independent specialist validation.\n\n"
+            f"**Recall, $\\hat P(C=1 \\mid P=1) = {cells_m_b['true_positive']}/"
+            f"{cells_m_b['positive_anchors']} = {cells_m_b['recall_at_1']:.3f}$.** Of the "
+            f"`{cells_m_b['positive_anchors']}` anchors the reference says have a successor, the rule "
+            f"recovered `{cells_m_b['true_positive']}`. The "
+            f"`{cells_m_b['positive_anchors'] - cells_m_b['true_positive']}` misses are of two kinds and "
+            f"count identically here: `{cells_m_b['false_negative_abstained']}` abstentions and "
+            f"`{cells_m_b['false_positive_wrong_successor']}` wrong acceptance. Only the second "
+            "fabricates a link. The ceiling is not 1 but "
+            f"`{ceiling['candidate_generation_recall_ceiling']:.3f}`, set by blocking.\n\n"
+            f"**False-positive rate, $\\hat P(A=1 \\mid P=0) = "
+            f"{cells_m_b['false_positive_on_no_successor_anchor']}/{cells_m_b['negative_anchors']} = "
+            f"{cells_m_b['false_positive_rate_on_negatives']:.3f}$.** On the "
+            f"`{cells_m_b['negative_anchors']}` anchors the reference found nothing for, the rule "
+            "accepted nothing either. This is a diagnostic on a small set of "
+            "corpus-relative negatives, **not** evidence that the population "
+            "false-positive rate is literally zero.\n\n"
+            f"**Coverage, $\\hat P(A=1) = {cells_m_b['accepted_links']}/"
+            f"{cells_m_b['anchors_evaluated']} = {cells_m_b['coverage']:.3f}$.** Roughly one anchor in "
+            "nine receives a link. Low coverage is not a defect to be fixed here: it is "
+            "the direct consequence of prioritising $P(C=1 \\mid A=1)$, and in a survival "
+            "dataset an abstention becomes honest right-censoring while a false link "
+            "becomes a fabricated event at a fabricated time."
+        ),
         nbf.v4.new_markdown_cell(
             "## Interpretation\n\n"
-            "`M_C_weighted_gated` recovers more true successors, but its false-positive "
+            "`M_C_weighted_gated` recovers more reviewed successors, but its false-positive "
             "rate is materially higher. For survival analysis, a false link is more "
             "damaging than an abstention because it fabricates both an event and an "
             "event time. Thresholds other than `0.70` are carried as sensitivity arms "
@@ -2014,7 +2601,7 @@ def main() -> int:
     report_path = write_methodology_report(dev, validation, modeling, manifest, generated_at)
     pdf_path = compile_methodology_pdf(report_path)
     write_status_files(dev, validation, modeling, manifest, generated_at)
-    write_notebook(generated_at)
+    write_notebook(validation, manifest, generated_at)
     summary_path = write_executive_summary(dev, validation, modeling, manifest, generated_at)
 
     print(

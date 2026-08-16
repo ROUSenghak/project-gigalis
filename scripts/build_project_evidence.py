@@ -727,9 +727,23 @@ PELT minimizes a penalized segmentation objective,
 \sum_{{r=0}}^m \mathcal{{C}}(y_{{\tau_r+1:\tau_{{r+1}}}})+\beta m,
 \]
 
-where \(\mathcal{{C}}\) is within-segment squared error, \(m\) is the number of breaks, and \(\beta=\lambda\log(n)\) after z-standardization. The central result uses \(\lambda=1\); sensitivity uses 0.5 and 2.0. A break is called stable only when a break lies within one quarter under all three penalties. This follows the PELT framework of [Killick, Fearnhead and Eckley (2012)]({SOURCE_URLS['pelt']}).
+where \(\mathcal{{C}}\) is within-segment squared error, \(m\) is the number of breaks, and \(\beta=\lambda\log(n)\) after z-standardization. The first term rewards fitting each segment well; the second charges a fixed price per break, which is what stops the optimum from placing a break between every pair of quarters. The central result uses \(\lambda=1\); sensitivity uses 0.5 and 2.0. A break is called stable only when a break lies within one quarter under all three penalties. This follows the PELT framework of [Killick, Fearnhead and Eckley (2012)]({SOURCE_URLS['pelt']}).
 
-The recent direction comes from an ordinary least-squares slope over the latest 12 quarters. It is `increasing` or `decreasing` only when its two-sided p-value is below 0.10; otherwise it is `stable_or_uncertain`. This is a signal description, not a forward prediction.
+The HMM is fit on the quarter-over-quarter change \(\Delta N_t = N_t - N_{{t-1}}\). Its hidden state \(Z_t \in \{{\text{{decline}}, \text{{plateau}}, \text{{growth}}\}}\) evolves through transition probabilities \(P(Z_t=k \mid Z_{{t-1}}=l)\), and the regime probability reported above is the posterior
+
+\[
+P(Z_t=k \mid \Delta N_1,\dots,\Delta N_t),
+\]
+
+that is: given the observed sequence of quarterly changes and the fitted model, how probable is regime \(k\) in the current quarter. It is model-conditional and is not an observed property of the market.
+
+The recent direction comes from an ordinary least-squares fit over the latest 12 quarters,
+
+\[
+N_t=\alpha+\beta t+\varepsilon_t,
+\]
+
+where \(\hat\beta\) is the estimated change in awarded episodes per quarter over that window. A segment is labelled `increasing` or `decreasing` only when \(\hat\beta\)'s two-sided p-value is below 0.10; otherwise it is `stable_or_uncertain`. This is a signal description, not a forward prediction, and no value of \(N_t\) beyond the window is implied.
 
 ## Duration Completeness Is A Measurement Break
 
@@ -772,7 +786,53 @@ def write_notebook() -> None:
         ),
         nbf.v4.new_markdown_cell(
             "## Context & Methods\n\n"
-            "The unit is one awarded Grand Ouest digital procurement episode. The trend window starts at 2015Q2 because the raw extract begins in March 2015. PELT uses standardized quarterly counts and a log(n) penalty with sensitivity multipliers 0.5, 1, and 2."
+            "The unit is one awarded Grand Ouest digital procurement episode. The trend "
+            "window starts at 2015Q2 because the raw extract begins in March 2015. For "
+            "segment $s$ and quarter $q$ the series is the count "
+            "$N_{s,q} = \\sum_i \\mathbf{1}(S_i = s,\\, Q_i = q)$, including zero-count "
+            "quarters.\n\n"
+            "These are time-series methods and are stated in their natural forms. Only "
+            "the HMM output is genuinely a conditional probability, and only it is "
+            "written as one.\n\n"
+            "**PELT — when did the level shift?** Over the number of change points $K$ "
+            "and their positions $\\tau_1 < \\cdots < \\tau_K$, PELT minimises\n\n"
+            "$$\\sum_{k=0}^{K} \\mathcal{C}\\big(y_{\\tau_k+1:\\tau_{k+1}}\\big) + K\\beta,"
+            "\\qquad \\beta = \\lambda\\log(n),$$\n\n"
+            "on the z-standardized series, with $\\mathcal{C}$ the within-segment squared "
+            "error. The first term rewards fitting each segment well; the second charges "
+            "a fixed price per break, which is what stops the optimum from putting a "
+            "break between every pair of quarters. Sensitivity multipliers "
+            "$\\lambda \\in \\{0.5, 1, 2\\}$ are run and a break is called **stable** only "
+            "if it appears within about one quarter under all three. PELT answers *when* "
+            "the statistical level changed; it never answers *why*.\n\n"
+            "**ADF and KPSS — is the series stationary?** The two tests are run together "
+            "because their nulls are opposite:\n\n"
+            "$$H_0^{\\mathrm{ADF}}:\\ \\text{unit root (non-stationary)}, \\qquad "
+            "H_0^{\\mathrm{KPSS}}:\\ \\text{level-stationary}.$$\n\n"
+            "Rejecting the ADF null while failing to reject the KPSS null is coherent "
+            "evidence of stationarity. When they disagree the honest report is "
+            "**ambiguity** over this short window, not a forced binary label.\n\n"
+            "**HMM — what regime is the series in now?** A 3-state Gaussian hidden Markov "
+            "model is fit on the quarter-over-quarter change "
+            "$\\Delta N_t = N_t - N_{t-1}$, not the level. The hidden state "
+            "$Z_t \\in \\{\\text{decline}, \\text{plateau}, \\text{growth}\\}$ evolves "
+            "through transition probabilities $P(Z_t = k \\mid Z_{t-1} = l)$, and the "
+            "reported quantity is the posterior\n\n"
+            "$$P(Z_t = k \\mid \\Delta N_1, \\dots, \\Delta N_t),$$\n\n"
+            "read as: given the observed sequence of quarterly changes **and the fitted "
+            "model**, how probable is regime $k$ in the current quarter? This is "
+            "model-conditional. A high posterior on `growth` says the model finds that "
+            "regime most consistent with recent changes — not that the market is "
+            "objectively growing.\n\n"
+            "**OLS — what direction are the last three years?** The recent-direction "
+            "label comes from\n\n"
+            "$$N_t = \\alpha + \\beta t + \\varepsilon_t$$\n\n"
+            "fitted over the latest 12 quarters, where $\\hat\\beta$ is the estimated "
+            "change in awarded episodes per quarter. A segment is labelled `increasing` "
+            "or `decreasing` only when the two-sided p-value falls below the pre-declared "
+            "exploratory $\\alpha = 0.10$, uncorrected for multiple testing; otherwise it "
+            "is `stable_or_uncertain`. $\\hat\\beta$ describes the window it was fitted "
+            "on. It is **not** a forecast."
         ),
         nbf.v4.new_code_cell(
             "from pathlib import Path\n"
@@ -829,7 +889,8 @@ def write_notebook() -> None:
             "## Takeaways\n\n"
             "- The cohort has enough episodes for descriptive survival analysis, but the event definition remains linkage-conditioned.\n"
             "- Duration missingness changes sharply over time, so global duration imputation would create unsupported temporal structure.\n"
-            "- PELT breaks are candidates for documentary interpretation, not causal findings.\n"
+            "- PELT breaks are candidates for documentary interpretation, not causal findings: the objective above dates a level shift, it does not explain one.\n"
+            "- The HMM regime is a posterior $P(Z_t = k \\mid \\Delta N_1, \\dots, \\Delta N_t)$ under the fitted model, not an observed property of the market, and it need not agree with the 12-quarter OLS slope.\n"
             "- Reference metrics are regional reference-sample evidence; independent specialist review is still needed before any external accuracy claim."
         ),
     ]

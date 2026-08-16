@@ -1,6 +1,6 @@
 # BOAMP Descriptive Trend Analysis
 
-Generated: `2026-08-16T13:05:09`  
+Generated: `2026-08-16T16:28:53`  
 Analysis window: `2015Q2-2025Q4`  
 Unit: awarded Grand Ouest digital procurement episodes
 
@@ -99,9 +99,23 @@ PELT minimizes a penalized segmentation objective,
 \sum_{r=0}^m \mathcal{C}(y_{\tau_r+1:\tau_{r+1}})+\beta m,
 \]
 
-where \(\mathcal{C}\) is within-segment squared error, \(m\) is the number of breaks, and \(\beta=\lambda\log(n)\) after z-standardization. The central result uses \(\lambda=1\); sensitivity uses 0.5 and 2.0. A break is called stable only when a break lies within one quarter under all three penalties. This follows the PELT framework of [Killick, Fearnhead and Eckley (2012)](https://doi.org/10.1080/01621459.2012.737745).
+where \(\mathcal{C}\) is within-segment squared error, \(m\) is the number of breaks, and \(\beta=\lambda\log(n)\) after z-standardization. The first term rewards fitting each segment well; the second charges a fixed price per break, which is what stops the optimum from placing a break between every pair of quarters. The central result uses \(\lambda=1\); sensitivity uses 0.5 and 2.0. A break is called stable only when a break lies within one quarter under all three penalties. This follows the PELT framework of [Killick, Fearnhead and Eckley (2012)](https://doi.org/10.1080/01621459.2012.737745).
 
-The recent direction comes from an ordinary least-squares slope over the latest 12 quarters. It is `increasing` or `decreasing` only when its two-sided p-value is below 0.10; otherwise it is `stable_or_uncertain`. This is a signal description, not a forward prediction.
+The HMM is fit on the quarter-over-quarter change \(\Delta N_t = N_t - N_{t-1}\). Its hidden state \(Z_t \in \{\text{decline}, \text{plateau}, \text{growth}\}\) evolves through transition probabilities \(P(Z_t=k \mid Z_{t-1}=l)\), and the regime probability reported above is the posterior
+
+\[
+P(Z_t=k \mid \Delta N_1,\dots,\Delta N_t),
+\]
+
+that is: given the observed sequence of quarterly changes and the fitted model, how probable is regime \(k\) in the current quarter. It is model-conditional and is not an observed property of the market.
+
+The recent direction comes from an ordinary least-squares fit over the latest 12 quarters,
+
+\[
+N_t=\alpha+\beta t+\varepsilon_t,
+\]
+
+where \(\hat\beta\) is the estimated change in awarded episodes per quarter over that window. A segment is labelled `increasing` or `decreasing` only when \(\hat\beta\)'s two-sided p-value is below 0.10; otherwise it is `stable_or_uncertain`. This is a signal description, not a forward prediction, and no value of \(N_t\) beyond the window is implied.
 
 ## Duration Completeness Is A Measurement Break
 

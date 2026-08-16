@@ -26,11 +26,20 @@ Let:
 - $n$ denote a BOAMP notice;
 - $i$ denote an earlier awarded procurement episode, called the anchor;
 - $j$ denote a later candidate episode;
-- $A_i$ denote the anchor award-date origin;
-- $C_j$ denote the candidate first-publication date;
+- $u_i$ denote the anchor award-date origin;
+- $v_j$ denote the candidate first-publication date;
+- $J_i$ denote the candidate set that survives blocking for anchor $i$;
 - $T_{ij}$ denote TF-IDF cosine text similarity;
+- $\hat{R}_i\in J_i\cup\{\varnothing\}$ denote the accepted successor, $\varnothing$ on abstention;
 - $Y_i=1$ denote an accepted observable successor and $Y_i=0$ an abstention;
-- $\tau_i$ denote observed or censored time from $A_i$.
+- $\tau_i$ denote observed or censored time from $u_i$.
+
+Calendar dates are lower-case so that the upper-case indicators $A_i$
+(acceptance), $C_i$ (exact-match correctness), $P_i$ (the reference identifies a
+successor) and $E_i$ (the reviewed successor survived blocking) can carry their
+standard meaning in the linkage-evaluation layer. Those four are defined in
+`reports/boamp_methodology_chapter.pdf` §Notation and in notebook 12, which is
+where they are used.
 
 The analytical grains are fixed:
 
@@ -95,7 +104,7 @@ A candidate is exposed only when buyer evidence is plausible, validated SIRENs
 do not conflict, and:
 
 \[
-A_i+90\text{ days} \le C_j \le A_i+2920\text{ days}.
+u_i+90\text{ days} \le v_j \le u_i+2920\text{ days}.
 \]
 
 The 90-2,920 day interval is an operational search window, not an assumed
@@ -152,7 +161,7 @@ a linkage algorithm.
 For an accepted candidate $\hat{j}_i$:
 
 \[
-\tau_i=C_{\hat{j}_i}-A_i,
+\tau_i=v_{\hat{j}_i}-u_i,
 \qquad Y_i=1.
 \]
 
@@ -160,7 +169,7 @@ If no successor is accepted by `2025-12-31`, the row is administratively
 right-censored:
 
 \[
-\tau_i=\text{2025-12-31}-A_i,
+\tau_i=\text{2025-12-31}-u_i,
 \qquad Y_i=0.
 \]
 
