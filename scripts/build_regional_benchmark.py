@@ -347,7 +347,7 @@ def build(force: bool) -> dict[str, Any]:
             "Negatives are corpus-relative: roughly 25 candidates per anchor were considered, not the full pool, so a negative means 'no successor identified among those considered, using the sources consulted'.",
             "Labels rest partly on judging whether later notice text continues an earlier need. That judgement is not rule-identical to any method scored here, but it draws on text, CPV, and date evidence that the text-ranking method also uses, so the two are not fully evidence-independent.",
             "The reference records one successor relationship per anchor and does not distinguish renewal from next-phase, so only the primary event set exists.",
-            "Design weights come from the v1 sampling frame, whose stratum populations were computed on the earlier episode reconstruction.",
+            "Design weights come from the reference's own sampling frame, whose stratum populations were computed on a different episode table than the analysis cohort, so the weights are approximate and every metric reported here is unweighted.",
             "Sample size is small; every metric needs its interval read alongside it.",
         ],
     }

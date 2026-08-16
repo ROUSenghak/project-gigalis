@@ -1,10 +1,10 @@
 # Regional Reference Datasheet
 
-Generated: `2026-08-15T18:58:06`
+Generated: `2026-08-16T09:13:03`
 
 ## What This Reference Is
 
-The active reference for successor linkage is a stratified review of
+The reference for successor linkage is a stratified review of
 `120` awarded digital procurement anchors drawn from the
 study region itself: Grand Ouest (Bretagne, Pays de la Loire, Normandie). Each anchor was reviewed
 against the real BOAMP notices and official notice URLs of its candidates on
@@ -21,19 +21,10 @@ against the real BOAMP notices and official notice URLs of its candidates on
 It is a **regional reference sample**, not ground truth, and not proof of legal
 renewal.
 
-## What It Replaced And Why
-
-It replaced a France-level benchmark whose two annotation passes were both
-emitted by deterministic rules in a single script, built from the same text,
-CPV, and date evidence the linkage methods consume. A method could score well
-there only by agreeing with that rule, so the numbers measured rule agreement
-rather than correctness. Those artifacts have been removed from the repository
-in full; their history remains in version control.
-
-## Current Materialised State
+## Materialised State
 
 - reviewed anchors: `120`;
-- resolved onto the current episode reconstruction: `112`;
+- resolved onto exactly one procurement episode: `112`;
 - pilot split: `16` usable anchors, `5` positive, `11` negative;
 - locked split: `72` usable anchors, `18` positive, `54` negative;
 - pair rows: `5,221` pilot, `20,917` locked;
@@ -49,7 +40,7 @@ in full; their history remains in version control.
 - `OUTSIDE_SCOPE` / `INSUFFICIENT_INFORMATION`: the research pass declined to decide;
   these anchors are excluded from evaluation rather than counted as negatives.
 
-## Current Method Comparison On The Locked Split
+## Method Comparison On The Locked Split
 
 | Method | Threshold | Precision | 95% CI | Recall | 95% CI | FPR | Accepted |
 |---|---:|---:|---|---:|---|---:|---:|
@@ -78,7 +69,7 @@ incremental links, and fresh evidence.
 - Negatives are corpus-relative: roughly 25 candidates per anchor were considered, not the full pool, so a negative means 'no successor identified among those considered, using the sources consulted'.
 - Labels rest partly on judging whether later notice text continues an earlier need. That judgement is not rule-identical to any method scored here, but it draws on text, CPV, and date evidence that the text-ranking method also uses, so the two are not fully evidence-independent.
 - The reference records one successor relationship per anchor and does not distinguish renewal from next-phase, so only the primary event set exists.
-- Design weights come from the v1 sampling frame, whose stratum populations were computed on the earlier episode reconstruction.
+- Design weights come from the reference's own sampling frame, whose stratum populations were computed on a different episode table than the analysis cohort, so the weights are approximate and every metric reported here is unweighted.
 - Sample size is small; every metric needs its interval read alongside it.
 
 ## What It May Legitimately Be Used For

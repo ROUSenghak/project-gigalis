@@ -316,6 +316,7 @@ def write_methodology_report(
     reviewed_anchors = manifest["reviewed_anchors"]
     usable_anchors = sum(split["usable_anchors"] for split in manifest["splits"].values())
     locked = manifest["splits"]["validation"]
+    pilot = manifest["splits"]["dev"]
     ceiling = manifest["candidate_reachability"]
     candidates = load_json(PROCESSED / "linkage_candidates_summary.json")
     survival = load_json(PROCESSED / "survival_dataset_summary.json")
@@ -375,13 +376,13 @@ def write_methodology_report(
 \newpage
 
 \section*{{Technical Summary}}
-This report states the current defensible BOAMP successor-linkage pipeline. The
-study does not claim to certify legal contract renewals. Its
-event is an \emph{{observable successor procurement}}: a later BOAMP procurement
-episode from the same buyer that is sufficiently similar to an earlier awarded
-digital procurement episode.
+This report states the BOAMP successor-linkage, survival, and trend methodology
+and the results it produces. The study does not claim to certify legal contract
+renewals. Its event is an \emph{{observable successor procurement}}: a later BOAMP
+procurement episode from the same buyer that is sufficiently similar to an
+earlier awarded digital procurement episode.
 
-The current Grand Ouest survival cohort contains
+The Grand Ouest survival cohort contains
 {survival_main["validation"]["rows"]:,} awarded digital procurement episodes.
 The main linkage rule accepts {survival_main["validation"]["events"]:,}
 successor links, giving an observed event rate of
@@ -487,7 +488,7 @@ where they are explicitly available. It does not impute missing duration or
 invent expected expiry dates. Buyer standardisation is deliberately conservative:
 municipal variants such as commune/ville/mairie can be harmonised, but
 intercommunal legal forms are preserved as distinct entities, and conflicting
-validated SIRENs block a buyer match. The current legal-form audit reports
+validated SIRENs block a buyer match. The legal-form audit reports
 {buyer_audit["hard_fail_conflicting_validated_siren"]} accepted links with
 conflicting validated SIREN evidence and {buyer_audit["municipal_intercommunal_mix"]}
 accepted municipal/intercommunal mixes.
@@ -509,20 +510,38 @@ The lower bound removes very near follow-up notices and parallel administrative
 activity. The upper bound is approximately eight years; it keeps the candidate
 pool inclusive enough for long public-procurement cycles. Precision is then
 controlled by the selection stage rather than by a narrow time window. The
-current blocking rule generated {candidates["candidate_pairs"]:,} candidate
+blocking rule generates {candidates["candidate_pairs"]:,} candidate
 pairs, with a median of {candidates["candidates_per_anchor"]["median"]:.0f}
 candidates per anchor.
 
 \section{{Grand Ouest Regional Reference}}
 \label{{sec:linkage-caveat}}
-Evaluation uses a regional reference sample drawn from the study region itself:
-{reviewed_anchors} awarded digital procurement anchors stratified by CPV theme,
-buyer-identifier quality, and duration availability across Bretagne, Pays de la
-Loire, and Normandie, reviewed on 2026-08-11 against the notices and official
-BOAMP URLs of each candidate. The pilot split carries
-{modeling["outputs"]["dev"]["anchors"]} anchors and
+Linkage evaluation uses a Grand Ouest regional reference sample drawn from the
+study population itself: {reviewed_anchors} awarded digital procurement anchors
+stratified by CPV theme, buyer-identifier quality, and duration availability
+across Bretagne, Pays de la Loire, and Normandie. Each anchor was reviewed on
+2026-08-11 against the notices and official BOAMP URLs of its candidates. The
+review is a single LLM research pass over those notices, their official URLs, and
+wider public sources, spot-checked on a subset by the project owner; it proposes
+one successor or an abstention per anchor. No linkage method existed or was
+consulted when the labels were produced, so the labels are independent of every
+method scored against them.
+
+Reference anchors are resolved onto the procurement-episode table through their
+BOAMP notice identifiers.
+{reviewed_anchors - manifest["remap"]["resolved_to_current_episodes"]} anchors did
+not resolve to exactly one episode and were dropped rather than guessed, and
+anchors the review declined to decide are excluded rather than counted as
+negatives, leaving {usable_anchors} evaluable anchors.
+
+The sample is split into a pilot part and a locked part. The acceptance threshold
+was fixed before the locked part was read, which is what allows locked-split
+figures to be reported as held out. The pilot split carries
+{pilot["usable_anchors"]} evaluable anchors
+({pilot["positive_anchors"]} with a reviewed successor) and
 {modeling["outputs"]["dev"]["rows"]:,} pair rows; the locked split carries
-{modeling["outputs"]["validation"]["anchors"]} anchors and
+{locked["usable_anchors"]} evaluable anchors
+({locked["positive_anchors"]} with a reviewed successor) and
 {modeling["outputs"]["validation"]["rows"]:,} pair rows.
 
 Two anchor counts appear for the locked split and the difference is by
@@ -536,35 +555,27 @@ recall rather than a scoring failure. Anchor-level metrics use
 {locked["usable_anchors"]}; pair-level ROC and precision-recall
 curves use {modeling["outputs"]["validation"]["anchors"]}.
 
-This reference replaced an earlier France-level benchmark whose labels were
-emitted by deterministic rules reading the same text, CPV, and date evidence the
-linkage methods consume. That construction made the comparison circular: a
-method could only score well by agreeing with a hand-written rule built from its
-own features, and the resulting numbers measured rule agreement rather than
-correctness. It has been removed from the repository in full -- its data, its
-construction scripts, and its annotation tooling -- so nothing here can descend
-from it. Its history remains in version control.
+Candidate generation, not scoring, sets the ceiling on recall against this
+reference. The exposed candidate pool contains
+{ceiling["positive_anchors_with_reviewed_successor_in_pool"]} of the
+{ceiling["positive_anchors"]} reviewed successors, so no method evaluated here can
+exceed a recall of {ceiling["candidate_generation_recall_ceiling"]:.3f}; the gap
+is a blocking-stage limitation rather than a scoring failure.
 
 Five limitations bind everything computed from the regional reference. The
-labels were produced by a single LLM research pass over the supplied notices,
-their official URLs, and wider public sources, then spot-checked on a subset by
-the project owner rather than verified anchor-by-anchor; anchors outside that
-subset carry the model's judgement as recorded, so this is a reference sample and
-not ground truth. The sources behind each individual label were not recorded, so
+labels were spot-checked on a subset rather than verified anchor-by-anchor;
+anchors outside that subset carry the model's judgement as recorded, so this is a
+reference sample and not ground truth, and it is not an independent human
+specialist panel. The sources behind each individual label were not recorded, so
 a given anchor's evidence trail cannot be fully reconstructed or independently
 re-executed. Negatives are corpus-relative: roughly 25 candidates per anchor were
 considered rather than the full pool, so a false-positive rate computed on them
 is conservative by construction and is a diagnostic on this sample rather than a
-population-wide rate. And while no linkage method existed or was consulted when the
-labels were made, judging whether later notice text continues an earlier need
+population-wide rate. Judging whether later notice text continues an earlier need
 draws on the same text, CPV, and date evidence the text-ranking method scores, so
-the labels are method-independent without being fully evidence-independent. The sample is small enough that every point estimate needs its
-interval read beside it. And the anchors were re-resolved onto the current
-episode reconstruction through their BOAMP notice identifiers, because the
-review recorded episode identifiers from an earlier reconstruction;
-{reviewed_anchors - manifest["remap"]["resolved_to_current_episodes"]} anchors
-did not resolve to exactly one current episode and were dropped rather than
-guessed.
+the labels are method-independent without being fully evidence-independent. And
+the sample is small enough that every point estimate needs its interval read
+beside it.
 
 \section{{Linkage Algorithms}}
 All methods operate on the same exposed candidate set. This is crucial: the
@@ -619,26 +630,29 @@ the log-likelihood ratio
 w_{{ij}}=\log\frac{{P(\gamma_{{ij}}\mid M)}}{{P(\gamma_{{ij}}\mid U)}}.
 \]
 The fitted model provides \code{{fs\_match\_weight}} and
-\code{{fs\_match\_probability}}. In the current data it does not outperform the
+\code{{fs\_match\_probability}}. On this cohort it does not outperform the
 simple text-ranking rule, likely because true successors are rare and
 same-buyer procurement activity contains many non-renewal lookalikes.
 
-\paragraph{{A removed arm.}} A duration-conditioned variant was built and
-evaluated during development, then removed from the repository in full. Reliable
-duration is missing for most of the cohort, so such a rule can differentiate
-itself only on a minority of episodes, and where the evidence does exist the
-observed data show many declared successors published well before the declared
-end date. The event-definition sensitivity framework is therefore the four
-threshold and method arms (\(M_B@0.80\), \(M_B@0.70\), \(M_B@0.60\),
-\(M_C@0.70\)), which vary the decision rule along the dimension that actually
-moves the event set, together with the borderline-band check. The removed arm's
-history remains in version control.
+\paragraph{{Declared duration.}} Declared contract duration is not imposed as a
+mandatory successor-linkage condition. Reliable duration is unavailable for most
+episodes, so a duration-conditioned rule could differentiate itself only on a
+minority of the cohort; and where the evidence does exist, the observed
+relationship between declared duration and successor timing is too weak to
+support a hard expected-expiry rule -- many declared successors are published
+well before the declared end date. Duration is therefore retained as a
+descriptive diagnostic about data reliability, not as an event-definition
+criterion, and the descriptive comparison between declared duration and observed
+successor delay remains part of the evidence on that basis.
 
-The separate descriptive comparison between declared contract duration and
-observed successor delay is a different thing and remains part of the evidence:
-it is a diagnostic about duration reliability, not a linkage algorithm.
+\paragraph{{Sensitivity framework.}} Event-definition sensitivity is carried by
+four threshold and method arms (\(M_B@0.80\), \(M_B@0.70\), \(M_B@0.60\),
+\(M_C@0.70\)), which vary the decision rule along the dimension that actually
+moves the event set, together with the borderline-band check described in
+\S\ref{{sec:survival-methods}}.
 
 \section{{Survival Modeling}}
+\label{{sec:survival-methods}}
 The accepted-link decision from \(M_B\) defines the survival event. For episode
 \(i\), \(\tau_i\) is the time from award date \(A_i\) to the accepted successor's
 publication date if \(Y_i=1\), or to the study cutoff (2025-12-31) if
@@ -748,25 +762,23 @@ in contract durations.
 The internship guide's L2 deliverable specifies a supervised technology
 taxonomy: 300--500 manually annotated contracts across 8--12 classes, a
 TF--IDF+logistic-regression/SVM baseline evaluated by macro-F1 and confusion
-matrix, and an optional CamemBERT comparison. \textbf{{This was not built inside
-the reproducible analytical branch.}} Two independent annotators with a Cohen's
-kappa agreement statistic are required for a defensible L2 corpus, and no second
-qualified annotator was available within this session's scope; producing
-single-pass AI-assisted labels and calling their agreement "kappa" would repeat
-exactly the self-consistency problem this project has documented for the
-successor-linkage benchmark (\S\ref{{sec:linkage-caveat}}) instead of avoiding it.
+matrix, and an optional CamemBERT comparison. \textbf{{This is outside the scope
+of the reproducible analytical branch reported here.}} A defensible L2 corpus
+requires two independent annotators and a Cohen's kappa agreement statistic, and
+a second qualified annotator was not available; single-pass AI-assisted labels
+whose agreement was called "kappa" would carry exactly the self-consistency
+problem this project documents for its own reference labels
+(\S\ref{{sec:linkage-caveat}}) rather than avoid it.
 
-A finer technology-classification effort was carried out in parallel, outside
-this pipeline: \pathcode{{data/reference/technology\_classification/}} holds a
-945-row export dated 2026-08-12 carrying a \code{{Domaine}} label per notice. It
-could not be integrated at the analytical freeze and is read by no stage of this
-pipeline. It covers current national opportunities rather than the 2015--2025
-Grand Ouest study cohort, and it arrives without the training corpus, the
-annotation guidelines, or the validation artifacts that would let its labels be
-audited or applied historically. The present reproducible branch therefore
-retains CPV divisions as the primary technological segmentation. That is a
-statement about what could be integrated and verified here, not a judgement on
-the parallel work.
+A finer technology-classification effort exists in parallel, outside this
+pipeline: \pathcode{{data/reference/technology\_classification/}} holds a 945-row
+export dated 2026-08-12 carrying a \code{{Domaine}} label per notice. It is read
+by no stage of this pipeline. It covers present-day national opportunities rather
+than the 2015--2025 Grand Ouest study cohort, and it arrives without the training
+corpus, the annotation guidelines, or the validation artifacts that would let its
+labels be audited or propagated over that historical cohort. This is a statement
+about what can be validated and applied historically here, not a judgement on the
+parallel work.
 
 Every technology segment referenced in this report -- cohort selection, Cox
 covariates, quarterly trend series -- therefore uses CPV divisions 32
@@ -775,13 +787,11 @@ services) as a reproducible substitute. This is a real scope reduction, not a
 disguised classifier: CPV divisions are official, zero-missingness EU
 categories under Regulation 213/2008, but they are coarser than a learned
 taxonomy and cannot distinguish sub-themes such as cloud versus on-premise
-infrastructure within a division. A future session with a second qualified
-annotator could complete L2 by reusing the blinded-review design recorded in
-\pathcode{{INDEPENDENT\_LINK\_REVIEW\_PROTOCOL.md}}; the scripts that once
-implemented it were removed with the retired France-level benchmark and remain
-recoverable from version control.
+infrastructure within a division. Completing L2 would require a second qualified
+annotator and a blinded double-annotation design of the kind recorded in
+\pathcode{{INDEPENDENT\_LINK\_REVIEW\_PROTOCOL.md}}.
 
-\section{{Dev Results}}
+\section{{Pilot Reference Results}}
 \begin{{table}}[H]
 \centering
 \small
@@ -792,16 +802,16 @@ Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 {latex_method_rows(dev_frame)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Unweighted dev metrics on all labelled current benchmark frames.}}
+\caption{{Unweighted metrics on the pilot split of the regional reference.}}
 \end{{table}}
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{{figures/benchmark_dev_method_metrics.png}}
-\caption{{Dev split method comparison generated from the current benchmark evaluation JSON.}}
+\caption{{Pilot split method comparison generated from the regional-reference evaluation JSON.}}
 \end{{figure}}
 
-\section{{Internal Held-Out Reference Results}}
+\section{{Locked Reference Results}}
 The table below is an internal method-comparison diagnostic. It must not be
 presented as external validation. The primary comparison is
 anchor-level exact-successor performance: each anchor can produce one accepted
@@ -880,7 +890,7 @@ these rows now would convert it into a tuning set. The lower threshold is theref
 reported as a sensitivity arm rather than promoted after inspecting validation.
 
 \section{{Model-Assisted Challenge Review}}
-A separate blinded challenge review sampled 20 current accepted links, 20
+A separate blinded challenge review sampled 20 accepted links, 20
 high-similarity structural-negative candidates, and 20 buyer-declared
 relationships. Its provenance is model-assisted rather than independent human
 specialist review. Among the 20 accepted links,
@@ -894,18 +904,18 @@ with exact 95\% interval
 {review_audit["primary_accepted_links"]["precision_conservative"]["ci_95"][1]:.3f}].
 This diagnostic falls below the 0.80 point target and exposes useful failure
 modes. It does not establish independent human validation, but it is sufficient
-to justify keeping the current claim narrow and the lower threshold unpromoted.
+to justify keeping the reported claim narrow and the lower threshold unpromoted.
 
 \section{{Modeling Tables}}
 The modeling-ready tables include strict, primary, broad, and non-match target
-columns, plus observable features. They now include the Fellegi--Sunter columns
+columns, plus observable features. They include the Fellegi--Sunter columns
 \code{{fs\_match\_weight}} and \code{{fs\_match\_probability}}, so modeling and
 evaluation use the same feature state.
 
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.86\textwidth]{{figures/benchmark_modeling_counts.png}}
-\caption{{Current benchmark modeling table sizes and label support.}}
+\caption{{Regional-reference modeling table sizes and label support.}}
 \end{{figure}}
 
 \section{{Survival Results}}
@@ -1079,7 +1089,7 @@ Segment & Direction & Slope/qtr & p & Last stable PELT break & HMM regime \\
 {latex_trend_signal_rows(trend_signal_matrix)}
 \bottomrule
 \end{{tabularx}}
-\caption{{Current trend signal matrix: OLS 12-quarter slope, PELT breaks, and
+\caption{{Trend signal matrix: OLS 12-quarter slope, PELT breaks, and
 HMM current regime (Overall and top-2 segments only).}}
 \end{{table}}
 CPV-48 is the only segment with a statistically distinguishable 12-quarter
@@ -1123,9 +1133,9 @@ current-quarter regime and the 12-quarter OLS slope are complementary
 diagnostics computed over different windows; they are not required to agree,
 and this report does not adjust either to match the other.
 
-\section{{Defensible Decision}}
-The final project decision is to keep \code{{M\_B\_text\_ranking @ 0.70}}
-as the frozen conservative observable-successor baseline and use the stricter
+\section{{Final Linkage Specification}}
+The final event definition is \code{{M\_B\_text\_ranking @ 0.70}}, a frozen
+conservative observable-successor baseline, with the stricter
 (\(M_B@0.80\)), looser (\(M_B@0.60\)), and weighted-gated (\(M_C@0.70\)) variants
 as the required sensitivity analyses, together with the borderline-band check.
 The threshold is not claimed to be optimal; it is claimed to be
@@ -1153,12 +1163,11 @@ rather than forcing a more complex model.
 \begin{{itemize}}
 \item BOAMP does not consistently encode legal renewal status; accepted links are
 observable successor procurements, not legal renewal proof.
-\item The reference labels were generated by a single LLM research pass and
-spot-checked on a subset by the project owner, not verified anchor-by-anchor and
-not reviewed by an independent specialist panel. Its negatives are
-corpus-relative: roughly 25 candidates per anchor were considered, so the
-reported false-positive rate is conservative by construction rather than a
-population-wide rate.
+\item The reference labels are a spot-checked LLM research pass, not
+anchor-by-anchor verification and not an independent specialist panel, and its
+negatives are corpus-relative, so the reported false-positive rate is a
+sample diagnostic rather than a population-wide rate
+(\S\ref{{sec:linkage-caveat}}).
 \item The held-out reference is small: {locked["positive_anchors"]}
 positive anchors and {int(m_b.accepted_links)} accepted \code{{M\_B}} links.
 The selected threshold should not be over-tuned and its accuracy remains provisional.
@@ -1216,7 +1225,7 @@ This section is a design outline for future work conditional on Gigalis
 supplying membership data, not a promise that such data will become available
 within this internship.
 
-\section{{Recommended Reporting Position}}
+\section{{Interpretation And Scope Of Claims}}
 The technical report should defend the project as a reproducible measurement
 pipeline, not as a black-box prediction system. The strongest statement is:
 \begin{{quote}}
@@ -1228,7 +1237,7 @@ threshold. This prioritises precision over recall, which is appropriate because
 false positive links would create artificial survival events.
 \end{{quote}}
 
-\section{{Current Source Files}}
+\section{{Reproducibility Artifacts}}
 \begin{{itemize}}
 \item \pathcode{{data/processed/boamp/linkage\_evaluation\_dev.json}}
 \item \pathcode{{data/processed/boamp/linkage\_evaluation\_validation.json}}
@@ -1317,7 +1326,7 @@ def write_status_files(
 
 Generated: `{generated_at}`
 
-## Current Decision
+## Linkage Decision
 
 The final primary event definition is `M_B_text_ranking @ 0.70`. It is a frozen
 conservative baseline, not a claim that `0.70` is the optimal threshold.
@@ -1363,14 +1372,14 @@ Official BOAMP API, 2015-2025
 The event remains an **observable successor procurement**, not a confirmed legal
 renewal.
 
-## Latest Reference State
+## Reference State
 
-- reviewed anchors: `{manifest["reviewed_anchors"]}`, of which `{manifest["remap"]["resolved_to_current_episodes"]}` resolve to a current episode;
+- reviewed anchors: `{manifest["reviewed_anchors"]}`, of which `{manifest["remap"]["resolved_to_current_episodes"]}` resolve to exactly one procurement episode;
 - pilot split: `{pilot["usable_anchors"]}` usable anchors, `{pilot["positive_anchors"]}` with a reviewed successor;
 - locked split: `{locked["usable_anchors"]}` usable anchors, `{locked["positive_anchors"]}` with a reviewed successor;
 - pair rows: `{modeling["outputs"]["dev"]["rows"]:,}` pilot and `{modeling["outputs"]["validation"]["rows"]:,}` locked.
 
-## Current Study State
+## Study State
 
 - cohort episodes: `{survival["validation"]["rows"]:,}`;
 - candidate pairs: `{load_json(PROCESSED / "linkage_candidates_summary.json")["candidate_pairs"]:,}`;
@@ -1410,7 +1419,7 @@ Generated: `{generated_at}`
 
 ## What This Reference Is
 
-The active reference for successor linkage is a stratified review of
+The reference for successor linkage is a stratified review of
 `{manifest["reviewed_anchors"]}` awarded digital procurement anchors drawn from the
 study region itself: {manifest["geographical_scope"]}. Each anchor was reviewed
 against the real BOAMP notices and official notice URLs of its candidates on
@@ -1427,19 +1436,10 @@ against the real BOAMP notices and official notice URLs of its candidates on
 It is a **regional reference sample**, not ground truth, and not proof of legal
 renewal.
 
-## What It Replaced And Why
-
-It replaced a France-level benchmark whose two annotation passes were both
-emitted by deterministic rules in a single script, built from the same text,
-CPV, and date evidence the linkage methods consume. A method could score well
-there only by agreeing with that rule, so the numbers measured rule agreement
-rather than correctness. Those artifacts have been removed from the repository
-in full; their history remains in version control.
-
-## Current Materialised State
+## Materialised State
 
 - reviewed anchors: `{manifest["reviewed_anchors"]}`;
-- resolved onto the current episode reconstruction: `{manifest["remap"]["resolved_to_current_episodes"]}`;
+- resolved onto exactly one procurement episode: `{manifest["remap"]["resolved_to_current_episodes"]}`;
 - pilot split: `{pilot["usable_anchors"]}` usable anchors, `{pilot["positive_anchors"]}` positive, `{pilot["negative_anchors"]}` negative;
 - locked split: `{locked["usable_anchors"]}` usable anchors, `{locked["positive_anchors"]}` positive, `{locked["negative_anchors"]}` negative;
 - pair rows: `{modeling["outputs"]["dev"]["rows"]:,}` pilot, `{modeling["outputs"]["validation"]["rows"]:,}` locked;
@@ -1455,7 +1455,7 @@ in full; their history remains in version control.
 - `OUTSIDE_SCOPE` / `INSUFFICIENT_INFORMATION`: the research pass declined to decide;
   these anchors are excluded from evaluation rather than counted as negatives.
 
-## Current Method Comparison On The Locked Split
+## Method Comparison On The Locked Split
 
 | Method | Threshold | Precision | 95% CI | Recall | 95% CI | FPR | Accepted |
 |---|---:|---:|---|---:|---|---:|---:|
@@ -1555,9 +1555,6 @@ legal renewal.
   highest-volume segments.
 - Ran a model-assisted (not independent-human) blinded challenge review of 20
   accepted links, 20 structural negatives, and 20 buyer-declared relationships.
-- Retired an earlier France-level benchmark whose labels were generated by
-  deterministic rules reading the same evidence the linkage methods use, which
-  made its method comparison circular. It is archived and read by nothing.
 - Documented every provenance caveat honestly: an LLM-assisted single-pass
   reference sample, a model-assisted review, and a CPV-division substitute
   where the guide asks for a supervised technology classifier.
@@ -1577,7 +1574,7 @@ legal renewal.
   covariates across all four sensitivity arms.
 - CPV-48 shows a statistically distinguishable recent decline
   (segments: {", ".join(decreasing_segments) if decreasing_segments else "none"}); other
-  segments are stable or uncertain by the current 12-quarter signal.
+  segments are stable or uncertain by the 12-quarter signal.
 
 ## What Remains Uncertain
 
@@ -1599,7 +1596,7 @@ legal renewal.
   built inside this reproducible branch. A parallel classification effort exists
   as an un-integrated export
   (`data/reference/technology_classification/`, 945 rows dated 2026-08-12) that
-  covers current national opportunities rather than the historical study cohort
+  covers present-day national opportunities rather than the historical study cohort
   and arrives without training corpus or validation artifacts, so CPV divisions
   are used as the coarser, reproducible substitute.
 - The guide's causal-inference question (does a Gigalis framework change
@@ -1613,16 +1610,14 @@ legal renewal.
    before any external accuracy claim or threshold change.
 2. If the technology classifier remains a priority, recruit a second qualified
    annotator and build a real 300-500 example corpus with genuine Cohen's kappa,
-   following the blinded-review design in
-   `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`. The scripts that once implemented that
-   workflow were removed with the retired France-level benchmark and are
-   recoverable from version control. Supplying the parallel classification
+   following the blinded double-annotation design in
+   `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`. Supplying the parallel classification
    work's training corpus and validation artifacts would be the cheaper route,
    if they can be obtained.
 3. If a Gigalis-membership causal analysis is wanted, supply member identity
    and adoption-date data so the outlined staggered-adoption
    difference-in-differences design can actually be estimated.
-4. Treat the current linkage, survival, and trend components as frozen; do
+4. Treat the linkage, survival, and trend components as frozen; do
    not reopen them without new evidence, per `PROJECT_WORK_PROTOCOL.md`.
 
 ## Full Documentation
@@ -1650,8 +1645,8 @@ def write_notebook(generated_at: str) -> None:
         nbf.v4.new_markdown_cell(
             "# 12. Successor linkage and regional-reference evaluation\n\n"
             f"Generated: `{generated_at}`\n\n"
-            "This notebook is regenerated from the current script outputs. It is the "
-            "reader-facing linkage/evaluation notebook for the current evidence state."
+            "This notebook is regenerated from the pipeline outputs. It is the "
+            "reader-facing linkage and evaluation notebook."
         ),
         nbf.v4.new_markdown_cell(
             "## tl;dr\n\n"
@@ -1708,7 +1703,7 @@ def write_notebook(generated_at: str) -> None:
         nbf.v4.new_code_cell(
             "pd.DataFrame([\n"
             "    {'item': 'reviewed anchors', 'value': manifest['reviewed_anchors']},\n"
-            "    {'item': 'resolved to current episodes', 'value': manifest['remap']['resolved_to_current_episodes']},\n"
+            "    {'item': 'resolved to one episode', 'value': manifest['remap']['resolved_to_current_episodes']},\n"
             "    {'item': 'pilot usable anchors', 'value': manifest['splits']['dev']['usable_anchors']},\n"
             "    {'item': 'pilot positive anchors', 'value': manifest['splits']['dev']['positive_anchors']},\n"
             "    {'item': 'locked usable anchors', 'value': manifest['splits']['validation']['usable_anchors']},\n"
@@ -1761,8 +1756,7 @@ def write_notebook(generated_at: str) -> None:
             "The labels were generated by a single LLM research pass over real BOAMP "
             "notices, their official URLs, and wider public sources, dated 2026-08-11, "
             "then spot-checked on a subset by the project owner. They are independent "
-            "of every method scored here, which the retired France-level benchmark's "
-            "rule-generated labels were not, but they were not verified "
+            "of every method scored here, but they were not verified "
             "anchor-by-anchor and are not an independent specialist panel. "
             "Negatives are corpus-relative: roughly 25 candidates per anchor were "
             "considered, so the false-positive rate is conservative by construction "

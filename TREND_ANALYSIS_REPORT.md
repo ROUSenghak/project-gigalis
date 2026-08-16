@@ -1,6 +1,6 @@
 # BOAMP Descriptive Trend Analysis
 
-Generated: `2026-08-15T18:57:55`  
+Generated: `2026-08-16T09:13:18`  
 Analysis window: `2015Q2-2025Q4`  
 Unit: awarded Grand Ouest digital procurement episodes
 
@@ -8,7 +8,7 @@ Unit: awarded Grand Ouest digital procurement episodes
 
 This analysis adds the guide's missing time-series component without claiming a forecast. Quarterly episode counts are examined for the overall cohort and CPV divisions 32, 35, 48, and 72. PELT identifies candidate mean shifts, penalty sensitivity distinguishes stable from fragile breaks, and a 12-quarter linear slope describes the current direction.
 
-The results are descriptive signals only. Breaks are not automatically attributed to policy, technology, or COVID; those explanations require documentary evidence and stakeholder validation. Amount trends are omitted because the current episode layer has multiple unvalidated amount candidates rather than one canonical awarded amount.
+The results are descriptive signals only. Breaks are not automatically attributed to policy, technology, or COVID; those explanations require documentary evidence and stakeholder validation. Amount trends are omitted because the episode layer carries multiple unvalidated amount candidates rather than one canonical awarded amount.
 
 ## Current Signal Matrix
 

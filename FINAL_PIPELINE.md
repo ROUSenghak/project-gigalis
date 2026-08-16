@@ -1,8 +1,8 @@
 # Final Defensible Pipeline
 
-Generated: `2026-08-15T18:58:06`
+Generated: `2026-08-16T09:13:03`
 
-## Current Decision
+## Linkage Decision
 
 The final primary event definition is `M_B_text_ranking @ 0.70`. It is a frozen
 conservative baseline, not a claim that `0.70` is the optimal threshold.
@@ -48,14 +48,14 @@ Official BOAMP API, 2015-2025
 The event remains an **observable successor procurement**, not a confirmed legal
 renewal.
 
-## Latest Reference State
+## Reference State
 
-- reviewed anchors: `120`, of which `112` resolve to a current episode;
+- reviewed anchors: `120`, of which `112` resolve to exactly one procurement episode;
 - pilot split: `16` usable anchors, `5` with a reviewed successor;
 - locked split: `72` usable anchors, `18` with a reviewed successor;
 - pair rows: `5,221` pilot and `20,917` locked.
 
-## Current Study State
+## Study State
 
 - cohort episodes: `3,800`;
 - candidate pairs: `763,417`;
