@@ -212,6 +212,22 @@ def latex_parametric_rows(frame: pd.DataFrame) -> str:
     return "\n".join(rows)
 
 
+def latex_conditional_rows(frame: pd.DataFrame) -> str:
+    """One row per episode age, both horizons side by side with their intervals."""
+    wide = frame.pivot(
+        index="contract_age_months", columns="horizon_months",
+        values=["probability", "ci_95_low", "ci_95_high"],
+    )
+    return "\n".join(
+        f"{age} months & "
+        f"{wide.loc[age, ('probability', 12)] * 100:.2f}\\% & "
+        f"[{wide.loc[age, ('ci_95_low', 12)] * 100:.2f}, {wide.loc[age, ('ci_95_high', 12)] * 100:.2f}] & "
+        f"{wide.loc[age, ('probability', 24)] * 100:.2f}\\% & "
+        f"[{wide.loc[age, ('ci_95_low', 24)] * 100:.2f}, {wide.loc[age, ('ci_95_high', 24)] * 100:.2f}] \\\\"
+        for age in wide.index
+    )
+
+
 def latex_cox_sensitivity_rows(frame: pd.DataFrame) -> str:
     pivot_hr = frame.pivot(index="covariate", columns="arm", values="hazard_ratio")
     pivot_robust = frame.pivot(index="covariate", columns="arm", values="robustness_assessment")
@@ -319,6 +335,10 @@ def write_methodology_report(
     pilot = manifest["splits"]["dev"]
     ceiling = manifest["candidate_reachability"]
     candidates = load_json(PROCESSED / "linkage_candidates_summary.json")
+    candidate_audit = load_json(PROCESSED / "candidate_generation_audit.json")
+    blocking_loss = candidate_audit["blocking_loss"]
+    cpv_continuity = candidate_audit["cpv_continuity"]
+    survival_cohort = load_json(PROCESSED / "survival_cohort_summary.json")
     survival = load_json(PROCESSED / "survival_dataset_summary.json")
     buyer_audit = load_json(PROCESSED / "buyer_blocking_legal_form_audit_summary.json")
     review_audit = load_json(PROJECT_ROOT / "data/review/review_audit_evaluation.json")
@@ -336,6 +356,10 @@ def write_methodology_report(
     parametric_comparison = pd.read_csv(PROCESSED / "survival_parametric_comparison.csv")
     cox_sensitivity = pd.read_csv(PROCESSED / "survival_cox_linkage_sensitivity.csv")
     km_horizons = pd.read_csv(PROCESSED / "survival_km_horizons.csv").set_index("months")
+    conditional_probabilities = pd.read_csv(PROCESSED / "survival_conditional_probabilities.csv")
+    template_risk = survival_summary["template_risk_sensitivity"]
+    template_main = template_risk["main"]
+    template_kept = template_risk["recensoring_template_risk_links"]
     trend_summary = load_json(PROCESSED / "trend_analysis_summary.json")
     trend_signal_matrix = pd.read_csv(PROCESSED / "trend_signal_matrix.csv")
     validation_sweep = pd.read_csv(PROCESSED / "quality_evidence/validation_m_b_threshold_sweep.csv")
@@ -514,6 +538,36 @@ blocking rule generates {candidates["candidate_pairs"]:,} candidate
 pairs, with a median of {candidates["candidates_per_anchor"]["median"]:.0f}
 candidates per anchor.
 
+Candidate generation is deliberately recall-oriented, and it is a separate stage
+from final linkage. A candidate episode must satisfy buyer-identity
+plausibility and the broad future-time window above, but exact CPV continuity is
+\emph{{not}} imposed as a hard blocking rule, because CPV coding is incomplete,
+often generic, and assigned by the contracting authority rather than validated.
+Retaining plausible successors is the blocking stage's job; final precision is
+controlled by the linkage scorer and the frozen acceptance threshold. In
+record-linkage terms this quantity is \emph{{pairs completeness}}, the share of
+true matches surviving the blocking step, which
+\href{{https://doi.org/10.1007/978-3-540-44918-8_6}}{{Christen and Goiser (2007)}}
+identify as a confounder that must be published alongside any linkage-quality
+figure rather than folded into it.
+
+Relaxing hard same-CPV blocking is checked against the reference rather than
+asserted. Among the {cpv_continuity["reviewed_reference_pairs"]} reviewed
+successor pairs -- labelled with no knowledge of any linkage method --
+{cpv_continuity["reviewed_cross_cpv2_count"]}
+({cpv_continuity["reviewed_cross_cpv2_share"] * 100:.1f}\%) connect episodes in
+\emph{{different}} CPV divisions. A hard same-division block would therefore
+discard those {cpv_continuity["reviewed_successors_lost_to_hard_same_division_block"]}
+reviewed successors outright and cut the attainable recall ceiling to
+{cpv_continuity["recall_ceiling_under_hard_same_division_block"]:.3f}. The
+discarded cases are substantive continuations rather than noise: equipment
+purchases followed by their maintenance contracts (CPV-32 or CPV-35 to CPV-50)
+and software purchases followed by the corresponding service contracts (CPV-48
+to CPV-72). This is the ordinary goods/services split built into the CPV
+hierarchy itself, compounded by assignment error that
+\href{{https://aclanthology.org/2023.clicit-1.47}}{{Siciliani et al. (2023)}}
+report is frequent even for human experts given the size of the vocabulary.
+
 \section{{Grand Ouest Regional Reference}}
 \label{{sec:linkage-caveat}}
 Linkage evaluation uses a Grand Ouest regional reference sample drawn from the
@@ -560,7 +614,39 @@ reference. The exposed candidate pool contains
 {ceiling["positive_anchors_with_reviewed_successor_in_pool"]} of the
 {ceiling["positive_anchors"]} reviewed successors, so no method evaluated here can
 exceed a recall of {ceiling["candidate_generation_recall_ceiling"]:.3f}; the gap
-is a blocking-stage limitation rather than a scoring failure.
+is a blocking-stage limitation rather than a scoring failure. The wording matters:
+candidate generation \emph{{exposed}}
+{ceiling["positive_anchors_with_reviewed_successor_in_pool"]} of
+{ceiling["positive_anchors"]} reviewed successors in this sample. That is a
+property of the reference, not an estimate of population recall.
+
+Both unreachable cases were attributed to the specific blocking condition that
+rejected them, evaluated in the order the generator applies them, and neither is
+an implementation defect. In the first, the reviewed anchor never reached the
+blocking step at all: its episode carries an award notice, but that notice has no
+structured Grand Ouest address, so it is absent from the regional notice table,
+no award date could be resolved, and the episode was dropped from the cohort --
+one of the {survival_cohort["selection_funnel"]["dropped_unresolved_award_date"]}
+episodes the cohort funnel already counts under that heading. In the second, the
+buyer changed legal form between the two procurements, from a communal social
+action centre (CCAS) to its intercommunal successor (CIAS); the anchor carries no
+SIREN, so no identifier could bridge the transition, and the normalised names
+differ. Buyer blocking rejected the pair by design, because the pipeline
+deliberately preserves intercommunal legal forms as distinct entities rather than
+merging them on name similarity.
+
+That second case is the known weak point of buyer identification in French
+procurement notices rather than a defect specific to this pipeline:
+\href{{https://doi.org/10.1038/s41597-023-02213-z}}{{Potin et al. (2023)}} report
+missing agent identification as the most serious quality problem in the French
+data, with buyer SIRETs populated on a minority of lots, and note that the same
+authority appears under alternative and former names. Recovering this particular
+link would require an external legal-succession register, not a change to the
+blocking rule. Both losses are accepted and documented rather than repaired;
+neither is repaired by loosening the rule, and the audit reports
+{blocking_loss["unexplained_cases"]} unexplained cases, which is the check that
+distinguishes a blocking trade-off from a bug. The attribution is regenerated by
+\texttt{{scripts/audit\_candidate\_generation.py}}.
 
 Five limitations bind everything computed from the regional reference. The
 labels were spot-checked on a subset rather than verified anchor-by-anchor;
@@ -945,6 +1031,14 @@ having occurred. A multivariate log-rank test across CPV segments gives
 statistic {survival_summary["logrank"]["test_statistic"]:.2f}
 (\(p={survival_summary["logrank"]["p_value"]:.3g}\)).
 
+\begin{{figure}}[H]
+\centering
+\includegraphics[width=0.99\textwidth]{{figures/survival_kaplan_meier.png}}
+\caption{{Kaplan--Meier survivor functions. The left panel carries the absolute
+level, which is linkage-conditioned and quoted only with that caveat; the right
+panel carries the segment ordering, which survives every sensitivity arm.}}
+\end{{figure}}
+
 \paragraph{{Cox model.}} The parsimonious model
 ({survival_summary["cox"]["covariates"]} covariates,
 {survival_summary["cox"]["events"]:,} events) gives:
@@ -1049,6 +1143,78 @@ successor procurement}}, not certified renewal probabilities, and no active
 Gigalis portfolio was available to score, so they cover the study cohort rather
 than a live deployment set.
 
+\paragraph{{Operational 12- and 24-month probabilities.}} This is the quantity
+the business question actually asks for. For an episode that has reached age
+\(a\) months with no accepted successor, the probability that one becomes
+visible within the next \(h\) months is
+\(P(T \le a+h \mid T > a) = 1 - S(a+h)/S(a)\), read off the Kaplan--Meier
+estimator with 500-draw episode-bootstrap intervals.
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{lrlrl}}
+\toprule
+Age at assessment & \(P\)(12m) & 95\% CI & \(P\)(24m) & 95\% CI \\
+\midrule
+{latex_conditional_rows(conditional_probabilities)}
+\bottomrule
+\end{{tabularx}}
+\caption{{Conditional probability that an observable successor appears within
+the next 12 or 24 months, by current episode age.}}
+\end{{table}}
+\begin{{figure}}[H]
+\centering
+\includegraphics[width=0.94\textwidth]{{figures/survival_conditional_probabilities.png}}
+\caption{{The same quantities with their bootstrap intervals. The profile is not
+monotone in age: it rises into the 36--48 month renewal shoulder and falls away
+after it, which is the empirical feature every parametric family smooths out.}}
+\end{{figure}}
+The intervals are wide relative to the estimates, and these numbers rank ages
+and segments rather than calibrating individual forecasts. They estimate an
+observable successor procurement appearing in BOAMP, not a certified renewal,
+and they are conditional on the linkage rule.
+
+\paragraph{{Template-risk robustness.}} The four linkage arms and the borderline
+band both perturb where the acceptance bar sits. Neither addresses the
+false-positive mechanism identified above, because that mechanism produces links
+well \emph{{above}} the bar: shared framework boilerplate can drive the character
+analyser high between unrelated objects, and because \(M_B\) ranks candidates
+within each anchor independently, one such episode can be accepted for several
+anchors. A stricter threshold does not remove either signature and can enrich for
+them. Two observable signatures, both published by the candidate-generation
+audit, define the at-risk group: word-level similarity below
+{template_risk["carried_by_char_threshold"]:.2f}
+({template_risk["carried_by_char_similarity"]} links) or a successor episode
+shared with another anchor ({template_risk["successor_shared_with_another_anchor"]}
+links), flagging {template_risk["flagged_links"]} of the
+{template_risk["accepted_links"]} accepted links
+({template_risk["flagged_share_of_events"] * 100:.1f}\%). Those anchors are
+re-censored at the cutoff rather than dropped, because a spurious link means the
+anchor had no observed successor and should still contribute its full follow-up
+as censored exposure.
+\begin{{table}}[H]
+\centering
+\small
+\begin{{tabularx}}{{\textwidth}}{{Xrrrrrr}}
+\toprule
+Analysis & Episodes & Events & KM 12m & KM 24m & CPV-35 HR & Framework HR \\
+\midrule
+Main & {template_main["contracts"]:,} & {template_main["events"]} & {template_main["km_successor_by_12m"] * 100:.2f}\% & {template_main["km_successor_by_24m"] * 100:.2f}\% & {template_main["cox_hr_cpv_35"]:.3f} & {template_main["cox_hr_framework"]:.3f} \\
+Re-censoring template risk & {template_kept["contracts"]:,} & {template_kept["events"]} & {template_kept["km_successor_by_12m"] * 100:.2f}\% & {template_kept["km_successor_by_24m"] * 100:.2f}\% & {template_kept["cox_hr_cpv_35"]:.3f} & {template_kept["cox_hr_framework"]:.3f} \\
+\bottomrule
+\end{{tabularx}}
+\caption{{Headline results with template-risk links re-censored.}}
+\end{{table}}
+This is the check the framework-agreement finding most needs, since framework
+boilerplate is the text driving the mechanism: were the higher framework hazard
+an artefact of shared legal wording, re-censoring would collapse it. Both
+headline hazard ratios keep their side of 1 and move little, so the comparative
+findings are not products of the documented false-positive mechanism. The
+absolute Kaplan--Meier level falls by roughly the share of events re-censored,
+which is arithmetic rather than evidence. The check bounds the mechanism's
+influence; it does not establish that the flagged links are false, and most of
+them are not.
+
 \paragraph{{Detectability and selection diagnostic.}} Comparing linked and
 censored episodes on standardized mean differences, the largest gap is
 \code{{{latex_escape(survival_summary["selection_diagnostic"]["largest_absolute_smd"]["variable"])}}}
@@ -1095,6 +1261,14 @@ HMM current regime (Overall and top-2 segments only).}}
 CPV-48 is the only segment with a statistically distinguishable 12-quarter
 decline at the exploratory \(\alpha=0.10\) level; the rest are
 \code{{stable\_or\_uncertain}} by this signal.
+
+\begin{{figure}}[H]
+\centering
+\includegraphics[width=0.99\textwidth]{{figures/trend_quarterly_episode_counts.png}}
+\caption{{Quarterly awarded digital procurement episodes, 2015Q2--2025Q4. Dashed
+lines mark PELT breaks that survive all three penalty multipliers. A break dates
+a level shift; it does not explain one.}}
+\end{{figure}}
 
 \paragraph{{Operational reading.}} Each segment's signals translate into a
 monitoring action, carried in the \code{{business\_recommendation}} column of
@@ -1158,6 +1332,56 @@ validated precision or promoting a new threshold, not to complete this
 linkage-conditioned descriptive study.
 If that review shows weaker precision, the claim should be narrowed further
 rather than forcing a more complex model.
+
+\paragraph{{Segment continuity of the accepted links.}}
+Because hard same-CPV blocking is not imposed, the accepted links are checked
+after the fact for segment drift. Of the {cpv_continuity["accepted_links"]}
+accepted primary links,
+{cpv_continuity["accepted_links_with_both_divisions_observed"]} have a CPV
+division observed on both sides;
+{cpv_continuity["same_cpv2_count"]}
+({cpv_continuity["same_cpv2_share"] * 100:.1f}\%) stay inside one division and
+{cpv_continuity["cross_cpv2_count"]}
+({cpv_continuity["cross_cpv2_share"] * 100:.1f}\%) cross divisions, while
+{cpv_continuity["shares_any_division_share"] * 100:.1f}\% share at least one division
+across their full CPV lists. The comparison that interprets this is the reviewed
+reference, which crosses divisions at
+{cpv_continuity["reviewed_cross_cpv2_share"] * 100:.1f}\% -- close to the
+{cpv_continuity["cross_cpv2_share"] * 100:.1f}\% observed among accepted links. Relaxed
+CPV blocking therefore reproduces roughly the segment-continuity behaviour the
+reviewed successors already display, rather than introducing drift of its own.
+The largest cross-division flows are the goods-to-services pairs named above.
+Full transition counts are in
+\code{{data/processed/boamp/candidate\_generation\_cpv\_transitions.csv}}.
+
+Inspecting the cross-division links by hand also identifies the dominant
+false-positive mechanism, which is textual rather than categorical. French
+award notices carry long standardised framework-agreement boilerplate --
+\emph{{accord-cadre mixte}}, \emph{{bons de commande}}, \emph{{bordereau des prix
+unitaires}}, \emph{{marchés subséquents}} -- and for buyers whose notices are
+dominated by that template, character-level similarity can clear the threshold on
+shared legal phrasing alone.
+{cpv_continuity["accepted_links_carried_by_char_similarity"]} accepted links
+carry word-level similarity below
+{cpv_continuity["low_word_similarity_threshold"]:.2f} and so rest on the
+character analyser; inspection shows most are legitimate rewordings of the same
+object, but this is also the band in which the failure mode lives. Because
+\(M_B\) ranks candidates within each anchor independently, with no one-to-one
+constraint, one episode can be accepted for several anchors: the most reused
+successor here is accepted by
+{cpv_continuity["max_anchors_per_successor"]} anchors, and
+{cpv_continuity["successors_accepted_by_multiple_anchors"]} of the
+{cpv_continuity["distinct_successors"]} distinct successors serve more than one.
+Multi-lot programmes make much of that legitimate, but the clearest spurious
+instance found by inspection is a single catering framework accepted as the
+successor of nine unrelated digital anchors from one regional authority, whose
+notices are almost entirely template text.
+A hard same-CPV block would suppress that particular case but would not fix the
+mechanism, which also operates within a division, and would cost the
+{cpv_continuity["reviewed_successors_lost_to_hard_same_division_block"]} genuine
+reviewed successors quantified above. The mechanism is therefore documented as a
+known contributor to the measured imprecision rather than patched, and it is one
+reason the absolute event level is reported as linkage-sensitive.
 
 \section{{Limitations And Robustness}}
 \begin{{itemize}}

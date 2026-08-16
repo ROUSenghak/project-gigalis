@@ -65,6 +65,64 @@ def test_borderline_check_removes_a_band_around_the_frozen_threshold() -> None:
     assert (kept["cox_hr_framework"] > 1) == (border["main"]["cox_hr_framework"] > 1)
 
 
+def test_template_risk_check_recensors_rather_than_dropping_episodes() -> None:
+    """The borderline check drops rows; this one must not.
+
+    Its counterfactual is "the link was spurious", under which the anchor still
+    contributes its full follow-up as censored exposure. Dropping the rows would
+    silently discard that exposure and answer a different question.
+    """
+    summary = json.loads((PROCESSED / "survival_analysis_summary.json").read_text())
+    template = summary["template_risk_sensitivity"]
+    table = pd.read_csv(PROCESSED / "survival_template_risk_sensitivity.csv")
+    recensored = template["recensoring_template_risk_links"]
+
+    assert set(table["analysis"]) == {"main", "recensoring_template_risk_links"}
+    assert recensored["contracts"] == summary["cohort"]["contracts"]
+    assert recensored["events"] == summary["cohort"]["events"] - template["flagged_links"]
+    # The group is defined by the two signatures the linkage audit publishes,
+    # at the threshold it publishes. Neither is re-chosen here.
+    assert template["carried_by_char_threshold"] == 0.50
+    assert template["flagged_links"] <= (
+        template["carried_by_char_similarity"]
+        + template["successor_shared_with_another_anchor"]
+    )
+    # The check exists to defend the comparative claims, framework above all.
+    assert template["assessment"]["comparative_claims"] == "NOT_DRIVEN_BY_TEMPLATE_RISK_LINKS"
+    assert (recensored["cox_hr_cpv_35"] > 1) == (template["main"]["cox_hr_cpv_35"] > 1)
+    assert (recensored["cox_hr_framework"] > 1) == (template["main"]["cox_hr_framework"] > 1)
+
+
+def test_template_risk_group_matches_the_candidate_generation_audit() -> None:
+    """Both artifacts count links carried by the character analyser. If the two
+    counts diverge, one of them is stale and the report quotes a mix."""
+    template = json.loads(
+        (PROCESSED / "survival_analysis_summary.json").read_text()
+    )["template_risk_sensitivity"]
+    audit = json.loads((PROCESSED / "candidate_generation_audit.json").read_text())
+
+    assert (
+        template["carried_by_char_threshold"]
+        == audit["cpv_continuity"]["low_word_similarity_threshold"]
+    )
+    assert (
+        template["carried_by_char_similarity"]
+        == audit["cpv_continuity"]["accepted_links_carried_by_char_similarity"]
+    )
+    assert template["accepted_links"] == audit["cpv_continuity"]["accepted_links"]
+
+
+def test_conditional_probabilities_cover_the_reported_ages_with_intervals() -> None:
+    """The operational table in the report is generated from this file."""
+    conditional = pd.read_csv(PROCESSED / "survival_conditional_probabilities.csv")
+
+    assert set(conditional["contract_age_months"]) == {0, 12, 24, 36, 48}
+    assert set(conditional["horizon_months"]) == {12, 24}
+    assert conditional["probability"].between(0, 1).all()
+    assert (conditional["ci_95_low"] <= conditional["probability"]).all()
+    assert (conditional["probability"] <= conditional["ci_95_high"]).all()
+
+
 def test_parametric_model_is_not_the_operational_probability_source() -> None:
     parametric = json.loads(
         (PROCESSED / "survival_analysis_summary.json").read_text()

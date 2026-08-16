@@ -1,6 +1,6 @@
 # Survival Analysis Report
 
-Generated: `2026-08-16T09:13:14`  
+Generated: `2026-08-16T13:05:04`  
 Event: **accepted observable successor procurement**, not certified legal renewal.
 
 ## Cohort And Event Definition
@@ -86,6 +86,56 @@ events, and gives:
 
 The direction of both headline hazard ratios is unchanged, so the comparative findings the project actually claims do not rest on borderline linkage decisions. The absolute KM level does move, which is the expected mechanical consequence of removing borderline events and is consistent with the four-arm linkage sensitivity: absolute probabilities remain threshold-uncertain and are not quoted alone. The band is a fixed `±0.05` around the frozen threshold; it was not
 searched over, and the excluded episodes are removed rather than relabelled.
+
+## Template-Risk Robustness
+
+The threshold arms and the borderline band both move where the acceptance bar
+sits. Neither touches the false-positive mechanism the linkage audit actually
+identified, because that mechanism produces links well *above* the bar: French
+award notices carry long standardised framework boilerplate on which character
+n-grams score highly between unrelated objects, and `M_B` ranks candidates within
+each anchor independently, so one such episode can be accepted for several
+anchors. A stricter threshold does not remove either signature.
+
+Two observable signatures, both already published by the candidate-generation
+audit, define the at-risk group: word-level similarity below
+`0.50` (acceptance carried by the character
+analyser, `65` links) or a successor episode
+shared with another anchor (`127`
+links). Together they flag `173` of the
+`544` accepted links
+(`31.8%`). Those anchors are **re-censored at the
+cutoff** rather than dropped, because that is the counterfactual under test: a
+spurious link means the anchor had no observed successor and should contribute its
+full follow-up as censored exposure.
+
+| Analysis | Contracts | Events | KM 12m | KM 24m | CPV-35 HR | Framework HR |
+|---|---:|---:|---:|---:|---:|---:|
+| Main | 3,800 | 544 | 4.621% | 6.733% | 1.553 | 1.751 |
+| Re-censoring template-risk links | 3,800 | 371 | 2.639% | 3.884% | 1.541 | 1.692 |
+
+This is the check the framework-agreement finding most needs, because framework boilerplate is the text that drives the mechanism: if the higher framework hazard were an artefact of shared legal wording, re-censoring these links would collapse it. Both headline hazard ratios keep their side of 1 and move little, so the comparative findings are not products of the documented false-positive mechanism. The absolute Kaplan-Meier level falls by roughly the share of events re-censored, which is arithmetic rather than evidence, and is consistent with the four-arm result that absolute probabilities are linkage-sensitive. The check bounds the mechanism's influence; it does not establish that the flagged links are false, and most of them are not.
+
+## Operational 12- And 24-Month Probabilities
+
+For a contract that has reached age `a` months with no accepted successor, the
+probability that one becomes visible within the next `h` months is
+`P(T <= a+h | T > a) = 1 - S(a+h)/S(a)`, read off the Kaplan-Meier estimator with
+500-draw episode-bootstrap intervals. This is the study's operational output.
+
+| Contract age | P(successor within 12m) | 95% CI | P(successor within 24m) | 95% CI |
+|---:|---:|---|---:|---|
+| 0 months | 4.621% | [3.912%, 5.239%] | 6.733% | [5.914%, 7.577%] |
+| 12 months | 2.215% | [1.704%, 2.726%] | 4.260% | [3.554%, 4.980%] |
+| 24 months | 2.091% | [1.575%, 2.598%] | 9.399% | [8.330%, 10.676%] |
+| 36 months | 7.464% | [6.522%, 8.587%] | 9.693% | [8.579%, 11.117%] |
+| 48 months | 2.409% | [1.765%, 3.069%] | 2.893% | [2.154%, 3.719%] |
+
+The intervals are wide relative to the estimates, and the profile is not monotone
+in age: it rises into the 36-48 month renewal shoulder and falls away after it.
+These rank ages and segments; they are not calibrated individual forecasts, and
+they estimate an *observable successor procurement appearing in BOAMP*, not a
+certified renewal. Segment-level curves are in `survival_segment_summary.csv`.
 
 ## Detectability And Censoring Diagnostic
 

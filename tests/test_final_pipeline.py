@@ -47,13 +47,32 @@ def test_one_regional_reference_drives_all_accuracy_evidence() -> None:
     assert list(stages)[-1] == "canonical_state_validation"
 
 
-def test_survival_evidence_precedes_the_report_that_quotes_it() -> None:
-    """The data-quality report's event-validation section reads
-    ``survival_analysis_summary.json``. Generating it first would document the
-    previous run's survival numbers under this run's timestamp."""
-    names = [stage.name for stage in evidence_stages()]
+def test_every_evidence_stage_runs_before_the_stages_that_quote_it() -> None:
+    """Reader-facing stages must follow the stages whose artifacts they read.
 
-    assert names.index("survival_evidence") < names.index("project_quality_and_trend_evidence")
+    Nothing fails loudly when this order is wrong: the consumer finds last
+    run's file on disk and republishes its numbers under this run's timestamp.
+    Each pair below is a real read in the consuming script.
+    """
+    names = [stage.name for stage in evidence_stages()]
+    required_order = (
+        # DATA_QUALITY_REPORT.md quotes survival_analysis_summary.json.
+        ("survival_evidence", "project_quality_and_trend_evidence"),
+        # ... and buyer_blocking_legal_form_audit_summary.json.
+        ("buyer_blocking_legal_form_audit", "project_quality_and_trend_evidence"),
+        # The methodology chapter quotes all of these.
+        ("candidate_generation_audit", "reader_artifact_refresh"),
+        ("survival_evidence", "reader_artifact_refresh"),
+        ("project_quality_and_trend_evidence", "reader_artifact_refresh"),
+        ("buyer_blocking_legal_form_audit", "reader_artifact_refresh"),
+        ("completed_review_diagnostic", "reader_artifact_refresh"),
+        # The readiness artifact quotes the data-quality and trend profiles.
+        ("project_quality_and_trend_evidence", "readiness_report_data"),
+    )
+    for producer, consumer in required_order:
+        assert names.index(producer) < names.index(consumer), (
+            f"{consumer} reads an artifact written by {producer}"
+        )
 
 
 def test_evidence_stages_never_skip_on_existing_outputs() -> None:

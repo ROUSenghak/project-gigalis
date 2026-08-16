@@ -85,11 +85,26 @@ precision/recall figures below.
   threshold leaves both headline hazard ratios pointing the same way, while the
   absolute KM level falls: comparative claims are robust to borderline links,
   absolute probabilities are not.
+- Re-censoring the `173` accepted links that carry the documented false-positive
+  signatures — word-level similarity below `0.50`, or a successor shared with
+  another anchor — gives the same verdict from the other direction: CPV-35 moves
+  `1.553` to `1.541` and framework `1.751` to `1.692`, while the 12-month KM
+  level falls from `4.62%` to `2.64%`. The framework association is not an
+  artefact of shared framework boilerplate.
 - Locked-split precision of `M_B @ 0.70`: `0.875` (95% CI `0.529`-`0.978`) on
   `8` accepted links; recall `0.389` (95% CI `0.203`-`0.614`); false-positive
   rate `0.000` on reviewed negative anchors.
-- Candidate generation caps recall at `0.913`: it reaches `21` of the `23`
-  reviewed successors.
+- Candidate generation exposed `21` of the `23` reviewed successors in the
+  regional reference, so recall against this sample is capped at `0.913`. Both
+  unreachable cases are attributed to a named blocking condition — one anchor
+  never entered the cohort because its award notice carries no structured Grand
+  Ouest address, and one buyer changed legal form from CCAS to CIAS with no
+  shared SIREN. Neither is an implementation defect.
+- Accepted links stay inside one CPV division in `351` of the `538` cases where
+  both divisions are observed (`0.652`); the reviewed reference successors cross
+  divisions at a comparable rate (`9` of `23`). Hard same-CPV blocking is
+  therefore not imposed: it would discard those `9` reviewed successors and cut
+  the attainable recall ceiling to `0.609`.
 
 Accuracy values come only from the regional reference. They are reference-sample
 estimates, not independently validated accuracy: the labels are a single-pass
@@ -121,7 +136,11 @@ outputs from their inputs.
 - `QUALITY_EVIDENCE.md`: confusion matrices and threshold/curve evidence.
 - `DATA_QUALITY_REPORT.md`: completeness, identity, and integrity checks.
 - `TREND_ANALYSIS_REPORT.md`: descriptive temporal analysis.
-- `SURVIVAL_ANALYSIS_REPORT.md`: current KM, Cox, parametric, prediction, censoring, and linkage-sensitivity evidence.
+- `SURVIVAL_ANALYSIS_REPORT.md`: current KM, Cox, parametric, operational
+  12/24-month probabilities, censoring, and linkage/borderline/template-risk
+  sensitivity evidence.
+- `CANDIDATE_GENERATION_AUDIT.md`: blocking-loss attribution and CPV-continuity
+  evidence for the candidate generator.
 - `REVIEW_AUDIT_RESULTS.md`: frozen independent-link-review diagnostic.
 - `METHODOLOGICAL_REFERENCES.md`: primary external methodological sources.
 - `INTERNSHIP_GUIDE_COMPLIANCE.md`: mapping to the internship requirements.

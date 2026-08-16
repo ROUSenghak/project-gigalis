@@ -98,17 +98,23 @@ def evidence_stages() -> tuple[Stage, ...]:
             ),
             always_run=True,
         ),
+        # One ordering invariant governs the rest of this tuple: every stage that
+        # writes an evidence artifact runs before every stage that reads it. The
+        # reader-artifact refresh sits near the end because the methodology
+        # chapter quotes the candidate-generation audit, the survival summary and
+        # Cox table, the trend summary and signal matrix, the buyer-blocking
+        # audit, and the completed review diagnostic. Running it earlier does not
+        # fail loudly -- it silently republishes the previous run's numbers.
         Stage(
-            "reader_artifact_refresh",
-            ("scripts/refresh_reader_artifacts.py",),
+            "candidate_generation_audit",
+            ("scripts/audit_candidate_generation.py",),
             (
-                Path("FINAL_PIPELINE.md"),
-                Path("REGIONAL_BENCHMARK_REFERENCE.md"),
-                Path("notebooks/12_successor_linkage_and_evaluation.ipynb"),
-                Path("reports/boamp_methodology_chapter.tex"),
-                Path("reports/boamp_methodology_chapter.pdf"),
-                Path("reports/figures/benchmark_validation_method_metrics.png"),
+                PROCESSED / "candidate_generation_audit.json",
+                PROCESSED / "candidate_generation_unreachable.csv",
+                PROCESSED / "candidate_generation_cpv_transitions.csv",
+                Path("CANDIDATE_GENERATION_AUDIT.md"),
             ),
+            True,
             always_run=True,
         ),
         # Survival evidence precedes the project evidence stage: the data-quality
@@ -129,8 +135,22 @@ def evidence_stages() -> tuple[Stage, ...]:
                 PROCESSED / "survival_linkage_sensitivity.csv",
                 PROCESSED / "survival_cox_linkage_sensitivity.csv",
                 PROCESSED / "survival_borderline_link_sensitivity.csv",
+                PROCESSED / "survival_template_risk_sensitivity.csv",
                 PROCESSED / "survival_parametric_comparison.csv",
                 Path("SURVIVAL_ANALYSIS_REPORT.md"),
+                Path("reports/figures/survival_kaplan_meier.png"),
+                Path("reports/figures/survival_conditional_probabilities.png"),
+            ),
+            always_run=True,
+        ),
+        # Precedes the project evidence stage, which quotes the buyer-blocking
+        # audit summary in the data-quality report.
+        Stage(
+            "buyer_blocking_legal_form_audit",
+            ("scripts/audit_buyer_blocking_legal_forms.py",),
+            (
+                PROCESSED / "buyer_blocking_legal_form_audit.csv",
+                PROCESSED / "buyer_blocking_legal_form_audit_summary.json",
             ),
             always_run=True,
         ),
@@ -153,21 +173,27 @@ def evidence_stages() -> tuple[Stage, ...]:
             always_run=True,
         ),
         Stage(
-            "buyer_blocking_legal_form_audit",
-            ("scripts/audit_buyer_blocking_legal_forms.py",),
-            (
-                PROCESSED / "buyer_blocking_legal_form_audit.csv",
-                PROCESSED / "buyer_blocking_legal_form_audit_summary.json",
-            ),
-            always_run=True,
-        ),
-        Stage(
             "completed_review_diagnostic",
             ("scripts/evaluate_review_audit.py",),
             (
                 Path("data/review/review_audit_evaluation.json"),
                 Path("data/review/review_audit_findings.csv"),
                 Path("REVIEW_AUDIT_RESULTS.md"),
+            ),
+            always_run=True,
+        ),
+        # Last of the reader-facing stages: it consumes every evidence artifact
+        # written above.
+        Stage(
+            "reader_artifact_refresh",
+            ("scripts/refresh_reader_artifacts.py",),
+            (
+                Path("FINAL_PIPELINE.md"),
+                Path("REGIONAL_BENCHMARK_REFERENCE.md"),
+                Path("notebooks/12_successor_linkage_and_evaluation.ipynb"),
+                Path("reports/boamp_methodology_chapter.tex"),
+                Path("reports/boamp_methodology_chapter.pdf"),
+                Path("reports/figures/benchmark_validation_method_metrics.png"),
             ),
             always_run=True,
         ),

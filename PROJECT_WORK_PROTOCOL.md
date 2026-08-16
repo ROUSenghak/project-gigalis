@@ -177,6 +177,19 @@ weighted-gated (`M_C @ 0.70`) event definitions are the retained sensitivity
 arms. A fixed `±0.05` borderline band around the frozen threshold is additionally
 excluded as a robustness check.
 
+A third robustness check covers what the first two cannot. Both of them move the
+acceptance bar; the false-positive mechanism the linkage audit identified
+produces links well *above* it, because standardised framework boilerplate
+scores highly under the character analyser and because `M_B` imposes no
+one-to-one constraint. Accepted links whose word-level similarity falls below
+`0.50` or whose successor episode is shared with another anchor — `173` of the
+`544`, on signatures already published by the candidate-generation audit — are
+therefore **re-censored at the cutoff**, which is the counterfactual a spurious
+link implies. Both headline hazard ratios keep their side of 1 (CPV-35 `1.55` to
+`1.54`; framework `1.75` to `1.69`) while the KM level falls to `2.64%` at 12
+months. Nothing is tuned, no link is relabelled, and the check bounds the
+mechanism's influence rather than asserting the flagged links are false.
+
 Neither the observed event rate nor any survival probability is a formal lower
 bound on true re-procurement: missed successors push the measured level down and
 residual false links push it up, so the net direction is not identified. They are
@@ -332,10 +345,11 @@ required to complete the minimum specialist audit.
 | Reference anchors re-resolved by notice id, ambiguities dropped | Passed |
 | Retired benchmark and duration-conditioned arm absent from the repository | Passed |
 | Evidence notebooks execute | Passed |
-| Automated test suite | `72 passed` |
+| Automated test suite | `79 passed` |
 | Model-assisted linkage diagnostic | Complete; `14/20` conservatively confirmed |
 | Guideline-aligned temporal validation (2022-2024) | Complete; weak, `C = 0.479` |
 | Borderline-band robustness | Complete; comparative claims hold |
+| Template-risk robustness | Complete; comparative claims hold under re-censoring |
 | Independent specialist linkage validity | Not established; required for stronger external accuracy claims, not for the current descriptive scope |
 
 Passing software tests establishes implementation consistency. It does not
