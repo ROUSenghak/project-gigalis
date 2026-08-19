@@ -95,8 +95,9 @@ spot-check remains desirable.
 
 The cohort contains `3,800` awarded Grand Ouest digital procurement episodes.
 Digital scope is defined reproducibly through CPV divisions `32`, `35`, `48`,
-and `72`. This is a coarse procurement-domain segmentation, not a trained
-technology taxonomy classifier.
+and `72`. This is a coarse procurement-domain segmentation. The trained
+technology taxonomy of §3.9 is layered on top of it and does not alter it: CPV
+remains the cohort definition, the Cox covariate, and the trend series.
 
 ### 3.4 Candidate Generation
 
@@ -217,6 +218,43 @@ Neither PELT, the HMM, nor the OLS slope supplies a causal explanation, and the
 HMM's current-regime read is not forced to agree with the PELT/OLS signals.
 Monetary trend analysis is omitted because no canonical awarded-amount field
 has been validated at episode grain.
+
+### 3.9 Supervised Technology Taxonomy
+
+A separate annotated corpus of `500` BOAMP notices, `2015`-`2025`, labelled into
+eight substantive business technology classes plus `MIXED`, `OTHER_DIGITAL` and
+`OTHER`, trains a supervised classifier over the notice object text.
+
+Let $X_i$ be the object text of notice $i$ and $Y_i \in \mathcal{Y}$ its
+annotated class. The estimand is a classifier $f: X \mapsto \mathcal{Y}$
+evaluated by macro-F1 under group-aware 3-fold cross-validation, where the group
+is a *procurement family*: the union of notices sharing a reconstructed episode
+and notices whose objects reach character cosine `0.80`. Every family lies in
+exactly one fold.
+
+The frozen specification is TF-IDF word unigrams with a class-weighted
+multinomial logistic regression. Hyperparameters come from a pre-specified
+compact grid explored only by the inner cross-validation; every specification in
+the budget is recorded in `specification_register.csv` rather than only the
+winner. Selection used mean macro-F1 together with fold spread, the
+train-validation gap, temporal behaviour and probability output. It is refit on all `500` labels for deployment and
+applied to every cohort episode through the episode's origin-notice object text.
+
+Buyer identity, geography, dates, amounts, procedure type, framework status,
+notice identifiers and every linkage variable are excluded from the features, as
+is CPV, which serves as the benchmark the text is measured against.
+
+Downstream technology-level survival and trend analysis is gated twice: on
+classifier evidence (substantive class, reference support `>= 10`, out-of-fold
+F1 `>= 0.65`) and on statistical support. The first gate is not cosmetic --
+including the fallback residuals moves the technology log-rank result from
+`p = 0.036` to `p = 0.0001`.
+
+The corpus has no second annotation pass, so no inter-annotator agreement
+statistic exists. `AI` has `7` labelled notices and is reported as a rare-class
+limitation. Confidence is a Platt-scaled class probability that remains
+conservative; the `0.70` cutoff is an operational reporting convention and is
+unrelated to the `0.70` linkage acceptance threshold.
 
 ## 4. Current Materialised Results
 
@@ -375,6 +413,16 @@ The final report may state that:
 - the regional reference supports `M_B @ 0.70` as a provisional,
   precision-first baseline, held out because the threshold was frozen before
   that reference was consulted;
+- procurement text supports a business technology taxonomy that CPV codes do
+  not carry, with an out-of-fold macro-F1 of `0.744` (95% family-bootstrap CI
+  `0.682`-`0.791`) against `0.473` (`0.413`-`0.526`) for a CPV/descriptor
+  benchmark on identical folds and the same regularisation range, a paired
+  difference of `0.271` (`0.201`-`0.340`) excluding zero;
+- among the five substantive technology classes the classifier separates well
+  enough to analyse, a difference in observable-successor timing is detected
+  (log-rank `p = 0.036`), unadjusted for buyer, size or procedure;
+- no technology quarterly series shows a linear trend surviving Holm adjustment
+  across the family of tests;
 - lower thresholds trade precision for recall on the locked split and are
   retained as sensitivity arms rather than promoted, because selecting one from
   those rows would convert the locked split into a tuning set;
@@ -388,7 +436,11 @@ The report must not state that:
 - a negative reference anchor proves that no successor exists;
 - missing contracts are four years long;
 - observed statistical breaks have known causes;
-- the project implements a supervised technology taxonomy classifier;
+- the technology corpus has a measured inter-annotator agreement, or that its
+  class counts estimate market prevalence;
+- the classifier's `AI` performance has been measured;
+- a predicted technology class is an observed attribute of a procurement, or
+  that its confidence value is a probability of correctness read at face value;
 - Cox hazard ratios are causal or provide validated individual forecasts;
 - the survival probabilities are lower bounds on true re-procurement;
 - a duration-conditioned linkage arm is part of the current sensitivity
@@ -416,6 +468,7 @@ current internship analysis.
 - `QUALITY_EVIDENCE.md`
 - `TREND_ANALYSIS_REPORT.md`
 - `SURVIVAL_ANALYSIS_REPORT.md`
+- `TECHNOLOGY_TAXONOMY_REPORT.md`
 - `INTERNSHIP_GUIDE_COMPLIANCE.md`
 - `METHODOLOGICAL_REFERENCES.md`
 - `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`

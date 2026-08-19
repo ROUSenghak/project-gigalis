@@ -215,6 +215,61 @@ def evidence_stages() -> tuple[Stage, ...]:
     )
 
 
+def technology_stages() -> tuple[Stage, ...]:
+    """The supervised technology taxonomy layer, added on top of the study.
+
+    One stage, four ordered sub-stages inside it. Every line of analysis lives in
+    ``boamp_pipeline/technology_{taxonomy,models,evidence}.py`` so that
+    ``notebooks/15`` imports and runs the same code, and this stage only invokes
+    it. Splitting the sub-stages into separate pipeline entries would buy a
+    finer skip granularity on a chain that takes a minute end to end, at the
+    cost of a report that quotes the previous run's macro-F1 whenever one link
+    is rebuilt and the next is skipped.
+
+    It reads frozen artifacts and writes only under
+    ``data/processed/boamp/technology/``, the technology figures, and its own
+    report. It cannot alter the linkage, survival, or trend results, which is
+    why it runs as its own group after the evidence stages.
+    """
+    technology = PROCESSED / "technology"
+    return (
+        Stage(
+            "technology_taxonomy",
+            ("scripts/build_technology_taxonomy.py", "--quiet"),
+            (
+                technology / "technology_corpus.parquet",
+                technology / "annotation_audit.csv",
+                technology / "annotation_audit_summary.json",
+                technology / "nlp_cv_folds.csv",
+                technology / "model_cv_results.csv",
+                technology / "per_class_metrics.csv",
+                technology / "oof_predictions.csv",
+                technology / "confusion_matrix.csv",
+                technology / "error_analysis.csv",
+                technology / "learning_curve.csv",
+                technology / "temporal_validation_metrics.csv",
+                technology / "model_selection_decision.json",
+                technology / "episode_technology_predictions.csv",
+                technology / "final_model_config.json",
+                technology / "technology_classifier.joblib",
+                technology / "confidence_coverage_by_year.csv",
+                technology / "technology_composition.csv",
+                technology / "technology_cpv_crosswalk.csv",
+                technology / "technology_survival_support.csv",
+                technology / "technology_trend_summary.csv",
+                technology / "technology_evidence_summary.json",
+                Path("TECHNOLOGY_TAXONOMY_REPORT.md"),
+                Path("reports/figures/technology_confusion_matrix.png"),
+                Path("reports/figures/technology_learning_curve.png"),
+                Path("reports/figures/technology_composition.png"),
+                Path("reports/figures/technology_confidence_coverage.png"),
+            ),
+            True,
+            always_run=True,
+        ),
+    )
+
+
 def pipeline_stages() -> tuple[Stage, ...]:
     return (
         Stage(
@@ -387,6 +442,7 @@ def run_notebooks(dry_run: bool) -> None:
         "notebooks/12_successor_linkage_and_evaluation.ipynb",
         "notebooks/13_survival_analysis.ipynb",
         "notebooks/14_data_quality_and_trend_analysis.ipynb",
+        "notebooks/15_technology_taxonomy_classification.ipynb",
         "--ExecutePreprocessor.timeout=0",
     ]
     run_command(command, dry_run)
@@ -414,6 +470,13 @@ def write_manifest(statuses: dict[str, str]) -> Path:
             "full: its code, outputs, and tests. Reliable duration is missing for most "
             "of the cohort, so the rule could differentiate itself only on a minority "
             "of episodes. History remains in version control."
+        ),
+        "technology_taxonomy": "data/processed/boamp/technology/",
+        "technology_taxonomy_report": "TECHNOLOGY_TAXONOMY_REPORT.md",
+        "technology_taxonomy_status": (
+            "supervised business technology classifier over procurement text; an "
+            "enrichment layer that leaves the CPV-based cohort, linkage, survival, "
+            "and trend results unchanged"
         ),
         "reference": "regional_grand_ouest",
         "evaluation_status": "regional reference sample; external accuracy not established",
@@ -445,6 +508,9 @@ def main() -> int:
         statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
 
     for stage in evidence_stages():
+        statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
+
+    for stage in technology_stages():
         statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
 
     if args.with_notebooks:

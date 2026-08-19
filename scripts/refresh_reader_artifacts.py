@@ -484,8 +484,10 @@ analysis: how long between a digital procurement episode and its successor?), a
 \emph{{trend problem}} (change-point detection: which technological segments are
 growing, plateauing, or declining?), and a \emph{{text-signal problem}} (NLP:
 extracting a contract's technological theme automatically). This project answers
-the first two in depth; the NLP sub-problem is addressed with a reproducible
-coarse substitute rather than a trained classifier (\S\ref{{sec:nlp-scope}}).
+the first two in depth; the NLP sub-problem is addressed by a supervised
+technology classifier trained on 500 annotated notices, layered over the
+reproducible CPV segmentation rather than replacing it
+(\S\ref{{sec:nlp-scope}}).
 
 BOAMP does not encode legal contract renewal as an explicit field, so the study
 cannot certify legal renewals. It instead constructs and evaluates a proxy: an
@@ -1114,34 +1116,68 @@ change, not a genuine shift in contract durations.
 The internship guide's L2 deliverable specifies a supervised technology
 taxonomy: 300--500 manually annotated contracts across 8--12 classes, a
 TF--IDF+logistic-regression/SVM baseline evaluated by macro-F1 and confusion
-matrix, and an optional CamemBERT comparison. \textbf{{This is outside the scope
-of the reproducible analytical branch reported here.}} A defensible L2 corpus
-requires two independent annotators and a Cohen's kappa agreement statistic, and
-a second qualified annotator was not available; single-pass AI-assisted labels
-whose agreement was called "kappa" would carry exactly the self-consistency
-problem this project documents for its own reference labels
-(\S\ref{{sec:linkage-caveat}}) rather than avoid it.
+matrix, and an optional CamemBERT comparison. It is implemented here as an
+enrichment layer over the CPV-based study, and reported in full in
+\pathcode{{TECHNOLOGY\_TAXONOMY\_REPORT.md}}.
 
-A finer technology-classification effort exists in parallel, outside this
-pipeline: \pathcode{{data/reference/technology\_classification/}} holds a 945-row
-export dated 2026-08-12 carrying a \code{{Domaine}} label per notice. It is read
-by no stage of this pipeline. It covers present-day national opportunities rather
-than the 2015--2025 Grand Ouest study cohort, and it arrives without the training
-corpus, the annotation guidelines, or the validation artifacts that would let its
-labels be audited or propagated over that historical cohort. This is a statement
-about what can be validated and applied historically here, not a judgement on the
-parallel work.
+The corpus is 500 manually annotated BOAMP notices spanning 2015--2025, labelled
+into eight substantive classes -- cloud/hosting, cybersecurity,
+network/telecom, IT infrastructure, business software, data/BI, AI, and IT
+services -- plus three fallback classes for mixed, other-digital, and
+non-technology procurements. The input is the notice object text alone,
+represented as TF--IDF word unigrams and bigrams; buyer identity, geography,
+dates, amounts, procedure type, and every linkage variable are excluded by
+design, as is CPV, which serves as the benchmark rather than as a feature.
 
-Every technology segment referenced in this report -- cohort selection, Cox
-covariates, quarterly trend series -- therefore uses CPV divisions 32
-(telecommunications equipment), 35 (security), 48 (software), and 72 (IT
-services) as a reproducible substitute. This is a real scope reduction, not a
-disguised classifier: CPV divisions are official, zero-missingness EU
-categories under Regulation 213/2008, but they are coarser than a learned
-taxonomy and cannot distinguish sub-themes such as cloud versus on-premise
-infrastructure within a division. Completing L2 would require a second qualified
-annotator and a blinded double-annotation design of the kind recorded in
-\pathcode{{INDEPENDENT\_LINK\_REVIEW\_PROTOCOL.md}}.
+Evaluation is a 3-fold group-aware cross-validation in which every family of
+related notices -- notices sharing a reconstructed episode, and notices whose
+objects are near-identical under a character analyser -- is confined to one
+fold. Without the second rule, 29 near-duplicate pairs sitting in different
+episodes would have been split across folds and every reported figure would be
+optimistic. Hyperparameters are selected by a grouped inner cross-validation
+inside each training fold.
+
+The selected specification, TF--IDF word unigrams with a class-weighted
+multinomial logistic regression, reaches an out-of-fold macro-F1 of $0.744$
+against $0.473$ for the best administrative benchmark built from CPV codes and
+BOAMP descriptors, both searched over the same regularisation range. Uncertainty
+is estimated by resampling procurement families rather than notices, since
+notices within a family are near-copies: the paired difference is $0.271$ with a
+95\\% interval of $[0.201, 0.340]$, which excludes zero. That is the empirical
+result justifying the layer: the business technology class is present in
+procurement text and is not recoverable from the official classification codes. The high-volume classes are separated reliably;
+AI, with seven annotated notices, is reported as a rare-class limitation rather
+than as a measured capability. A CamemBERT comparison was gated on the classical
+model being materially inadequate, defined in advance as macro-F1 below $0.55$;
+that condition was not met and no transformer was run.
+
+Two limitations are structural rather than incidental. The corpus was delivered
+as a single labelled file with no annotator identifier and no second pass, so no
+Cohen's kappa can be computed and label reliability cannot be quantified; the
+guide's two-annotator design is not met. And the corpus is quota-stratified by
+class and year, so its class proportions are a property of the annotation design
+and are not estimates of prevalence.
+
+CPV divisions 32 (telecommunications equipment), 35 (security), 48 (software),
+and 72 (IT services) therefore remain the definition of the study cohort, the
+Cox covariate, and the quarterly trend series throughout this report. They are
+official, zero-missingness EU categories under Regulation 213/2008 and they
+reproduce exactly. The technology taxonomy sits beside them: mean CPV-segment
+purity against the predicted taxonomy is $0.34$, so each CPV division holds
+several business technologies, and the two segmentations are complements rather
+than substitutes.
+
+Downstream use of the predicted labels is gated twice. A class enters the
+technology-level survival or trend enrichment only if the classifier separates
+it out of sample (F1 $\\geq 0.65$ on at least 10 annotated notices) and it is a
+substantive technology rather than one of the mixed, other-digital or other
+residuals, \\emph{{and}} it carries enough episodes and observed events. The
+second condition is the familiar one; the first matters more than it looks.
+Running the technology log-rank test over every class with adequate statistical
+support, residual buckets included, gives $p = 0.0001$; restricting it to the
+five substantive classes the classifier actually separates gives $p = 0.036$.
+The residual buckets have distinctive timing because of what they contain, so
+including them manufactures part of an apparent technology effect.
 
 \section{{Pilot Reference Results}}
 \begin{{table}}[H]
@@ -1856,8 +1892,9 @@ false timing certainty.
 series; state-count and window choices are not exhaustively validated, and a
 `plateau` label is a relative middle tier rather than a change centered at
 zero.
-\item Technology segmentation uses CPV divisions, not a learned taxonomy
-(\S\ref{{sec:nlp-scope}}); this is a real scope reduction, disclosed rather
+\item Cohort selection, Cox covariates, and trend series use CPV divisions; the
+learned taxonomy (\S\ref{{sec:nlp-scope}}) enriches them rather than replacing
+them, and its labels are predictions carrying a measured error rate, disclosed rather
 than concealed.
 \end{{itemize}}
 
@@ -2232,9 +2269,16 @@ legal renewal.
   highest-volume segments.
 - Ran a model-assisted (not independent-human) blinded challenge review of 20
   accepted links, 20 structural negatives, and 20 buyer-declared relationships.
+- Built the supervised technology taxonomy (guide deliverable L2) on 500
+  manually annotated notices across 11 classes: TF-IDF word unigrams with a
+  class-weighted logistic regression, evaluated by group-aware 3-fold
+  cross-validation at out-of-fold macro-F1 `0.744` (95% family-bootstrap CI
+  `0.682`-`0.791`), against `0.473` for a CPV/descriptor benchmark on the same
+  folds and the same regularisation range, and applied to all
+  `{survival["validation"]["rows"]:,}` cohort episodes as an enrichment layer.
 - Documented every provenance caveat honestly: an LLM-assisted single-pass
-  reference sample, a model-assisted review, and a CPV-division substitute
-  where the guide asks for a supervised technology classifier.
+  reference sample, a model-assisted review, and a single-pass technology
+  annotation with no inter-annotator agreement statistic.
 
 ## What Works
 
@@ -2252,6 +2296,11 @@ legal renewal.
 - CPV-48 shows a statistically distinguishable recent decline
   (segments: {", ".join(decreasing_segments) if decreasing_segments else "none"}); other
   segments are stable or uncertain by the 12-quarter signal.
+- Procurement text carries the business technology class that CPV does not: the
+  paired difference is `0.271` macro-F1 with a 95% family-bootstrap interval of
+  `0.201`-`0.340` that excludes zero, and mean CPV-segment purity against the
+  taxonomy is `0.34`, so each CPV division holds several distinct business
+  technologies.
 
 ## What Remains Uncertain
 
@@ -2269,13 +2318,12 @@ legal renewal.
   {temporal["test_years"]} window, `{extended["test_c_index"]:.3f}` on {extended["test_years"]}); the
   model is not validated for individualized operational prediction, and no
   active Gigalis portfolio was available to score.
-- The guide's supervised technology-classification deliverable (L2) was not
-  built inside this reproducible branch. A parallel classification effort exists
-  as an un-integrated export
-  (`data/reference/technology_classification/`, 945 rows dated 2026-08-12) that
-  covers present-day national opportunities rather than the historical study cohort
-  and arrives without training corpus or validation artifacts, so CPV divisions
-  are used as the coarser, reproducible substitute.
+- The technology corpus was annotated in a single pass with no annotator
+  identifier and no second reading, so no Cohen's kappa exists and label
+  reliability is unquantified; the guide's two-annotator L2 design is not met.
+  Its class quotas also mean the corpus proportions are not prevalence
+  estimates. `AI` has seven annotated notices and cannot be evaluated. Predicted
+  class shares should be read as segment framing, not as counts.
 - The guide's causal-inference question (does a Gigalis framework change
   member behaviour?) is outlined methodologically but not answered -- it
   needs Gigalis-internal membership/adoption-date data not present in BOAMP.
@@ -2285,12 +2333,12 @@ legal renewal.
 1. Commission an independent human procurement-domain reviewer to label the
    prepared blinded 60-pair sample (`INDEPENDENT_LINK_REVIEW_PROTOCOL.md`)
    before any external accuracy claim or threshold change.
-2. If the technology classifier remains a priority, recruit a second qualified
-   annotator and build a real 300-500 example corpus with genuine Cohen's kappa,
-   following the blinded double-annotation design in
-   `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`. Supplying the parallel classification
-   work's training corpus and validation artifacts would be the cheaper route,
-   if they can be obtained.
+2. Have a second qualified annotator re-label a sample of the existing 500-notice
+   technology corpus, following the blinded double-annotation design in
+   `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`, so a Cohen's kappa can be reported
+   against the labels the frozen classifier already learned. The classifier's
+   learning curve is still rising at n=500, so a further annotation round is a
+   better investment than a more complex model.
 3. If a Gigalis-membership causal analysis is wanted, supply member identity
    and adoption-date data so the outlined staggered-adoption
    difference-in-differences design can actually be estimated.
@@ -2301,7 +2349,8 @@ legal renewal.
 
 `README.md`, `FINAL_PIPELINE.md`, `reports/boamp_methodology_chapter.pdf`,
 `SURVIVAL_ANALYSIS_REPORT.md`, `TREND_ANALYSIS_REPORT.md`,
-`DATA_QUALITY_REPORT.md`, `INTERNSHIP_GUIDE_COMPLIANCE.md`.
+`TECHNOLOGY_TAXONOMY_REPORT.md`, `DATA_QUALITY_REPORT.md`,
+`INTERNSHIP_GUIDE_COMPLIANCE.md`.
 """
     path = PROJECT_ROOT / "EXECUTIVE_SUMMARY.md"
     path.write_text(text, encoding="utf-8")

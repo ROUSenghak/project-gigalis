@@ -148,9 +148,20 @@ def main() -> int:
         },
         {
             "component": "Guide technology classifier",
-            "status": "Not implemented",
-            "evidence": "CPV segmentation is reproducible but coarse",
-            "remaining_gap": "Independent taxonomy labels and classifier evaluation",
+            "status": "Implemented, single-annotator corpus",
+            "evidence": (
+                "500 annotated notices, 11 classes; group-aware out-of-fold macro-F1 "
+                "0.744 (95% family-bootstrap CI 0.682-0.791) against 0.473 for a "
+                "CPV/descriptor benchmark on identical folds, paired difference "
+                "0.271 (0.201-0.340); deployed to every cohort episode "
+                "(TECHNOLOGY_TAXONOMY_REPORT.md)"
+            ),
+            "remaining_gap": (
+                "No inter-annotator agreement statistic; AI has 7 labelled notices "
+                "and cannot be evaluated; confidence remains conservative after "
+                "scaling and encodes the quota class prior, so the 0.70 cutoff "
+                "retains only 6.2% of episodes"
+            ),
             "priority": 5,
         },
     ]
@@ -475,7 +486,7 @@ def main() -> int:
                 "## Final Reporting Requirements And Future Work\n\n"
                 "1. Keep the current threshold frozen and report `0.60`, `0.80`, and `M_C @ 0.70` sensitivities plus the borderline-band check.\n"
                 "2. Keep survival conclusions descriptive and linkage-conditioned.\n"
-                "3. State explicitly that the guide's supervised technology classifier and operational individual forecasting are outside the completed scope.\n"
+                "3. Report the technology taxonomy as an enrichment layer with a single-annotator corpus and no kappa, and state explicitly that operational individual forecasting remains outside the completed scope.\n"
                 "4. Treat independent human review and a compact semantic spot-check as future strengthening work before external accuracy or production claims."
             ),
         },

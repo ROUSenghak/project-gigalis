@@ -1,6 +1,6 @@
 # Executive Summary
 
-Generated: `2026-08-16T16:28:57`
+Generated: `2026-08-19T21:15:39`
 Audience: Gigalis Data & AI Hub management
 
 ## What This Project Does
@@ -37,9 +37,16 @@ legal renewal.
   highest-volume segments.
 - Ran a model-assisted (not independent-human) blinded challenge review of 20
   accepted links, 20 structural negatives, and 20 buyer-declared relationships.
+- Built the supervised technology taxonomy (guide deliverable L2) on 500
+  manually annotated notices across 11 classes: TF-IDF word unigrams with a
+  class-weighted logistic regression, evaluated by group-aware 3-fold
+  cross-validation at out-of-fold macro-F1 `0.744` (95% family-bootstrap CI
+  `0.682`-`0.791`), against `0.473` for a CPV/descriptor benchmark on the same
+  folds and the same regularisation range, and applied to all
+  `3,800` cohort episodes as an enrichment layer.
 - Documented every provenance caveat honestly: an LLM-assisted single-pass
-  reference sample, a model-assisted review, and a CPV-division substitute
-  where the guide asks for a supervised technology classifier.
+  reference sample, a model-assisted review, and a single-pass technology
+  annotation with no inter-annotator agreement statistic.
 
 ## What Works
 
@@ -57,6 +64,11 @@ legal renewal.
 - CPV-48 shows a statistically distinguishable recent decline
   (segments: CPV-48); other
   segments are stable or uncertain by the 12-quarter signal.
+- Procurement text carries the business technology class that CPV does not: the
+  paired difference is `0.271` macro-F1 with a 95% family-bootstrap interval of
+  `0.201`-`0.340` that excludes zero, and mean CPV-segment purity against the
+  taxonomy is `0.34`, so each CPV division holds several distinct business
+  technologies.
 
 ## What Remains Uncertain
 
@@ -74,13 +86,12 @@ legal renewal.
   2022-2024 window, `0.518` on 2022-2025); the
   model is not validated for individualized operational prediction, and no
   active Gigalis portfolio was available to score.
-- The guide's supervised technology-classification deliverable (L2) was not
-  built inside this reproducible branch. A parallel classification effort exists
-  as an un-integrated export
-  (`data/reference/technology_classification/`, 945 rows dated 2026-08-12) that
-  covers present-day national opportunities rather than the historical study cohort
-  and arrives without training corpus or validation artifacts, so CPV divisions
-  are used as the coarser, reproducible substitute.
+- The technology corpus was annotated in a single pass with no annotator
+  identifier and no second reading, so no Cohen's kappa exists and label
+  reliability is unquantified; the guide's two-annotator L2 design is not met.
+  Its class quotas also mean the corpus proportions are not prevalence
+  estimates. `AI` has seven annotated notices and cannot be evaluated. Predicted
+  class shares should be read as segment framing, not as counts.
 - The guide's causal-inference question (does a Gigalis framework change
   member behaviour?) is outlined methodologically but not answered -- it
   needs Gigalis-internal membership/adoption-date data not present in BOAMP.
@@ -90,12 +101,12 @@ legal renewal.
 1. Commission an independent human procurement-domain reviewer to label the
    prepared blinded 60-pair sample (`INDEPENDENT_LINK_REVIEW_PROTOCOL.md`)
    before any external accuracy claim or threshold change.
-2. If the technology classifier remains a priority, recruit a second qualified
-   annotator and build a real 300-500 example corpus with genuine Cohen's kappa,
-   following the blinded double-annotation design in
-   `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`. Supplying the parallel classification
-   work's training corpus and validation artifacts would be the cheaper route,
-   if they can be obtained.
+2. Have a second qualified annotator re-label a sample of the existing 500-notice
+   technology corpus, following the blinded double-annotation design in
+   `INDEPENDENT_LINK_REVIEW_PROTOCOL.md`, so a Cohen's kappa can be reported
+   against the labels the frozen classifier already learned. The classifier's
+   learning curve is still rising at n=500, so a further annotation round is a
+   better investment than a more complex model.
 3. If a Gigalis-membership causal analysis is wanted, supply member identity
    and adoption-date data so the outlined staggered-adoption
    difference-in-differences design can actually be estimated.
@@ -106,4 +117,5 @@ legal renewal.
 
 `README.md`, `FINAL_PIPELINE.md`, `reports/boamp_methodology_chapter.pdf`,
 `SURVIVAL_ANALYSIS_REPORT.md`, `TREND_ANALYSIS_REPORT.md`,
-`DATA_QUALITY_REPORT.md`, `INTERNSHIP_GUIDE_COMPLIANCE.md`.
+`TECHNOLOGY_TAXONOMY_REPORT.md`, `DATA_QUALITY_REPORT.md`,
+`INTERNSHIP_GUIDE_COMPLIANCE.md`.

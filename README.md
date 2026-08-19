@@ -1,7 +1,7 @@
 # BOAMP Observable Successor Procurement Study
 
 This repository has one active analytical workflow, one processed-data root,
-one reference sample, and one primary linkage policy.
+two reference samples, and one primary linkage policy.
 
 ## Research Claim
 
@@ -22,6 +22,7 @@ Official BOAMP notices, 2015-2025
   -> primary M_B_text_ranking selection at 0.70
   -> right-censored survival dataset
   -> survival analysis plus threshold and borderline-link sensitivity checks
+  -> supervised business technology taxonomy over procurement text, layered on top
 ```
 
 The frozen primary rule is `M_B_text_ranking @ 0.70`. It is a conservative
@@ -39,19 +40,42 @@ development and has been removed in full; see `PROJECT_WORK_PROTOCOL.md` §3.6.
 - Primary accepted links: `data/processed/boamp/accepted_successor_links.parquet`
 - Primary survival data: `data/processed/boamp/survival_dataset.parquet`
 - Linkage configuration: `data/processed/boamp/linkage_config.json`
+- Technology taxonomy source data: `data/reference/tech classification/`
+- Technology taxonomy code: `boamp_pipeline/technology_{taxonomy,models,evidence}.py`,
+  run by `scripts/build_technology_taxonomy.py`
+- Technology taxonomy outputs: `data/processed/boamp/technology/`
+- Frozen classifier configuration: `data/processed/boamp/technology/final_model_config.json`
+- Episode-level technology predictions:
+  `data/processed/boamp/technology/episode_technology_predictions.csv`
 - Final workflow summary: `FINAL_PIPELINE.md`
 - Technical report: `reports/boamp_methodology_chapter.pdf`
-- Active notebooks: `notebooks/10` through `notebooks/14`, executed by
+- Active notebooks: `notebooks/10` through `notebooks/15`, executed by
   `scripts/run_final_pipeline.py --with-notebooks`
 
 There are no active project directories named by competing project versions.
 Fields ending in `_schema` are data-contract identifiers, not alternative
-analytical results. `notebooks/` contains only the five active,
+analytical results. `notebooks/` contains only the six active,
 pipeline-executed notebooks; nine earlier exploration notebooks (dated
 2026-08-11) are isolated under `notebooks/archive/` and are never read by the
 active pipeline — see `notebooks/archive/README.md`.
 
-## One Reference, And Why The Other Was Retired
+## Two Reference Samples
+
+The two references answer different questions and are never mixed. The regional
+link reference scores *linkage*: whether an accepted successor is real. The
+technology annotation scores *classification*: what a procurement is for. Below,
+"the reference" always means the linkage one.
+
+## The Technology Annotation Corpus
+
+`500` BOAMP notices spanning 2015-2025, manually labelled into `11` business
+technology classes. It is the training and evaluation data for the supervised
+classifier and has no role in linkage. It was delivered as a single labelled
+file with no annotator identifier and no second pass, so no inter-annotator
+agreement statistic exists, and its class counts are quotas rather than
+prevalence. See `TECHNOLOGY_TAXONOMY_REPORT.md`.
+
+## The Linkage Reference, And Why The Other Was Retired
 
 - **Grand Ouest regional reference (active, canonical).** A stratified review of
   `120` awarded digital procurement anchors across Bretagne, Pays de la Loire,
@@ -71,8 +95,9 @@ active pipeline — see `notebooks/archive/README.md`.
   deleted; `scripts/validate_canonical_state.py` fails the build if any of it
   reappears. The history remains in version control.
 
-Only the regional reference is used for method comparison and the reported
-precision/recall figures below.
+Only the regional reference is used for linkage method comparison and the
+reported precision/recall figures below.
+
 
 ## Current Materialised Results
 
@@ -100,6 +125,20 @@ precision/recall figures below.
   never entered the cohort because its award notice carries no structured Grand
   Ouest address, and one buyer changed legal form from CCAS to CIAS with no
   shared SIREN. Neither is an implementation defect.
+- Technology classifier: out-of-fold macro-F1 `0.744` (95% family-bootstrap CI
+  `0.682`-`0.791`) on the `500`-notice annotated corpus, against `0.473`
+  (`0.413`-`0.526`) for the best CPV/descriptor benchmark on identical folds and
+  the same regularisation range. The paired difference is `0.271`
+  (`0.201`-`0.340`), excluding zero. Applied to all `3,800` cohort episodes;
+  every episode keeps a prediction and `235` (`6.2%`) clear the `0.70`
+  operational confidence cutoff. `AI` has `7` labelled notices and is reported as
+  a rare-class limitation, not as a measured capability.
+- Technology-level survival and trend enrichment is gated twice: a class must be
+  a substantive technology the classifier separates (out-of-fold F1 `>= 0.65` on
+  at least `10` annotated notices) *and* carry enough episodes and events. Five
+  classes qualify for survival. Including the fallback residuals instead would
+  make the log-rank result look markedly stronger (`p = 0.0001` against
+  `p = 0.036`), which is why the classifier gate is applied.
 - Accepted links stay inside one CPV division in `351` of the `538` cases where
   both divisions are observed (`0.652`); the reviewed reference successors cross
   divisions at a comparable rate (`9` of `23`). Hard same-CPV blocking is
@@ -139,6 +178,10 @@ outputs from their inputs.
 - `SURVIVAL_ANALYSIS_REPORT.md`: current KM, Cox, parametric, operational
   12/24-month probabilities, censoring, and linkage/borderline/template-risk
   sensitivity evidence.
+- `TECHNOLOGY_TAXONOMY_REPORT.md`: annotated corpus audit, leakage-preventing
+  grouping, model comparison against the CPV benchmark, per-class metrics with
+  support, learning curve, error analysis, temporal robustness, the CamemBERT
+  decision, and the episode-level deployment with its confidence diagnostics.
 - `CANDIDATE_GENERATION_AUDIT.md`: blocking-loss attribution and CPV-continuity
   evidence for the candidate generator.
 - `REVIEW_AUDIT_RESULTS.md`: frozen independent-link-review diagnostic.
@@ -157,3 +200,8 @@ outputs from their inputs.
   direction is not identified.
 - Do not reintroduce the France-level benchmark or the duration-conditioned
   linkage arm; both were removed, not paused.
+- Do not treat a predicted technology class as an observed attribute of a
+  procurement, or the annotated class counts as market shares.
+- Do not read the classifier's confidence as a probability of correctness
+  without the reliability table in `TECHNOLOGY_TAXONOMY_REPORT.md`; it is
+  conservative by a wide margin.
