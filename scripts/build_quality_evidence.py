@@ -469,7 +469,12 @@ def markdown_table(frame: pd.DataFrame, columns: list[str]) -> str:
     for row in view.itertuples(index=False):
         values = []
         for value in row:
-            if isinstance(value, float):
+            # A missing threshold means the rule has no operating point --
+            # M_A_deterministic is a conjunction of fixed gates -- so it renders
+            # as n/a rather than as `nan` or as a number nothing reads.
+            if value is None or (isinstance(value, float) and pd.isna(value)):
+                values.append("n/a")
+            elif isinstance(value, float):
                 values.append(f"{value:.4f}")
             else:
                 values.append(str(value))
@@ -557,14 +562,21 @@ def write_quality_markdown(
         "LLM research pass over real BOAMP notices, their official URLs, and wider "
         "public sources on 2026-08-11, before these linkage methods existed, then "
         "spot-checked on a subset by the project owner rather than verified "
-        "anchor-by-anchor. They are independent of every algorithm scored below, but "
+        "anchor-by-anchor. The labels are independent of every algorithm scored below, but "
         "they are neither an independent human specialist panel nor legal renewal "
-        "truth.\n\n"
+        "truth. That independence is a property of the *labels*; which candidates "
+        "the reviewer was shown is a separate question, answered below.\n\n"
         f"Recall is capped before any method runs: candidate generation reaches "
         f"`{ceiling['positive_anchors_with_reviewed_successor_in_pool']}` of "
         f"`{ceiling['positive_anchors']}` reviewed successors, a ceiling of "
         f"`{ceiling['candidate_generation_recall_ceiling']:.4f}`. No method below can "
-        "exceed it, and the gap is a blocking-stage limitation rather than a scoring one.\n\n"
+        "exceed it, and the gap is a blocking-stage limitation rather than a scoring one. "
+        "Both the ceiling and the recall column below carry one further caveat: the rule "
+        "that chose the roughly 25 candidates exported per anchor for review was not "
+        "recorded and cannot be reconstructed, and every retrievable reviewed successor "
+        "sits near the top of the production text ranking, so recall here is not fully "
+        "independent of the score it evaluates. Precision and the false-positive rate are "
+        "unaffected -- a false positive is a false positive however the list was built.\n\n"
         "## Academic Basis And Evidence Boundary\n\n"
         "The metric choice is supported by [Davis and Goadrich (2006)](https://doi.org/10.1145/1143844.1143874), who analyse the relationship between ROC and precision-recall curves for skewed binary decisions, and [Saito and Rehmsmeier (2015)](https://doi.org/10.1371/journal.pone.0118432), who show why precision-recall analysis is more informative for imbalanced data. The classical probabilistic linkage comparator follows [Fellegi and Sunter (1969)](https://doi.org/10.1080/01621459.1969.10501049). These sources justify methods and diagnostics; they do not validate this project's labels, numerical results, or `0.70` threshold.\n\n"
         "The figures below are generated from this project's data and code. Generic web or presentation illustrations are explanatory aids only and are not used as academic evidence.\n\n"

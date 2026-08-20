@@ -1,6 +1,6 @@
 # Regional Reference Datasheet
 
-Generated: `2026-08-19T21:15:39`
+Generated: `2026-08-20T11:55:05`
 
 ## What This Reference Is
 
@@ -15,7 +15,8 @@ against the real BOAMP notices and official notice URLs of its candidates on
 - construction: LLM-generated labels, spot-checked by the project owner. The project owner supplied the raw anchor and candidate data; a single research pass by a large language model consulted the BOAMP notices and official notice URLs together with wider public sources, and proposed a successor or an abstention per anchor. The project owner then spot-checked a subset rather than verifying every anchor. No linkage method existed or was consulted when the labels were produced.;
 - anchor award dates: `2015-04-14` to `2023-05-07`;
 - observation cutoff: `2025-12-31`;
-- independent of the linkage algorithms: `True`;
+- label independence from the linkage algorithms: `True` -- no linkage method in this repository existed or was consulted when the outcome for an anchor was decided;
+- candidate-surfacing independence: `False` (`not recoverable`). The rule used to select the candidates exported for review -- capped at 25 per anchor, against broad pools of up to 3,258 -- is not recorded in this repository, in its git history, or in the reference files themselves. It cannot be reconstructed, and it is not asserted here. Because reviewed positive successors sit near the top of the production text ranking, recall and candidate-reachability estimates read against this reference should not be treated as fully independent of the text score they evaluate. Precision of accepted links is unaffected: a false positive is a false positive however the candidate list was assembled.
 - independent human specialist review: `False`.
 
 It is a **regional reference sample**, not ground truth, and not proof of legal
@@ -44,7 +45,7 @@ renewal.
 
 | Method | Threshold | Precision | 95% CI | Recall | 95% CI | FPR | Accepted |
 |---|---:|---:|---|---:|---|---:|---:|
-| `M_A_deterministic` | 70.0 | 0.533 | 0.301-0.752 | 0.444 | 0.246-0.663 | 0.130 | 15 |
+| `M_A_deterministic` | n/a | 0.533 | 0.301-0.752 | 0.444 | 0.246-0.663 | 0.130 | 15 |
 | `M_B_text_ranking` | 70.0 | 0.875 | 0.529-0.978 | 0.389 | 0.203-0.614 | 0.000 | 8 |
 | `M_C_weighted_gated` | 70.0 | 0.522 | 0.330-0.708 | 0.667 | 0.438-0.837 | 0.185 | 23 |
 | `M_D_fellegi_sunter` | 65.0 | 0.200 | 0.036-0.625 | 0.056 | 0.010-0.258 | 0.018 | 5 |

@@ -1,6 +1,6 @@
 # BOAMP Data Quality Report
 
-Generated: `2026-08-16T16:28:52`  
+Generated: `2026-08-20T11:55:02`  
 Data through: `2025-12-31`  
 Assessment: **Share with caveats**
 
@@ -16,26 +16,34 @@ The main risks are measurement rather than pipeline corruption. Validated SIREN 
 |---|---|---:|---|
 | Standardised data | BOAMP notice | 1,620,712 | Official notices published 2015-2025 |
 | Reconstructed data | Procurement episode | 1,103,632 | Explicit links, shared folder IDs, or constrained reference links |
-| Study cohort | Awarded digital episode | 3,800 | Grand Ouest, CPV divisions 32/35/48/72, resolved award date |
+| Study cohort | Awarded digital episode | 3,800 | Grand Ouest, **at least one** CPV code in divisions 32/35/48/72, resolved award date |
 | Candidate table | Anchor-candidate pair | 763,417 | Same plausible buyer, 90-2,920 days later |
 | Survival table | Cohort episode | 3,800 | First accepted successor or administrative censoring |
 
 The source is the official [BOAMP API](https://www.data.gouv.fr/dataservices/api-bulletin-officiel-des-annonces-des-marches-publics-boamp), which publishes procurement notices and results. A notice is not necessarily a distinct contract, so episode reconstruction is necessary before successor linkage.
 
+### What "digital cohort" means, exactly
+
+The digital filter is an **any-code rule at episode level**: an episode qualifies if at least one of its CPV codes falls in divisions 32, 35, 48 or 72. It is not a rule about the episode's main CPV. The study cohort is therefore best described as *awarded Grand Ouest procurement episodes containing at least one qualifying digital CPV code*, and multi-lot episodes may have a main CPV well outside those divisions: `1,176` of `3,800` (30.9%) do. Read literally as "3,800 digital procurements", the number would claim more than the rule delivers.
+
+`digital_segment`, the stratifying variable for the segment Kaplan-Meier curves and the Cox model, is assigned as the **lowest-numbered digital division present**, so every episode contributes to exactly one curve. That tie-break is arbitrary and it binds on the `412` episodes (10.8%) carrying more than one digital division. Its consequences were measured rather than assumed: among the `2,624` episodes whose main CPV is itself digital, the assigned segment agrees with the main division 94.7% of the time, and event rates by assigned segment track event rates by main-CPV division closely (CPV-32 0.1319 assigned vs 0.1241 by main CPV, CPV-35 0.2039 assigned vs 0.1863 by main CPV, CPV-48 0.1165 assigned vs 0.1275 by main CPV, CPV-72 0.1430 assigned vs 0.1336 by main CPV). The rule is documented rather than changed, because the sensitivity is negligible and changing it would move a frozen stratification for no measurable gain.
+
 ## Integrity Checks
 
-| Check | Result |
-|---|---:|
-| Duplicate standardised notice IDs | 0 |
-| All notices assigned to exactly one episode | True |
-| Buyer-conflict episodes | 0 |
-| Impossible episode chronologies | 0 |
-| Duplicate survival episodes | 0 |
-| Negative survival durations | 0 |
-| Accepted links with conflicting validated SIRENs | 0 |
-| Accepted municipal/intercommunal entity mixes | 0 |
+| Check | Result | Reading |
+|---|---:|---|
+| Duplicate standardised notice IDs | 0 | Must be zero |
+| All notices assigned to exactly one episode | True | Must be true |
+| Buyer-conflict episodes | 0 | Must be zero: a merged component with two trusted, different SIRENs |
+| Impossible episode chronologies | 0 | Must be zero |
+| Duplicate survival episodes | 0 | Must be zero |
+| Negative survival durations | 0 | Must be zero |
+| Accepted links with conflicting validated SIRENs | 0 | Must be zero |
+| Accepted municipal/intercommunal entity mixes | 0 | Must be zero |
+| Episodes with a procedure-reference conflict flag | 3,274 | **Not an error.** Counts episodes whose notices carry more than one distinct procedure reference. Expected in multi-lot and re-published procurements; recorded so the reconstruction's riskiest merge route is quantified rather than invisible |
+| Episodes exported for manual review | 3,344 | **Not an error.** The union of the conflict flags above plus episodes with 10 or more notices or a span over 8 years, exported to `episode_reconstruction_review_cases.csv` so outliers can be inspected |
 
-These checks support structural consistency, not semantic truth. A syntactically valid episode can still combine notices incorrectly, and a plausible successor can still be a different procurement need.
+The first eight checks must be zero or true and are; they support structural consistency, not semantic truth. A syntactically valid episode can still combine notices incorrectly, and a plausible successor can still be a different procurement need. The last two are **counts of things to look at, not defects**: they are reported here so the table does not read as a list of clean checks with nothing behind it.
 
 ## Missingness And Treatment
 
@@ -167,7 +175,7 @@ decisions; absolute probabilities remain threshold-uncertain. See
 
 **9. Linked versus unlinked detectability.** Standardised mean differences between
 event-positive and event-negative episodes are largest for
-`text_length_chars` (SMD `+0.262`), `framework_flag` (SMD `+0.187`), `administrative_followup_months` (SMD `+0.146`), `award_year` (SMD `-0.137`).
+`log_candidate_pool_size` (SMD `+0.470`), `candidate_pool_size` (SMD `+0.285`), `text_length_chars` (SMD `+0.262`), `framework_flag` (SMD `+0.187`).
 Longer episode text is linked more often, which is consistent with text-similarity
 scoring having more to work with. Framework agreements are linked more frequently;
 this may reflect genuine recurrence behaviour, differential linkability, or both,
@@ -187,9 +195,11 @@ prediction claim is made.
 
 ## Reference Evidence Quality
 
-Linkage accuracy is read against the Grand Ouest regional reference: `120` anchors reviewed against real BOAMP notices, of which `88` are evaluable once each anchor is resolved onto exactly one procurement episode. The labels were produced before these linkage methods existed and are therefore independent of every method they score.
+Linkage accuracy is read against the Grand Ouest regional reference: `120` anchors reviewed against real BOAMP notices, of which `88` are evaluable once each anchor is resolved onto exactly one procurement episode. The **labels** were produced before these linkage methods existed and are independent of every method they score.
 
-Three limits remain. The labels were generated by a single LLM research pass over the notices, their official URLs, and wider public sources, then spot-checked on a subset by the project owner rather than verified anchor-by-anchor, and they are not an independent specialist panel. The sources behind each individual label were not recorded, so a given anchor's evidence trail cannot be fully reconstructed. Negatives are corpus-relative because roughly 25 candidates per anchor were considered. Recall is additionally capped at `0.913` by candidate generation, before any method runs.
+Four limits remain. The labels were generated by a single LLM research pass over the notices, their official URLs, and wider public sources, then spot-checked on a subset by the project owner rather than verified anchor-by-anchor, and they are not an independent specialist panel. The sources behind each individual label were not recorded, so a given anchor's evidence trail cannot be fully reconstructed. Negatives are corpus-relative because roughly `25` candidates per anchor were considered. Recall is additionally capped at `0.913` by candidate generation, before any method runs.
+
+The fourth limit is narrower and worth stating separately, because it is easy to conflate with the first. Label independence and **candidate-surfacing** independence are different properties, and only the first holds here. The rule used to select the candidates exported for review -- capped at 25 per anchor, against broad pools of up to 3,258 -- is not recorded in this repository, in its git history, or in the reference files themselves. It cannot be reconstructed, and it is not asserted here. Because reviewed positive successors sit near the top of the production text ranking, recall and candidate-reachability estimates read against this reference should not be treated as fully independent of the text score they evaluate. Precision of accepted links is unaffected: a false positive is a false positive however the candidate list was assembled.
 
 This is the main unresolved validation risk. The appropriate correction is an independent specialist review of a compact, stratified sample, especially accepted links, method disagreements, high-similarity structural negatives, and name-only buyer matches.
 

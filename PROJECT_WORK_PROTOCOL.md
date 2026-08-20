@@ -93,11 +93,27 @@ spot-check remains desirable.
 
 ### 3.3 Study Cohort
 
-The cohort contains `3,800` awarded Grand Ouest digital procurement episodes.
-Digital scope is defined reproducibly through CPV divisions `32`, `35`, `48`,
-and `72`. This is a coarse procurement-domain segmentation. The trained
-technology taxonomy of §3.9 is layered on top of it and does not alter it: CPV
-remains the cohort definition, the Cox covariate, and the trend series.
+The cohort contains `3,800` awarded Grand Ouest procurement episodes carrying at
+least one CPV code in divisions `32`, `35`, `48`, or `72`. The rule is
+**episode-level any-code inclusion**, not a rule about the episode's main CPV:
+formally, episode $e$ is in scope iff
+$\exists\, c \in \mathrm{CPV}(e)$ with $\lfloor c/10^{6} \rfloor \in \{32,35,48,72\}$.
+`1,176` of the `3,800` (`30.9%`) are multi-lot procurements whose main CPV falls
+outside the set; they enter on one digital lot. This is a coarse
+procurement-domain segmentation and a deliberately inclusive one.
+
+`digital_segment`, the stratifying variable for the segment Kaplan-Meier curves
+and the Cox model, is the lowest-numbered digital division present, so each
+episode contributes to exactly one curve. The tie-break binds on the `412`
+episodes (`10.8%`) carrying more than one digital division. Its impact was
+measured, not assumed: among episodes whose main CPV is itself digital the
+assigned segment agrees with the main division `94.7%` of the time, and event
+rates by assigned segment track those by main-CPV division closely. The rule is
+documented rather than changed.
+
+The trained technology taxonomy of §3.9 is layered on top of this and does not
+alter it: CPV remains the cohort definition, the Cox covariate, and the trend
+series.
 
 ### 3.4 Candidate Generation
 
@@ -219,6 +235,13 @@ HMM's current-regime read is not forced to agree with the PELT/OLS signals.
 Monetary trend analysis is omitted because no canonical awarded-amount field
 has been validated at episode grain.
 
+Five slopes are fitted and read together, so the raw p-values are reported beside
+Holm and Benjamini-Hochberg adjustments across those five series -- the same
+standard §3.9's technology trend section applies to its own family. A segment
+whose raw p clears the pre-declared exploratory `α = 0.10` but whose Holm p does
+not is reported as a nominal signal to monitor, not as a finding. On the current
+data that applies to `CPV-48`: raw `p = 0.032`, Holm and BH `p = 0.159`.
+
 ### 3.9 Supervised Technology Taxonomy
 
 A separate annotated corpus of `500` BOAMP notices, `2015`-`2025`, labelled into
@@ -233,7 +256,12 @@ and notices whose objects reach character cosine `0.80`. Every family lies in
 exactly one fold.
 
 The frozen specification is TF-IDF word unigrams with a class-weighted
-multinomial logistic regression. Hyperparameters come from a pre-specified
+multinomial logistic regression. Both unigrams and unigrams-plus-bigrams were in
+the **search space**; every fold selected unigrams alone, and that is the
+**deployed representation**. The deployed confidence is the *raw* class score:
+Platt scaling was evaluated inside the same grouped splits and rejected by the
+pre-specified rule, because its macro-F1 cost exceeded the `0.02` budget the rule
+allows even though its calibration gain cleared the `0.02` requirement. Hyperparameters come from a pre-specified
 compact grid explored only by the inner cross-validation; every specification in
 the budget is recorded in `specification_register.csv` rather than only the
 winner. Selection used mean macro-F1 together with fold spread, the
@@ -252,9 +280,10 @@ including the fallback residuals moves the technology log-rank result from
 
 The corpus has no second annotation pass, so no inter-annotator agreement
 statistic exists. `AI` has `7` labelled notices and is reported as a rare-class
-limitation. Confidence is a Platt-scaled class probability that remains
-conservative; the `0.70` cutoff is an operational reporting convention and is
-unrelated to the `0.70` linkage acceptance threshold.
+limitation. Confidence is the **raw** class probability -- Platt scaling was
+evaluated and rejected -- and it remains conservative by a wide margin; the
+`0.70` cutoff is an operational reporting convention and is unrelated to the
+`0.70` linkage acceptance threshold.
 
 ## 4. Current Materialised Results
 
@@ -262,12 +291,15 @@ unrelated to the `0.70` linkage acceptance threshold.
 |---|---:|---|
 | Standardised notices | `1,620,712` | Unique official notice records |
 | Reconstructed episodes | `1,103,632` | Inferred procurement processes |
-| Study cohort | `3,800` | Awarded Grand Ouest digital episodes |
+| Study cohort | `3,800` | Awarded Grand Ouest episodes with at least one CPV code in 32/35/48/72 |
 | Candidate pairs | `763,417` | Broad exposed comparison set |
 | Main accepted successors | `544` | `M_B @ 0.70` observable events |
 | Main observed event rate | `14.32%` | Linkage-conditioned, not legal renewal prevalence |
 | Median successor time | `31.82 months` | Median among accepted events only |
-| Borderline-band episodes excluded | `280` | `133` events, `147` censored |
+| Borderline-band episodes excluded | `280` | `133` events, `147` censored; a separate `280` anchors have no candidate at all, which is a different set |
+| SMD, log candidate-pool size | `+0.470` | Largest linked-vs-censored imbalance; a detectability variable |
+| Framework HR, main / pool-adjusted | `1.751` / `1.617` | Partly detectability; sensitivity model only |
+| CPV-35 HR, main / pool-adjusted | `1.553` / `1.512` | Largely insensitive to detectability |
 | Cox C-index, 2022-2024 out-of-time | `0.479` | Guideline-aligned primary validation |
 | Cox C-index, 2022-2025 out-of-time | `0.518` | Sensitivity, adds the 2025 cohort |
 
@@ -320,7 +352,10 @@ Recall is capped at `0.913` by candidate generation, which reaches `21` of the
 but they were generated by a single LLM research pass and spot-checked on a
 subset rather than verified anchor-by-anchor or judged by an independent
 specialist panel, and the negatives are corpus-relative, so the false-positive
-rate is conservative by construction rather than a population-wide rate. Eight
+rate is conservative by construction rather than a population-wide rate. The
+candidate-export rule behind those roughly 25 reviewed candidates per anchor was
+not recorded, so this recall figure and the `0.913` ceiling are not fully
+independent of the text ranking; precision is not affected by that gap. Eight
 accepted decisions make precision
 sample-sensitive.
 
@@ -392,7 +427,9 @@ required to complete the minimum specialist audit.
 | Reference anchors re-resolved by notice id, ambiguities dropped | Passed |
 | Retired benchmark and duration-conditioned arm absent from the repository | Passed |
 | Evidence notebooks execute | Passed |
-| Automated test suite | `79 passed` |
+| Automated test suite | See `final_pipeline_manifest.json` for the current run's status |
+| Deployed confidence variant consistent across config, CSV, report, notebook and log | Passed |
+| Simultaneous trend slopes multiplicity-adjusted in both families | Passed |
 | Model-assisted linkage diagnostic | Complete; `14/20` conservatively confirmed |
 | Guideline-aligned temporal validation (2022-2024) | Complete; weak, `C = 0.479` |
 | Borderline-band robustness | Complete; comparative claims hold |
@@ -422,7 +459,16 @@ The final report may state that:
   enough to analyse, a difference in observable-successor timing is detected
   (log-rank `p = 0.036`), unadjusted for buyer, size or procedure;
 - no technology quarterly series shows a linear trend surviving Holm adjustment
-  across the family of tests;
+  across the family of tests, and no CPV segment series does either -- `CPV-48`
+  carries the clearest nominal recent decline (raw `p = 0.032`) but does not
+  survive correction for the five segments tested, so it is exploratory;
+- CPV-35 shows the highest observable-successor hazard among the segments
+  (`1.553`, `p = 0.0004`) and remains essentially unmoved (`1.512`) when the
+  candidate-pool detectability variable is added, so it is the most robust
+  comparative finding here;
+- framework agreements are associated with an earlier observable successor, but
+  the association is **partly differential detectability**: adding
+  `log(candidate pool size)` attenuates the hazard ratio from `1.751` to `1.617`;
 - lower thresholds trade precision for recall on the locked split and are
   retained as sensitivity arms rather than promoted, because selecting one from
   those rows would convert the locked split into a tuning set;
@@ -433,6 +479,12 @@ The report must not state that:
 - the `544` links are confirmed legal renewals;
 - the locked-split precision is independently validated;
 - the reference labels are independent human specialist annotations;
+- the reference's recall figures or its `0.913` candidate-generation ceiling are
+  independent of the text score they evaluate: the labels are independent, but
+  the rule that selected the candidates shown to the reviewer was not recorded.
+  Precision is unaffected by that gap;
+- candidate-pool size causes re-procurement, or that the pool-adjusted Cox model
+  is the headline model;
 - a negative reference anchor proves that no successor exists;
 - missing contracts are four years long;
 - observed statistical breaks have known causes;

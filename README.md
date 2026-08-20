@@ -51,6 +51,23 @@ development and has been removed in full; see `PROJECT_WORK_PROTOCOL.md` §3.6.
 - Technical report: `reports/boamp_methodology_chapter.pdf`
 - Active notebooks: `notebooks/10` through `notebooks/15`, executed by
   `scripts/run_final_pipeline.py --with-notebooks`
+- Pipeline entry point: `scripts/run_final_pipeline.py`. Every other script under
+  `scripts/` is a stage it invokes, with three exceptions that are **raw-export
+  utilities, not analysis stages**: `build_boamp_raw_csv.py`,
+  `create_boamp_grand_ouest_raw_csv.py` and
+  `create_boamp_grand_ouest_annual_parquet.py` serialise the acquired JSONL into
+  CSV/Parquet views for external consumption without cleaning, deduplicating or
+  filtering. Nothing in the analysis reads their output; the analysis reads the
+  JSONL directly through `build_standardized_notices.py`
+- Library code: `boamp_pipeline/` (imported by both the scripts and the notebooks,
+  so a notebook runs the same code the pipeline runs)
+- Tests: `tests/`, collected by `pytest.ini`, which restricts collection to that
+  directory
+- Run record: `data/processed/boamp/final_pipeline_manifest.json` (git state,
+  dependency versions, stage status, input checksums, headline counts) and
+  `data/processed/boamp/canonical_state_validation.json` (cross-artifact gate)
+- Archives, read by nothing: `archive/` (retired France-level benchmark material
+  and the raw-data EDA) and `notebooks/archive/`
 
 There are no active project directories named by competing project versions.
 Fields ending in `_schema` are data-contract identifiers, not alternative
@@ -82,10 +99,16 @@ prevalence. See `TECHNOLOGY_TAXONOMY_REPORT.md`.
   and Normandie, carried out on 2026-08-11 against real BOAMP notices and
   official notice URLs, before the linkage methods in this repository existed.
   `112` anchors re-resolve onto the current episode reconstruction and `88` are
-  usable. Its labels are independent of every method it scores. They are a
+  usable. Its **labels** are independent of every method it scores -- none of them
+  existed when the review was carried out. They are a
   single LLM research pass over the notices, their official URLs, and wider
   public sources, spot-checked on a subset by the project owner rather than
-  verified anchor-by-anchor, so it is a **reference sample**, not ground truth. See `REGIONAL_BENCHMARK_REFERENCE.md`.
+  verified anchor-by-anchor, so it is a **reference sample**, not ground truth.
+  A narrower gap sits beside that one: the rule that chose the ~25 candidates
+  exported per anchor for review was not recorded and cannot be reconstructed
+  from this repository, so **recall** and the candidate-reachability ceiling are
+  not fully independent of the text score they evaluate. **Precision** is
+  unaffected. See `REGIONAL_BENCHMARK_REFERENCE.md`.
 - **France-level benchmark (retired, removed).** Both of its annotation passes
   were emitted by deterministic rules built from the same text, CPV, and date
   evidence the linkage methods consume, so a method could score well on it only
@@ -101,7 +124,12 @@ reported precision/recall figures below.
 
 ## Current Materialised Results
 
-- Study cohort: `3,800` awarded digital procurement episodes.
+- Study cohort: `3,800` awarded Grand Ouest procurement episodes carrying at
+  least one CPV code in divisions 32/35/48/72. The digital filter is an
+  **any-code** rule at episode level, not a rule about the main CPV, so
+  `1,176` of them (`30.9%`) are multi-lot procurements whose main CPV lies
+  outside those divisions. `digital_segment`, the stratifying variable, is the
+  lowest-numbered digital division present. See `DATA_QUALITY_REPORT.md`.
 - Candidate pairs: `763,417`.
 - Primary accepted links: `544`.
 - Primary event rate: `0.1432`.
@@ -109,7 +137,15 @@ reported precision/recall figures below.
 - Excluding the `280` episodes whose best candidate scores within `±0.05` of the
   threshold leaves both headline hazard ratios pointing the same way, while the
   absolute KM level falls: comparative claims are robust to borderline links,
-  absolute probabilities are not.
+  absolute probabilities are not. (A separate `280` anchors generated no
+  candidate at all — two different sets, and the borderline check does not touch
+  the second.)
+- The largest linked-versus-censored imbalance is candidate-pool size
+  (SMD `+0.470` on the log scale). One sensitivity Cox model adds it: CPV-35
+  barely moves (`1.553` → `1.512`) while the framework hazard ratio attenuates
+  (`1.751` → `1.617`), so part of the framework association is differential
+  detectability rather than re-procurement behaviour. The main Cox model is
+  unchanged. See `SURVIVAL_ANALYSIS_REPORT.md`.
 - Re-censoring the `173` accepted links that carry the documented false-positive
   signatures — word-level similarity below `0.50`, or a successor shared with
   another anchor — gives the same verdict from the other direction: CPV-35 moves
@@ -131,8 +167,12 @@ reported precision/recall figures below.
   the same regularisation range. The paired difference is `0.271`
   (`0.201`-`0.340`), excluding zero. Applied to all `3,800` cohort episodes;
   every episode keeps a prediction and `235` (`6.2%`) clear the `0.70`
-  operational confidence cutoff. `AI` has `7` labelled notices and is reported as
-  a rare-class limitation, not as a measured capability.
+  operational confidence cutoff. That confidence is the **raw** class score:
+  Platt scaling was evaluated inside the same grouped splits and rejected by the
+  pre-specified rule, because its macro-F1 cost exceeded the `0.02` budget even
+  though its calibration gain cleared the `0.02` requirement. `AI` has `7`
+  labelled notices and is reported as a rare-class limitation, not as a measured
+  capability.
 - Technology-level survival and trend enrichment is gated twice: a class must be
   a substantive technology the classifier separates (out-of-fold F1 `>= 0.65` on
   at least `10` annotated notices) *and* carry enough episodes and events. Five
@@ -161,12 +201,31 @@ From the repository root:
 PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-notebooks --with-tests
 ```
 
-The command applies the primary pipeline, rebuilds the regional reference,
-refreshes its evaluation, regenerates reader-facing artifacts, executes
-notebooks, runs the test suite, and writes
-`data/processed/boamp/final_pipeline_manifest.json`. Completed stages are
-skipped. Use `--force` only when intentionally rebuilding all materialised
-outputs from their inputs.
+The command runs every stage in dependency order:
+
+```text
+base -> episodes -> cohort -> linkage -> survival
+     -> technology
+     -> evidence and reader-artifact refresh
+     -> canonical state validation
+     -> manifest
+```
+
+The technology layer runs **before** any artifact or validator that quotes it.
+Reader-facing documents (`EXECUTIVE_SUMMARY.md`, `FINAL_PIPELINE.md`,
+`REGIONAL_BENCHMARK_REFERENCE.md`, the methodology chapter) and
+`canonical_state_validation.json` all read technology numbers, so running them
+first would silently republish the previous run's results.
+
+Completed upstream stages are skipped when their outputs are newer than the code
+that writes them; everything downstream of the data recomputes every run. Use
+`--force` only when intentionally rebuilding all materialised outputs from their
+inputs.
+
+The run writes `data/processed/boamp/final_pipeline_manifest.json`, which records
+the git commit and working-tree state, Python and library versions, the status of
+every stage, SHA-256 checksums of the reference inputs and the canonical outputs,
+and the headline counts read back off the artifacts.
 
 ## Supporting Evidence
 
@@ -204,4 +263,11 @@ outputs from their inputs.
   procurement, or the annotated class counts as market shares.
 - Do not read the classifier's confidence as a probability of correctness
   without the reliability table in `TECHNOLOGY_TAXONOMY_REPORT.md`; it is
-  conservative by a wide margin.
+  conservative by a wide margin, and it is the **raw** score -- Platt scaling was
+  evaluated and rejected by the pre-specified rule.
+- Do not present the reference's recall figures or the `0.913` candidate-generation
+  ceiling as method-independent. The labels are independent; the candidate list the
+  reviewer saw came from an unrecorded rule. Precision is not affected.
+- Do not quote a 12-quarter trend slope as a finding on its raw p-value alone.
+  Five segment series are tested at once and the signal matrix carries Holm and
+  Benjamini-Hochberg adjusted p-values beside the raw one.

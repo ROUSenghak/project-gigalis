@@ -374,6 +374,15 @@ regional reference, a pairs completeness of
 `{blocking['pairs_completeness']:.4f}`. This is a property of the reference
 sample, not a population recall estimate.
 
+It carries one further caveat that the reference's own datasheet records. The
+rule that selected the roughly 25 candidates exported per anchor for review was
+not recorded and cannot be reconstructed from this repository, and every
+retrievable reviewed successor sits near the top of the production text ranking.
+A reviewer can only name a successor that was surfaced to them, so this ceiling
+and the recall figures read against it should not be treated as fully
+independent of the text score they bound. The blocking-loss attribution below is
+unaffected: it explains cases the blocking stage did not expose at all.
+
 Every unreachable case is attributed below to the first blocking condition it
 fails, evaluated in the order `build_linkage_candidates.py` applies them:
 

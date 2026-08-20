@@ -321,7 +321,37 @@ def build(force: bool) -> dict[str, Any]:
             "spot-checked a subset rather than verifying every anchor. No linkage "
             "method existed or was consulted when the labels were produced."
         ),
+        # Two different independence questions, deliberately separated. The
+        # first is about the *labels* and holds: no linkage method existed when
+        # the review was carried out. The second is about which candidates the
+        # reviewer was shown, and it does not hold, because the export rule was
+        # not recorded anywhere in this repository. Reporting only the first
+        # overstates the reference's standing on recall.
         "independent_of_linkage_algorithms": True,
+        "label_independence": {
+            "holds": True,
+            "basis": (
+                "no linkage method in this repository existed or was consulted when "
+                "the outcome for an anchor was decided"
+            ),
+        },
+        "candidate_surfacing_independence": {
+            "holds": False,
+            "status": "not recoverable",
+            "review_candidates_cap": int(reference["review_candidates_exported_n"].max()),
+            "basis": (
+                "The rule used to select the candidates exported for review -- capped at "
+                f"{int(reference['review_candidates_exported_n'].max())} per anchor, against broad pools of up to "
+                f"{int(reference['broad_candidate_pool_n'].max()):,} -- is not recorded in this repository, in its "
+                "git history, or in the reference files themselves. It cannot be "
+                "reconstructed, and it is not asserted here. Because reviewed positive "
+                "successors sit near the top of the production text ranking, recall and "
+                "candidate-reachability estimates read against this reference should not "
+                "be treated as fully independent of the text score they evaluate. "
+                "Precision of accepted links is unaffected: a false positive is a false "
+                "positive however the candidate list was assembled."
+            ),
+        },
         "independent_human_specialist_review": False,
         "review_date": "2026-08-11",
         "geographical_scope": "Grand Ouest (Bretagne, Pays de la Loire, Normandie)",

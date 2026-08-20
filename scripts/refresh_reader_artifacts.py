@@ -18,6 +18,7 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = PROJECT_ROOT / "data/processed/boamp"
 BENCHMARK = PROCESSED / "regional_benchmark"
+TECHNOLOGY = PROCESSED / "technology"
 REPORTS = PROJECT_ROOT / "reports"
 FIGURES = REPORTS / "figures"
 NOTEBOOK = PROJECT_ROOT / "notebooks/12_successor_linkage_and_evaluation.ipynb"
@@ -139,9 +140,21 @@ def latex_escape(value: str) -> str:
 
 
 def format_metric(value: Any) -> str:
-    if value is None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
         return "--"
     return f"{float(value):.3f}"
+
+
+def format_threshold(value: Any) -> str:
+    """Render an operating point, or ``n/a`` for a rule that has none.
+
+    ``M_A_deterministic`` is a conjunction of fixed gates and never reads a
+    threshold. Printing the caller's argument beside it -- which is what this
+    table used to do -- advertises a knob that does not exist.
+    """
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return "n/a"
+    return f"{float(value):.1f}"
 
 
 def latex_pvalue(value: float, digits: int = 3) -> str:
@@ -167,7 +180,7 @@ def latex_method_rows(frame: pd.DataFrame) -> str:
             " & ".join(
                 [
                     latex_escape(row.method),
-                    format_metric(row.threshold),
+                    format_threshold(row.threshold),
                     str(int(row.accepted_links)),
                     format_metric(row.precision),
                     format_metric(row.recall),
@@ -305,6 +318,8 @@ def latex_trend_signal_rows(signal_matrix: pd.DataFrame) -> str:
                     latex_escape(row.state),
                     f"{row.slope_episodes_per_quarter:.2f}",
                     f"{row.p_value:.3f}",
+                    f"{row.p_holm:.3f}",
+                    f"{row.p_bh:.3f}",
                     last_stable,
                     regime,
                 ]
@@ -380,6 +395,54 @@ def write_methodology_report(
     )
 
     survival_summary = load_json(PROCESSED / "survival_analysis_summary.json")
+    # The chapter's trend paragraph is generated from the adjusted verdict, not
+    # written against the smallest raw p-value. Five slopes are read at once.
+    chapter_trend = load_json(PROCESSED / "trend_analysis_summary.json")["multiplicity"]
+    chapter_signals = pd.read_csv(PROCESSED / "trend_signal_matrix.csv").set_index("segment")
+    if chapter_trend["segments_surviving_multiplicity"]:
+        names = ", ".join(chapter_trend["segments_surviving_multiplicity"])
+        trend_multiplicity_paragraph = (
+            f"{names} shows a 12-quarter direction that survives Holm correction across "
+            f"the {chapter_trend['tests']} segment slopes fitted simultaneously; the rest are "
+            r"\code{stable\_or\_uncertain} by this signal."
+        )
+    elif chapter_trend["segments_with_nominal_signal_only"]:
+        clearest = min(
+            chapter_trend["segments_with_nominal_signal_only"],
+            key=lambda name: float(chapter_signals.loc[name, "p_value"]),
+        )
+        trend_multiplicity_paragraph = (
+            f"{clearest} carries the clearest nominal 12-quarter decline "
+            f"(raw \\(p={float(chapter_signals.loc[clearest, 'p_value']):.3f}\\)), but the five segment "
+            "slopes in this table are fitted and read simultaneously, and it does not "
+            f"survive that multiplicity: Holm \\(p={float(chapter_signals.loc[clearest, 'p_holm']):.3f}\\), "
+            f"BH \\(p={float(chapter_signals.loc[clearest, 'p_bh']):.3f}\\), against the pre-declared "
+            f"exploratory \\(\\alpha={chapter_trend['alpha']:g}\\). It is reported as an exploratory "
+            "signal to monitor, not as an established decline, and the same correction is "
+            "applied to the technology trend family. The remaining segments are "
+            r"\code{stable\_or\_uncertain} before any adjustment."
+        )
+    else:
+        trend_multiplicity_paragraph = (
+            "No segment shows a 12-quarter direction distinguishable from zero at the "
+            f"pre-declared exploratory \\(\\alpha={chapter_trend['alpha']:g}\\), before or after "
+            f"correction for the {chapter_trend['tests']} slopes fitted simultaneously."
+        )
+    # Technology-layer numbers, read from the canonical artifacts. They were
+    # literals in this chapter, which is how a methodology chapter ends up
+    # describing a model run that no longer exists.
+    technology_config = load_json(TECHNOLOGY / "final_model_config.json")
+    technology_summary = load_json(TECHNOLOGY / "technology_evidence_summary.json")
+    technology_bootstrap = pd.read_csv(TECHNOLOGY / "bootstrap_macro_f1_ci.csv").set_index("model")
+    technology_paired = pd.read_csv(TECHNOLOGY / "bootstrap_paired_differences.csv")
+    technology_selected = technology_config["specification"]
+    technology_selected_ci = technology_bootstrap.loc[technology_selected]
+    technology_benchmark_ci = technology_bootstrap.loc["M0b_cpv_descriptor"]
+    technology_gain = technology_paired.loc[
+        (technology_paired["model_a"] == "M0b_cpv_descriptor")
+        & (technology_paired["model_b"] == technology_selected)
+    ].iloc[0]
+    technology_gate = load_json(TECHNOLOGY / "model_selection_decision.json")["camembert_gate"]
     cox_results = pd.read_csv(PROCESSED / "survival_cox_results.csv")
     ph_diagnostics = pd.read_csv(PROCESSED / "survival_ph_diagnostics.csv")
     parametric_comparison = pd.read_csv(PROCESSED / "survival_parametric_comparison.csv")
@@ -1125,9 +1188,13 @@ into eight substantive classes -- cloud/hosting, cybersecurity,
 network/telecom, IT infrastructure, business software, data/BI, AI, and IT
 services -- plus three fallback classes for mixed, other-digital, and
 non-technology procurements. The input is the notice object text alone,
-represented as TF--IDF word unigrams and bigrams; buyer identity, geography,
+represented as TF--IDF word n-grams; buyer identity, geography,
 dates, amounts, procedure type, and every linkage variable are excluded by
 design, as is CPV, which serves as the benchmark rather than as a feature.
+The n-gram range is part of the *search space*, not of the final model: unigrams
+and unigrams-plus-bigrams were both offered to the grouped inner
+cross-validation, and every fold selected unigrams alone, which is the
+representation reported below.
 
 Evaluation is a 3-fold group-aware cross-validation in which every family of
 related notices -- notices sharing a reconstructed episode, and notices whose
@@ -1138,18 +1205,20 @@ optimistic. Hyperparameters are selected by a grouped inner cross-validation
 inside each training fold.
 
 The selected specification, TF--IDF word unigrams with a class-weighted
-multinomial logistic regression, reaches an out-of-fold macro-F1 of $0.744$
-against $0.473$ for the best administrative benchmark built from CPV codes and
+multinomial logistic regression, reaches an out-of-fold macro-F1 of ${technology_selected_ci['macro_f1']:.3f}$
+against ${technology_benchmark_ci['macro_f1']:.3f}$ for the best administrative benchmark built from CPV codes and
 BOAMP descriptors, both searched over the same regularisation range. Uncertainty
 is estimated by resampling procurement families rather than notices, since
-notices within a family are near-copies: the paired difference is $0.271$ with a
-95\\% interval of $[0.201, 0.340]$, which excludes zero. That is the empirical
+notices within a family are near-copies: the paired difference is ${abs(technology_gain['observed_difference']):.3f}$ with a
+95\\% interval of $[{abs(technology_gain['ci_upper']):.3f}, {abs(technology_gain['ci_lower']):.3f}]$, which excludes zero. That is the empirical
 result justifying the layer: the business technology class is present in
 procurement text and is not recoverable from the official classification codes. The high-volume classes are separated reliably;
 AI, with seven annotated notices, is reported as a rare-class limitation rather
 than as a measured capability. A CamemBERT comparison was gated on the classical
-model being materially inadequate, defined in advance as macro-F1 below $0.55$;
-that condition was not met and no transformer was run.
+model being materially inadequate, defined in advance as macro-F1 below ${technology_gate['macro_f1_floor']}$;
+that condition was not met and no transformer was run. The deployed confidence
+score is the {technology_summary['deployed_confidence']['variant']} class probability: Platt scaling was evaluated against a
+pre-specified adoption rule and {'adopted' if technology_summary['deployed_confidence']['adopted'] else 'rejected, because its macro-F1 cost exceeded the budget the rule allows'}.
 
 Two limitations are structural rather than incidental. The corpus was delivered
 as a single labelled file with no annotator identifier and no second pass, so no
@@ -1163,7 +1232,7 @@ and 72 (IT services) therefore remain the definition of the study cohort, the
 Cox covariate, and the quarterly trend series throughout this report. They are
 official, zero-missingness EU categories under Regulation 213/2008 and they
 reproduce exactly. The technology taxonomy sits beside them: mean CPV-segment
-purity against the predicted taxonomy is $0.34$, so each CPV division holds
+purity against the predicted taxonomy is ${technology_summary['crosswalk']['mean_segment_purity']}$, so each CPV division holds
 several business technologies, and the two segmentations are complements rather
 than substitutes.
 
@@ -1737,9 +1806,9 @@ direction and rough size of the leading \(\mathrm{{HR}}_{{k,m}}\) do not.
 \begin{{table}}[H]
 \centering
 \small
-\begin{{tabularx}}{{\textwidth}}{{lrrrll}}
+\begin{{tabularx}}{{\textwidth}}{{lrrrrrll}}
 \toprule
-Segment & Direction & Slope/qtr & p & Last stable PELT break & HMM regime \\
+Segment & Direction & Slope/qtr & Raw p & Holm p & BH p & Last stable PELT break & HMM regime \\
 \midrule
 {latex_trend_signal_rows(trend_signal_matrix)}
 \bottomrule
@@ -1747,9 +1816,7 @@ Segment & Direction & Slope/qtr & p & Last stable PELT break & HMM regime \\
 \caption{{Trend signal matrix: OLS 12-quarter slope, PELT breaks, and
 HMM current regime (Overall and top-2 segments only).}}
 \end{{table}}
-CPV-48 is the only segment with a statistically distinguishable 12-quarter
-decline at the exploratory \(\alpha=0.10\) level; the rest are
-\code{{stable\_or\_uncertain}} by this signal.
+{trend_multiplicity_paragraph}
 
 \begin{{figure}}[H]
 \centering
@@ -2060,8 +2127,14 @@ loss rather than a scoring one.
 These are reference-sample estimates, not independent validation. The labels were
 generated by a single LLM research pass over real BOAMP notices, their official
 URLs, and wider public sources, dated 2026-08-11, then spot-checked on a subset by
-the project owner. They are independent of every method scored, but they were not
-verified anchor-by-anchor and are not an independent specialist panel.
+the project owner. The *labels* are independent of every method scored -- none of
+them existed when the review was carried out -- but they were not verified
+anchor-by-anchor and are not an independent specialist panel. The *candidate pool*
+the reviewer saw is a separate question and a weaker one: the rule that selected
+the roughly `{manifest["candidate_surfacing_independence"]["review_candidates_cap"]}` candidates exported per anchor was not recorded and cannot
+be reconstructed, so the recall and candidate-reachability figures below should not
+be read as fully independent of the text score they evaluate. Precision is
+unaffected by that gap.
 
 The threshold was frozen before this reference was consulted and has not been moved
 since. `0.60` remains a required survival sensitivity arm. The completed
@@ -2144,7 +2217,8 @@ against the real BOAMP notices and official notice URLs of its candidates on
 - construction: {manifest["label_provenance"]};
 - anchor award dates: `{manifest["temporal_scope"]["anchor_award_dates"][0]}` to `{manifest["temporal_scope"]["anchor_award_dates"][1]}`;
 - observation cutoff: `{manifest["temporal_scope"]["study_cutoff"]}`;
-- independent of the linkage algorithms: `{manifest["independent_of_linkage_algorithms"]}`;
+- label independence from the linkage algorithms: `{manifest["label_independence"]["holds"]}` -- {manifest["label_independence"]["basis"]};
+- candidate-surfacing independence: `{manifest["candidate_surfacing_independence"]["holds"]}` (`{manifest["candidate_surfacing_independence"]["status"]}`). {manifest["candidate_surfacing_independence"]["basis"]}
 - independent human specialist review: `{manifest["independent_human_specialist_review"]}`.
 
 It is a **regional reference sample**, not ground truth, and not proof of legal
@@ -2176,7 +2250,7 @@ renewal.
 """
     for row in validation_frame.itertuples(index=False):
         reference += (
-            f"| `{row.method}` | {row.threshold:.1f} | {row.precision:.3f} | "
+            f"| `{row.method}` | {format_threshold(row.threshold)} | {row.precision:.3f} | "
             f"{row.precision_low:.3f}-{row.precision_high:.3f} | {row.recall:.3f} | "
             f"{row.recall_low:.3f}-{row.recall_high:.3f} | {row.fpr:.3f} | "
             f"{int(row.accepted_links)} |\n"
@@ -2225,8 +2299,62 @@ def write_executive_summary(
     survival_summary = load_json(PROCESSED / "survival_analysis_summary.json")
     km_horizons = pd.read_csv(PROCESSED / "survival_km_horizons.csv").set_index("months")
     trend_signal = pd.read_csv(PROCESSED / "trend_signal_matrix.csv")
-    decreasing_segments = trend_signal.loc[trend_signal["state"].eq("decreasing"), "segment"].tolist()
+    trend_summary = load_json(PROCESSED / "trend_analysis_summary.json")
+    exec_review = load_json(PROJECT_ROOT / "data/review/review_audit_evaluation.json")
+    detectability_cox = pd.read_csv(
+        PROCESSED / "survival_cox_detectability_sensitivity.csv"
+    ).set_index("covariate")
+    selection_diagnostic = pd.read_csv(
+        PROCESSED / "survival_selection_diagnostic.csv"
+    ).set_index("variable")
     standardized_notices = load_json(PROCESSED / "standardized_notice_summary.json")["rows"]
+
+    # Read from the canonical artifacts rather than restating them. Every number
+    # below used to be a literal in this f-string, which is how an executive
+    # summary quietly outlives the run it summarises.
+    technology = load_json(TECHNOLOGY / "technology_evidence_summary.json")
+    technology_config = load_json(TECHNOLOGY / "final_model_config.json")
+    technology_bootstrap = pd.read_csv(TECHNOLOGY / "bootstrap_macro_f1_ci.csv").set_index("model")
+    technology_paired = pd.read_csv(TECHNOLOGY / "bootstrap_paired_differences.csv")
+    selected_model = technology_config["specification"]
+    selected_ci = technology_bootstrap.loc[selected_model]
+    benchmark_ci = technology_bootstrap.loc["M0b_cpv_descriptor"]
+    text_vs_admin = technology_paired.loc[
+        (technology_paired["model_a"] == "M0b_cpv_descriptor")
+        & (technology_paired["model_b"] == selected_model)
+    ].iloc[0]
+
+    # The trend verdict is the multiplicity-adjusted one. A nominal slope among
+    # five simultaneously fitted series is a monitoring prompt, and the "What
+    # Works" section is exactly the wrong place to promote one as a finding.
+    multiplicity = trend_summary["multiplicity"]
+    nominal_only = multiplicity["segments_with_nominal_signal_only"]
+    surviving = multiplicity["segments_surviving_multiplicity"]
+    if surviving:
+        trend_bullet = (
+            f"{', '.join(surviving)} shows a recent direction that survives Holm "
+            f"correction across the {multiplicity['tests']} segment series tested "
+            f"(α = {multiplicity['alpha']:g}); other segments are stable or uncertain "
+            "by the 12-quarter signal."
+        )
+    elif nominal_only:
+        rows = trend_signal.set_index("segment")
+        clearest = min(nominal_only, key=lambda name: float(rows.loc[name, "p_value"]))
+        trend_bullet = (
+            f"{clearest} carries the clearest nominal recent decline signal "
+            f"(raw p = `{float(rows.loc[clearest, 'p_value']):.3f}`), but it does not survive "
+            f"correction for the {multiplicity['tests']} CPV series tested simultaneously "
+            f"(Holm p = `{float(rows.loc[clearest, 'p_holm']):.3f}`, "
+            f"BH p = `{float(rows.loc[clearest, 'p_bh']):.3f}`, α = {multiplicity['alpha']:g}) "
+            "and is therefore treated as exploratory, not as an established decline. "
+            "No segment shows a direction that survives correction."
+        )
+    else:
+        trend_bullet = (
+            f"No CPV segment shows a 12-quarter direction distinguishable from zero "
+            f"at α = {multiplicity['alpha']:g}, before or after correction for the "
+            f"{multiplicity['tests']} series tested."
+        )
     temporal = survival_summary["cox"]["temporal_validation"]
     extended = survival_summary["cox"]["temporal_validation_including_latest_cohort"]
 
@@ -2269,13 +2397,14 @@ legal renewal.
   highest-volume segments.
 - Ran a model-assisted (not independent-human) blinded challenge review of 20
   accepted links, 20 structural negatives, and 20 buyer-declared relationships.
-- Built the supervised technology taxonomy (guide deliverable L2) on 500
-  manually annotated notices across 11 classes: TF-IDF word unigrams with a
+- Built the supervised technology taxonomy (guide deliverable L2) on {technology_config["training_data"]["rows"]}
+  manually annotated notices across {len(technology_config["classes"])} classes: TF-IDF word unigrams with a
   class-weighted logistic regression, evaluated by group-aware 3-fold
-  cross-validation at out-of-fold macro-F1 `0.744` (95% family-bootstrap CI
-  `0.682`-`0.791`), against `0.473` for a CPV/descriptor benchmark on the same
+  cross-validation at out-of-fold macro-F1 `{selected_ci["macro_f1"]:.3f}` (95% family-bootstrap CI
+  `{selected_ci["ci_lower"]:.3f}`-`{selected_ci["ci_upper"]:.3f}`), against `{benchmark_ci["macro_f1"]:.3f}` for a CPV/descriptor benchmark on the same
   folds and the same regularisation range, and applied to all
-  `{survival["validation"]["rows"]:,}` cohort episodes as an enrichment layer.
+  `{technology["cohort_episodes"]:,}` cohort episodes as an enrichment layer, each carrying one
+  `{technology["deployed_confidence"]["variant"]}` model confidence score.
 - Documented every provenance caveat honestly: an LLM-assisted single-pass
   reference sample, a model-assisted review, and a single-pass technology
   annotation with no inter-annotator agreement statistic.
@@ -2291,23 +2420,36 @@ legal renewal.
   probability is `{km_horizons.loc[12, 'cumulative_successor_probability']:.1%}`
   by 12 months and `{km_horizons.loc[24, 'cumulative_successor_probability']:.1%}`
   by 24 months.
-- Framework-agreement status and CPV-35 are the most linkage-robust Cox
-  covariates across all four sensitivity arms.
-- CPV-48 shows a statistically distinguishable recent decline
-  (segments: {", ".join(decreasing_segments) if decreasing_segments else "none"}); other
-  segments are stable or uncertain by the 12-quarter signal.
+- CPV-35 is the most robust comparative finding in the study. It has the highest
+  observable-successor hazard among the segments
+  (`{detectability_cox.loc['digital_segment_CPV-35', 'hazard_ratio_main']:.3f}`), it keeps its direction across all four
+  linkage arms, the borderline band and template-risk re-censoring, and it barely
+  moves (`{detectability_cox.loc['digital_segment_CPV-35', 'hazard_ratio_pool_adjusted']:.3f}`) when the detectability
+  variable below is added.
+- Framework agreements are also associated with an earlier observable successor
+  (`{detectability_cox.loc['framework_flag', 'hazard_ratio_main']:.3f}`) and the direction survives every check -- but that
+  association is **partly differential detectability, not only behaviour**.
+  Candidate-pool size is the largest linked-versus-censored imbalance in the
+  cohort (SMD `{selection_diagnostic.loc['log_candidate_pool_size', 'standardized_mean_difference']:+.3f}` on the log scale), and adding it to the
+  Cox model as a sensitivity attenuates the framework hazard ratio to
+  `{detectability_cox.loc['framework_flag', 'hazard_ratio_pool_adjusted']:.3f}`. Buyers who use frameworks publish more, and publishing
+  more mechanically raises the chance a successor is detected. The main Cox model
+  is unchanged; this is one extra column, not a new headline.
+- {trend_bullet}
 - Procurement text carries the business technology class that CPV does not: the
-  paired difference is `0.271` macro-F1 with a 95% family-bootstrap interval of
-  `0.201`-`0.340` that excludes zero, and mean CPV-segment purity against the
-  taxonomy is `0.34`, so each CPV division holds several distinct business
+  paired difference is `{abs(text_vs_admin["observed_difference"]):.3f}` macro-F1 with a 95% family-bootstrap interval of
+  `{abs(text_vs_admin["ci_upper"]):.3f}`-`{abs(text_vs_admin["ci_lower"]):.3f}` that excludes zero, and mean CPV-segment purity against the
+  taxonomy is `{technology["crosswalk"]["mean_segment_purity"]}`, so each CPV division holds several distinct business
   technologies.
 
 ## What Remains Uncertain
 
 - The reference's labels were generated by a single LLM research pass and
   spot-checked on a subset rather than verified anchor-by-anchor, so they are not
-  independent human annotation, and its negatives are corpus-relative; the model-assisted
-  60-pair review found `70.0%` conservative precision among accepted links,
+  independent human annotation, and the candidates each anchor's reviewer saw were
+  drawn by a rule that was not recorded, so its negatives are corpus-relative and its
+  recall is not fully independent of the text score being evaluated; the model-assisted
+  60-pair review found `{exec_review["primary_accepted_links"]["precision_conservative"]["estimate"]:.1%}` conservative precision among accepted links,
   below the `80%` target -- independent human review is still needed before
   claiming validated accuracy.
 - Absolute event rates and probabilities are linkage-sensitive: event counts

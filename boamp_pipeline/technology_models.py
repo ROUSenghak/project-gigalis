@@ -790,6 +790,13 @@ def select_model(fold_results: pd.DataFrame, comparison: pd.DataFrame) -> dict[s
     }
 
 
+#: Pre-registered macro-F1 floor below which a transformer would have been
+#: justified. Named rather than repeated so the gate, the JSON record and the
+#: methodology chapter cannot drift apart. Fixed before the classical results
+#: were read and never moved.
+CAMEMBERT_MACRO_F1_FLOOR = 0.55
+
+
 def camembert_gate(comparison: pd.DataFrame, selection: dict[str, Any], errors: pd.DataFrame) -> dict[str, Any]:
     """Record the pre-specified decision on whether a transformer is justified.
 
@@ -814,7 +821,7 @@ def camembert_gate(comparison: pd.DataFrame, selection: dict[str, Any], errors: 
         )
     )
     conditions = {
-        "classical_macro_f1_below_0_55": macro < 0.55,
+        "classical_macro_f1_below_0_55": macro < CAMEMBERT_MACRO_F1_FLOOR,
         "text_gain_over_administrative_benchmark_below_0_05": (
             selection["text_gain_over_administrative_benchmark"] < 0.05
         ),
@@ -826,10 +833,11 @@ def camembert_gate(comparison: pd.DataFrame, selection: dict[str, Any], errors: 
     return {
         "gate_specification": (
             "A transformer is tested only if the frozen classical model is materially "
-            "inadequate (mean grouped-CV macro-F1 < 0.55) AND fewer than half of its "
+            f"inadequate (mean grouped-CV macro-F1 < {CAMEMBERT_MACRO_F1_FLOOR}) AND fewer than half of its "
             "errors are attributable to label ambiguity or missing information in the "
             "text, which no encoder can supply."
         ),
+        "macro_f1_floor": CAMEMBERT_MACRO_F1_FLOOR,
         "selected_model_macro_f1": round(macro, 4),
         "share_of_errors_label_or_information_limited": round(label_driven, 4),
         "conditions": conditions,

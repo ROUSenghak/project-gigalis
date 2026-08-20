@@ -14,6 +14,7 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED = PROJECT_ROOT / "data/processed/boamp"
 REFERENCE = PROCESSED / "regional_benchmark"
+TECHNOLOGY = PROCESSED / "technology"
 OUTPUT = PROCESSED / "canonical_state_validation.json"
 
 
@@ -42,6 +43,10 @@ def build() -> dict[str, Any]:
         PROJECT_ROOT / "FINAL_PIPELINE.md",
         PROJECT_ROOT / "SURVIVAL_ANALYSIS_REPORT.md",
         PROJECT_ROOT / "reports/boamp_methodology_chapter.pdf",
+        TECHNOLOGY / "final_model_config.json",
+        TECHNOLOGY / "episode_technology_predictions.csv",
+        TECHNOLOGY / "technology_evidence_summary.json",
+        PROJECT_ROOT / "TECHNOLOGY_TAXONOMY_REPORT.md",
     ]
     missing = [relative(path) for path in required if not path.exists()]
     if missing:
@@ -56,6 +61,22 @@ def build() -> dict[str, Any]:
     dev_evaluation = load_json(PROCESSED / "linkage_evaluation_dev.json")
     validation_evaluation = load_json(PROCESSED / "linkage_evaluation_validation.json")
     modeling = load_json(REFERENCE / "modeling/modeling_summary.json")
+
+    # The technology layer is an enrichment on top of the frozen study, but its
+    # numbers are quoted by every reader-facing artifact, so its state belongs
+    # in the same gate. It is now rebuilt before those artifacts, which is what
+    # makes checking it here meaningful rather than a check of the previous run.
+    technology_config = load_json(TECHNOLOGY / "final_model_config.json")
+    technology_summary = load_json(TECHNOLOGY / "technology_evidence_summary.json")
+    technology_predictions = pd.read_csv(
+        TECHNOLOGY / "episode_technology_predictions.csv",
+        usecols=["episode_id", "confidence", "confidence_type"],
+    )
+    deployed_variant = technology_config["calibration"]["deployed_variant"]
+    declared_types = set(technology_predictions["confidence_type"].dropna())
+    technology_report = (PROJECT_ROOT / "TECHNOLOGY_TAXONOMY_REPORT.md").read_text(
+        encoding="utf-8"
+    )
 
     metadata_files = [path for path in PROCESSED.rglob("*.json") if path != OUTPUT]
     # Version identifiers inside schemas are data-contract labels, not paths.
@@ -168,6 +189,33 @@ def build() -> dict[str, Any]:
         "no_legacy_benchmark_" + "remap": not (
             PROCESSED / ("benchmark_" + "remap")
         ).exists(),
+        # One technology prediction per cohort episode, no more and no fewer.
+        "technology_covers_every_cohort_episode_exactly_once": bool(
+            technology_predictions["episode_id"].is_unique
+            and set(technology_predictions["episode_id"])
+            == set(primary_survival["episode_id"])
+        ),
+        # The config, the deployment CSV, the evidence summary and the published
+        # report must all name the same confidence variant. They did not once:
+        # the report described a Platt-scaled score while the raw one shipped,
+        # and every artifact was internally consistent, so nothing caught it.
+        "deployed_confidence_variant_is_consistent": bool(
+            deployed_variant == ("calibrated" if technology_config["calibration"]["adopted"] else "raw")
+            and declared_types == {
+                "calibrated_class_probability"
+                if technology_config["calibration"]["adopted"]
+                else "uncalibrated_class_score"
+            }
+            and technology_summary["deployed_confidence"]["variant"] == deployed_variant
+            and f"the **{deployed_variant}** variant" in technology_report
+        ),
+        # A cutoff the report calls unusable must actually retain nothing.
+        "reported_confidence_cutoffs_match_the_deployed_scores": all(
+            int((technology_predictions["confidence"] >= float(cutoff)).sum()) == 0
+            for cutoff in technology_summary["deployed_confidence"][
+                "cutoffs_with_no_predictions"
+            ]
+        ),
     }
 
     result = {
@@ -182,6 +230,13 @@ def build() -> dict[str, Any]:
             "reference_usable_anchors": int(
                 sum(split["usable_anchors"] for split in manifest["splits"].values())
             ),
+            "technology_predicted_episodes": int(len(technology_predictions)),
+        },
+        "technology": {
+            "specification": technology_config["specification"],
+            "calibration_adopted": technology_config["calibration"]["adopted"],
+            "deployed_confidence_variant": deployed_variant,
+            "deployed_confidence_type": sorted(declared_types),
         },
         "checks": checks,
         "stale_metadata": stale_metadata,

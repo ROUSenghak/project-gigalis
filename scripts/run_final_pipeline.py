@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import ast
+import hashlib
+import importlib.metadata
 import json
 import os
 import subprocess
@@ -12,6 +14,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -134,6 +137,7 @@ def evidence_stages() -> tuple[Stage, ...]:
                 PROCESSED / "survival_ph_diagnostics.csv",
                 PROCESSED / "survival_linkage_sensitivity.csv",
                 PROCESSED / "survival_cox_linkage_sensitivity.csv",
+                PROCESSED / "survival_cox_detectability_sensitivity.csv",
                 PROCESSED / "survival_borderline_link_sensitivity.csv",
                 PROCESSED / "survival_template_risk_sensitivity.csv",
                 PROCESSED / "survival_parametric_comparison.csv",
@@ -448,12 +452,132 @@ def run_notebooks(dry_run: bool) -> None:
     run_command(command, dry_run)
 
 
+def git_state() -> dict[str, Any]:
+    """Commit and working-tree state, so the manifest names a reproducible point."""
+
+    def run(*args: str) -> str | None:
+        try:
+            result = subprocess.run(
+                args, cwd=PROJECT_ROOT, capture_output=True, text=True, check=True
+            )
+        except (OSError, subprocess.CalledProcessError):
+            return None
+        return result.stdout.strip()
+
+    status = run("git", "status", "--porcelain")
+    return {
+        "commit": run("git", "rev-parse", "HEAD"),
+        "branch": run("git", "rev-parse", "--abbrev-ref", "HEAD"),
+        "working_tree_clean": status == "" if status is not None else None,
+        "modified_or_untracked_paths": (
+            [line[3:] for line in status.splitlines()] if status else []
+        ),
+    }
+
+
+def dependency_versions() -> dict[str, str]:
+    """Versions of the libraries whose output the results depend on."""
+    versions: dict[str, str] = {"python": sys.version.split()[0]}
+    for module in (
+        "pandas", "numpy", "scipy", "sklearn", "lifelines", "statsmodels",
+        "ruptures", "hmmlearn", "joblib", "matplotlib", "pyarrow",
+    ):
+        try:
+            versions[module] = importlib.metadata.version(
+                {"sklearn": "scikit-learn"}.get(module, module)
+            )
+        except importlib.metadata.PackageNotFoundError:
+            versions[module] = "not installed"
+    return versions
+
+
+def artifact_digest(path: Path, chunk: int = 1 << 20) -> dict[str, Any] | None:
+    """SHA-256 and size of one materialised artifact, or None when absent."""
+    resolved = PROJECT_ROOT / path
+    if not resolved.exists():
+        return None
+    digest = hashlib.sha256()
+    with resolved.open("rb") as handle:
+        for block in iter(lambda: handle.read(chunk), b""):
+            digest.update(block)
+    return {
+        "sha256": digest.hexdigest(),
+        "bytes": resolved.stat().st_size,
+        "modified_at": datetime.fromtimestamp(resolved.stat().st_mtime).isoformat(
+            timespec="seconds"
+        ),
+    }
+
+
+def canonical_facts() -> dict[str, Any]:
+    """Read the headline quantities back out of the artifacts the run produced.
+
+    The manifest must describe the run that just happened, so these are read
+    from disk after the stages complete rather than restated from constants.
+    """
+    facts: dict[str, Any] = {}
+    survival = PROJECT_ROOT / PROCESSED / "survival_dataset_summary.json"
+    if survival.exists():
+        main = json.loads(survival.read_text(encoding="utf-8"))["variants"]["main"]
+        facts["cohort_rows"] = main["validation"]["rows"]
+        facts["events"] = main["validation"]["events"]
+        facts["censored"] = main["validation"]["rows"] - main["validation"]["events"]
+        facts["event_rate"] = main["description"]["event_rate"]
+    linkage = PROJECT_ROOT / PROCESSED / "linkage_application_summary.json"
+    if linkage.exists():
+        payload = json.loads(linkage.read_text(encoding="utf-8"))
+        facts["selected_linkage_method"] = payload["selected_method"]
+        facts["selected_linkage_threshold"] = payload["selected_threshold"]
+        facts["accepted_links"] = payload["cohort_application"]["accepted_links"]
+    technology = PROJECT_ROOT / PROCESSED / "technology" / "final_model_config.json"
+    if technology.exists():
+        payload = json.loads(technology.read_text(encoding="utf-8"))
+        facts["technology_specification"] = payload["specification"]
+        facts["technology_oof_macro_f1"] = payload["validation_evidence"]["oof_macro_f1"]
+        facts["technology_calibration_adopted"] = payload["calibration"]["adopted"]
+        facts["technology_deployed_confidence_variant"] = payload["calibration"][
+            "deployed_variant"
+        ]
+        facts["technology_predicted_episodes"] = payload["deployment"]["episodes"]
+    validation = PROJECT_ROOT / PROCESSED / "canonical_state_validation.json"
+    if validation.exists():
+        payload = json.loads(validation.read_text(encoding="utf-8"))
+        facts["canonical_state_validation_passed"] = payload["validation_passed"]
+        facts["canonical_state_validated_at"] = payload["created_at"]
+    return facts
+
+
+#: Artifacts whose identity the manifest fingerprints. Small enough to hash on
+#: every run, and between them they pin the cohort, the accepted links, the
+#: survival table, the deployed classifier config and every reader-facing claim.
+MANIFEST_DIGEST_PATHS = (
+    PROCESSED / "survival_cohort.parquet",
+    PROCESSED / "accepted_successor_links.parquet",
+    PROCESSED / "survival_dataset.parquet",
+    PROCESSED / "linkage_config.json",
+    PROCESSED / "technology" / "final_model_config.json",
+    PROCESSED / "technology" / "episode_technology_predictions.csv",
+    Path("data/reference/regional_link_benchmark/BOAMP_Internship_Reference_120.csv"),
+    Path("data/reference/tech classification/boamp_nlp_annotation_500_final_2015_2025.csv"),
+)
+
+
 def write_manifest(statuses: dict[str, str]) -> Path:
     path = PROJECT_ROOT / PROCESSED / "final_pipeline_manifest.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "workflow": "canonical_boamp_pipeline",
+        "reproduction_command": (
+            "PYTHONPATH=. python3 scripts/run_final_pipeline.py --with-notebooks --with-tests"
+        ),
+        "git": git_state(),
+        "environment": dependency_versions(),
+        "canonical_facts": canonical_facts(),
+        "input_digests": {
+            str(candidate): artifact_digest(candidate)
+            for candidate in MANIFEST_DIGEST_PATHS
+        },
         "primary_method": "M_B_text_ranking @ 0.70",
         "primary_links": str(PROCESSED / "accepted_successor_links.parquet"),
         "primary_survival_dataset": str(PROCESSED / "survival_dataset.parquet"),
@@ -495,7 +619,7 @@ def write_manifest(statuses: dict[str, str]) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--force", action="store_true", help="Rebuild every materialised stage.")
-    parser.add_argument("--with-notebooks", action="store_true", help="Execute evidence notebooks 10-14.")
+    parser.add_argument("--with-notebooks", action="store_true", help="Execute evidence notebooks 10-15.")
     parser.add_argument("--with-tests", action="store_true", help="Run the test suite after the pipeline.")
     parser.add_argument("--dry-run", action="store_true", help="Print work without executing commands.")
     return parser.parse_args()
@@ -504,14 +628,42 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     statuses: dict[str, str] = {}
+    # One ordering invariant governs the whole run: every stage that writes an
+    # artifact runs before every stage that reads it.
+    #
+    #   base -> episodes -> cohort -> linkage -> survival -> trend
+    #        -> TECHNOLOGY
+    #        -> evidence / reader-artifact refresh
+    #        -> canonical state validation -> manifest
+    #
+    # The technology group used to run *after* evidence_stages(), which contains
+    # reader_artifact_refresh (EXECUTIVE_SUMMARY.md, FINAL_PIPELINE.md,
+    # REGIONAL_BENCHMARK_REFERENCE.md, the methodology chapter) and
+    # canonical_state_validation. Those artifacts quote technology-layer
+    # numbers, so in that order every reader-facing document republished the
+    # previous run's macro-F1 and the validation gate certified a state that was
+    # then overwritten. It failed silently, which is the worst way for it to
+    # fail. Technology now runs before anything that reads it.
     for stage in pipeline_stages():
+        statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
+
+    for stage in technology_stages():
         statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
 
     for stage in evidence_stages():
         statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
 
-    for stage in technology_stages():
-        statuses[stage.name] = run_stage(stage, args.force, args.dry_run)
+    # The manifest is written here, before the notebooks and the test suite,
+    # and rewritten after them. The reason is that the suite *asserts on the
+    # manifest*: it checks that the technology stage is recorded and that the
+    # headline counts match the artifacts. Writing it only at the end would
+    # leave those tests reading the previous run's file, which is exactly the
+    # staleness this pass exists to remove. The second write adds nothing but
+    # the notebook and test outcomes.
+    if not args.dry_run:
+        statuses["evidence_notebooks"] = "pending" if args.with_notebooks else "not requested"
+        statuses["tests"] = "pending" if args.with_tests else "not requested"
+        write_manifest(statuses)
 
     if args.with_notebooks:
         run_notebooks(args.dry_run)

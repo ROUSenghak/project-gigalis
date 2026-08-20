@@ -1,6 +1,6 @@
 # Technology Taxonomy Classification
 
-Generated: `2026-08-19T21:30:51`
+Generated: `2026-08-20T11:54:43`
 Taxonomy: `boamp_technology_taxonomy_v1.0` | Classifier: `boamp_technology_classifier_v1.0`
 
 ## 1. Why This Component Exists
@@ -110,7 +110,11 @@ repair, Unicode NFC, lowercasing, whitespace collapse. **Accents are preserved**
 and no stemming is applied, because the classes are distinguished by words like
 `cybersécurité`, `logiciel métier` and `intelligence artificielle`, and
 flattening French orthography discards the evidence. Features are TF-IDF word
-unigrams and bigrams, so phrases stay addressable.
+n-grams. Both unigrams and unigrams-plus-bigrams are offered to the grouped inner
+cross-validation so phrases stay addressable if they earn it; the **search space**
+includes bigrams and the **selected representation** is
+`1-1` -- every fold chose unigrams alone, because with 500 short
+documents the bigram vocabulary is too sparse to pay for itself.
 
 The vectoriser lives inside a scikit-learn `Pipeline` and is fitted within each
 training fold. No held-out document contributes to its own features.
@@ -414,28 +418,36 @@ deployment. **That refit has no validation score and none is reported.** The
 evidence for this model is the grouped cross-validation and the temporal split
 above.
 
-Confidence is the predicted class probability, Platt-scaled by
-`CalibratedClassifierCV(method='sigmoid')` fitted on labelled data only, inside
-the same grouped splits. Calibration was adopted under a pre-specified rule: it
-reduced the expected calibration error by `0.1405`
-at a macro-F1 cost of `0.0364`.
+Confidence is the **raw** predicted class probability of the refitted multinomial
+logistic regression -- `predict_proba`, with no post-hoc scaling. Platt scaling
+(`CalibratedClassifierCV(method='sigmoid')`, fitted on labelled data only inside
+the same grouped splits) **was evaluated and rejected** under the pre-specified
+rule: adopt it only when it cuts the expected calibration error by at least `0.02`
+and costs at most `0.02` macro-F1. It cut the error by `0.1405`, which passes,
+but cost `0.0364` macro-F1, which exceeds the budget. The rule was written
+before the numbers were read and was not relaxed to admit it. The table below
+and every confidence figure in this report are therefore the **raw** variant,
+the one that scored the cohort; deployed rows carry `confidence_type = uncalibrated_class_score`.
+
+Out-of-fold reliability of the deployed (`raw`) confidence score:
 
 | Stated confidence | n | Observed accuracy | Mean stated | Gap |
 |---|---:|---:|---:|---:|
-| [0.0, 0.3) | 45 | 0.1778 | 0.2471 | -0.0693 |
-| [0.3, 0.4) | 73 | 0.4521 | 0.3511 | 0.101 |
-| [0.4, 0.5) | 86 | 0.6977 | 0.4435 | 0.2542 |
-| [0.5, 0.6) | 87 | 0.8736 | 0.5566 | 0.3169 |
-| [0.6, 0.7) | 115 | 0.8783 | 0.6562 | 0.222 |
-| [0.7, 0.8) | 77 | 0.961 | 0.7496 | 0.2114 |
-| [0.8, 0.9) | 17 | 1 | 0.8157 | 0.1843 |
+| [0.0, 0.3) | 151 | 0.5232 | 0.224 | 0.2992 |
+| [0.3, 0.4) | 114 | 0.8246 | 0.3488 | 0.4758 |
+| [0.4, 0.5) | 91 | 0.8132 | 0.4542 | 0.359 |
+| [0.5, 0.6) | 57 | 0.9825 | 0.5444 | 0.4381 |
+| [0.6, 0.7) | 42 | 0.9048 | 0.6525 | 0.2523 |
+| [0.7, 0.8) | 26 | 0.9615 | 0.7346 | 0.227 |
+| [0.8, 0.9) | 16 | 0.9375 | 0.8537 | 0.0838 |
+| [0.9, 1.0) | 3 | 1 | 0.9383 | 0.0617 |
 
 ### Result 5 -- confidence ranks well but remains conservative
 
-* **Observation.** Observed accuracy rises monotonically with stated confidence,
-  from `0.27` in the lowest bin to `1.00` in the highest. But the gap is positive
-  in every bin above `0.3`: a stated `0.45` is worth about `0.65` in practice.
-  Expected calibration error after scaling is `0.2097`.
+* **Observation.** Observed accuracy rises with stated confidence, from
+  `0.5232` in the `[0.0, 0.3)` bin to `1.0` in the `[0.9, 1.0)` bin. But the gap is
+  positive in every bin above `0.3`: the score understates its own hit rate.
+  Expected calibration error of the deployed variant is `0.3502`.
 * **Confidence.** High for the ranking, high for the direction of the residual
   miscalibration; it is measured out of fold on `500` notices.
 * **What can be concluded.** The score is a usable ordering and a usable filter.
@@ -445,28 +457,27 @@ at a macro-F1 cost of `0.0364`.
 * **What cannot be concluded.** That a stated confidence is the probability the
   deployment label is correct. Two separate reasons.
 
-  First, the residual miscalibration above: reweighting eleven classes with
-  `class_weight='balanced'` flattens the probability simplex and Platt scaling
-  only partly undoes it, so the values remain conservative and must be read
-  through the table.
+  First, the miscalibration above, which is not corrected: reweighting eleven
+  classes with `class_weight='balanced'` flattens the probability simplex, and no
+  post-hoc scaling was applied, so the values are conservative by a wide margin
+  and must be read through the table rather than at face value.
 
   Second, and more fundamental: **the corpus is quota-stratified and the
-  deployment population is not.** The scaling was fitted where `AI` is 1.4% of
+  deployment population is not.** The classifier was fitted where `AI` is 1.4% of
   observations by design; in the cohort it is a fraction of a percent. A
-  calibrated score on the reference sample is therefore not a posterior
+  confidence score read off the reference sample is therefore not a posterior
   probability in the deployment population, because the class prior it encodes
   is an artefact of the annotation design. The reliability table describes
   behaviour *on the reference distribution*. No prior correction is applied,
   because the deployment prior is exactly what the classifier is being used to
   estimate and assuming it would make the estimate circular.
 
-  The honest name for the published value is a **calibrated model confidence
-  score**, useful for ranking and for selecting an operational subset, not a
+  The honest name for the published value is an **uncalibrated model confidence score**,
+  useful for ranking and for selecting an operational subset, not a
   population probability.
 * **Operational note.** `0.7` is a reporting convention, not a truth
   boundary, and it is unrelated to the `0.70` linkage acceptance threshold, which
-  scores an entirely different quantity. No calibrated prediction reaches `0.90`,
-  so cutoffs above `0.80` are not usable.
+  scores an entirely different quantity. The highest raw confidence in the deployed predictions is `0.9707`; every cutoff in the published sweep still retains episodes, down to `28` at `0.9`.
 
 ## 13. Propagation To The Study Cohort
 
@@ -643,15 +654,24 @@ question.
 
 One slope per analysed class is one hypothesis test per analysed class, so raw
 p-values are reported beside Holm (family-wise) and Benjamini-Hochberg (false
-discovery rate) adjustments.
+discovery rate) adjustments. `TREND_ANALYSIS_REPORT.md` applies the same
+correction to its own family of CPV segment slopes, using the same
+implementation.
+
+The two panels are one quarter apart by design and the difference is not an
+error: this series is built directly from the award quarters of the cohort and
+spans `44` quarters from 2015Q1, whereas the CPV series drops the partial
+2015Q1 -- the first BOAMP extract begins in March 2015 -- and spans one fewer.
+Nothing is compared across the two panels at quarter granularity, so the offset
+has no consequence beyond the count printed in each table.
 
 | Class | Episodes | Mean/quarter | Slope | Raw p | Holm p | BH p | Reading |
 |---|---:|---:|---:|---:|---:|---:|---|
-| CYBERSECURITY | 316 | 7.18 | 0.0245 | 0.4857 | 1 | 0.6071 | no linear trend detected |
-| NETWORK_TELECOM | 859 | 19.52 | -0.1668 | 0.0563 | 0.2815 | 0.0563 | no linear trend detected |
-| IT_INFRASTRUCTURE | 298 | 6.77 | 0.0078 | 0.8116 | 1 | 1 | no linear trend detected |
+| CYBERSECURITY | 316 | 7.18 | 0.0245 | 0.4857 | 1 | 0.934 | no linear trend detected |
+| NETWORK_TELECOM | 859 | 19.52 | -0.1668 | 0.0563 | 0.2815 | 0.2815 | no linear trend detected |
+| IT_INFRASTRUCTURE | 298 | 6.77 | 0.0078 | 0.8116 | 1 | 0.9617 | no linear trend detected |
 | BUSINESS_SOFTWARE | 854 | 19.41 | 0.044 | 0.5604 | 1 | 0.934 | no linear trend detected |
-| IT_SERVICES | 492 | 11.18 | 0.0021 | 0.9617 | 1 | 1 | no linear trend detected |
+| IT_SERVICES | 492 | 11.18 | 0.0021 | 0.9617 | 1 | 0.9617 | no linear trend detected |
 
 #### Result 10 -- no technology series shows a detectable linear trend
 
@@ -726,7 +746,9 @@ still a series.
 3. **`AI` cannot be evaluated.** Seven annotated notices, `6` predicted cohort
    episodes, `0` observed successor event. Nothing about AI procurement is
    established here beyond its rarity in this corpus over 2015-2025.
-4. **Confidence is conservative, not calibrated.** See section 12.
+4. **The deployed confidence score is the `raw` variant and is conservative.**
+   Platt scaling was evaluated and rejected by the pre-specified rule, so no post-hoc correction is
+   applied. See section 12.
 5. **Fallback classes absorb ambiguity.** `OTHER_DIGITAL` carries
    `462` predicted episodes and is definitionally heterogeneous.
 6. **No inter-annotator agreement statistic exists.** The corpus was delivered

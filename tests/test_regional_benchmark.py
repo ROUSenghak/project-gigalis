@@ -118,3 +118,51 @@ def test_the_two_splits_never_share_an_anchor() -> None:
     validation = pd.read_parquet(REFERENCE / "benchmark_validation.parquet")
 
     assert set(dev["anchor_episode_id"]).isdisjoint(set(validation["anchor_episode_id"]))
+
+
+def test_the_manifest_separates_label_from_candidate_surfacing_independence() -> None:
+    """Two different claims, and only one of them holds.
+
+    The labels were produced before any linkage method existed, which is a real
+    independence property. Which candidates the reviewer was shown is a
+    different question, and the export rule is not recorded anywhere in this
+    repository. Reporting only the first overstates the reference's standing on
+    recall, so both are carried explicitly.
+    """
+    import json
+    from pathlib import Path
+
+    manifest_path = Path(
+        "data/processed/boamp/regional_benchmark/regional_benchmark_manifest.json"
+    )
+    if not manifest_path.exists():
+        import pytest
+
+        pytest.skip("regional benchmark not materialised")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert manifest["label_independence"]["holds"] is True
+    surfacing = manifest["candidate_surfacing_independence"]
+    assert surfacing["holds"] is False
+    assert surfacing["status"] == "not recoverable"
+    assert surfacing["review_candidates_cap"] > 0
+    # Precision must be explicitly exempted; it is not affected by the gap.
+    assert "Precision" in surfacing["basis"]
+
+
+def test_reader_artifacts_do_not_claim_full_candidate_independence() -> None:
+    """No active document may say the reference is independent of every method
+    without separating the label claim from the candidate-pool claim."""
+    from pathlib import Path
+
+    import pytest
+
+    for name in ("DATA_QUALITY_REPORT.md", "FINAL_PIPELINE.md", "REGIONAL_BENCHMARK_REFERENCE.md"):
+        path = Path(name)
+        if not path.exists():
+            pytest.skip(f"{name} not materialised")
+        text = path.read_text(encoding="utf-8")
+        if "independent of every method" in text:
+            assert "candidate" in text.lower() and (
+                "not recorded" in text or "not recoverable" in text
+            ), f"{name} claims independence without disclosing the candidate-export gap"

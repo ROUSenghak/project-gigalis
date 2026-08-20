@@ -126,7 +126,14 @@ def strong_buyer(frame: pd.DataFrame) -> pd.Series:
 
 
 def method_a_deterministic(frame: pd.DataFrame, threshold: float) -> pd.Series:
-    """Verified SIREN identity + CPV continuity + a text floor."""
+    """Verified SIREN identity + CPV continuity + a text floor.
+
+    ``threshold`` is accepted for signature compatibility with the other rules
+    and is deliberately unused: this comparator is a conjunction of fixed gates,
+    not a score cut, so there is no operating point to move. It is reported with
+    ``threshold = n/a`` rather than with the caller's value, which would suggest
+    a knob that does not exist. See :data:`THRESHOLD_FREE_METHODS`.
+    """
     return (
         frame["buyer_match_type"].eq("siren")
         & frame["cpv_component"].fillna(0).gt(0)
@@ -175,6 +182,11 @@ METHODS: dict[str, Callable[[pd.DataFrame, float], pd.Series]] = {
     "M_C_weighted_gated": method_c_weighted_gated,
     "M_D_fellegi_sunter": method_d_fellegi_sunter,
 }
+
+#: Methods whose decision rule ignores the threshold argument entirely. They are
+#: reported with ``threshold = n/a``: printing the caller's value beside a rule
+#: that never reads it invents an operating point the comparator does not have.
+THRESHOLD_FREE_METHODS = frozenset({"M_A_deterministic"})
 
 #: Methods whose threshold lives on a different scale need their own grid.
 #: The Fellegi-Sunter posterior peaks near 0.73, so the 50-80 grid used by the
@@ -351,7 +363,15 @@ def apply_primary_linkage(output_dir: Path) -> dict[str, Any]:
             "method": method,
             "threshold": threshold,
             "accepted_links": int(len(top1)),
-            "cohort_link_rate": round(len(top1) / anchors, 4) if anchors else None,
+            # Denominator is anchors *with candidates*, not the full cohort. The
+            # old name was `cohort_link_rate`, which invites a reader to divide
+            # by 3,800 in their head and misquote a rate that was never that.
+            # Nothing downstream uses it -- the reports compute the event rate
+            # from the survival dataset -- so the rename changes a label, not a
+            # number.
+            "link_rate_among_anchors_with_candidates": (
+                round(len(top1) / anchors, 4) if anchors else None
+            ),
         }
 
     config = {
@@ -382,7 +402,13 @@ def apply_primary_linkage(output_dir: Path) -> dict[str, Any]:
         "cohort_application": {
             "anchors_with_candidates": anchors,
             "accepted_links": int(len(accepted)),
-            "link_rate": round(len(accepted) / anchors, 4) if anchors else None,
+            "link_rate_among_anchors_with_candidates": (
+                round(len(accepted) / anchors, 4) if anchors else None
+            ),
+            "denominator_note": (
+                "anchors with at least one exposed candidate; the cohort event rate "
+                "is accepted_links / cohort rows and is reported by the survival layer"
+            ),
         },
         "threshold_sensitivity": sensitivity,
         "validation_passed": bool(
@@ -460,7 +486,7 @@ def evaluate_benchmark(
         predictions = predict(evaluable, method, threshold)
         entry = {
             "method": method,
-            "threshold": threshold,
+            "threshold": None if method in THRESHOLD_FREE_METHODS else threshold,
             "unweighted": evaluate(predictions, truth),
         }
         # The reference is a stratified probability sample of the Grand Ouest

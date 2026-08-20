@@ -16,7 +16,7 @@
 \newcommand{\pathcode}[1]{\texttt{\small #1}}
 \title{BOAMP Digital Procurement Study\\\large Successor Linkage, Survival, and Trend Methodology}
 \author{BOAMP Data Science Internship Project}
-\date{2026-08-19T21:15:39}
+\date{2026-08-20T11:55:05}
 \begin{document}
 \sloppy
 \maketitle
@@ -720,9 +720,13 @@ into eight substantive classes -- cloud/hosting, cybersecurity,
 network/telecom, IT infrastructure, business software, data/BI, AI, and IT
 services -- plus three fallback classes for mixed, other-digital, and
 non-technology procurements. The input is the notice object text alone,
-represented as TF--IDF word unigrams and bigrams; buyer identity, geography,
+represented as TF--IDF word n-grams; buyer identity, geography,
 dates, amounts, procedure type, and every linkage variable are excluded by
 design, as is CPV, which serves as the benchmark rather than as a feature.
+The n-gram range is part of the *search space*, not of the final model: unigrams
+and unigrams-plus-bigrams were both offered to the grouped inner
+cross-validation, and every fold selected unigrams alone, which is the
+representation reported below.
 
 Evaluation is a 3-fold group-aware cross-validation in which every family of
 related notices -- notices sharing a reconstructed episode, and notices whose
@@ -744,7 +748,9 @@ procurement text and is not recoverable from the official classification codes. 
 AI, with seven annotated notices, is reported as a rare-class limitation rather
 than as a measured capability. A CamemBERT comparison was gated on the classical
 model being materially inadequate, defined in advance as macro-F1 below $0.55$;
-that condition was not met and no transformer was run.
+that condition was not met and no transformer was run. The deployed confidence
+score is the raw class probability: Platt scaling was evaluated against a
+pre-specified adoption rule and rejected, because its macro-F1 cost exceeded the budget the rule allows.
 
 Two limitations are structural rather than incidental. The corpus was delivered
 as a single labelled file with no annotator identifier and no second pass, so no
@@ -758,7 +764,7 @@ and 72 (IT services) therefore remain the definition of the study cohort, the
 Cox covariate, and the quarterly trend series throughout this report. They are
 official, zero-missingness EU categories under Regulation 213/2008 and they
 reproduce exactly. The technology taxonomy sits beside them: mean CPV-segment
-purity against the predicted taxonomy is $0.34$, so each CPV division holds
+purity against the predicted taxonomy is $0.3385$, so each CPV division holds
 several business technologies, and the two segmentations are complements rather
 than substitutes.
 
@@ -782,10 +788,10 @@ including them manufactures part of an apparent technology effect.
 \toprule
 Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 \midrule
-M\_A\_deterministic & 70.000 & 3 & 0.667 & 0.400 & 0.091 & 0.188 \\
-M\_B\_text\_ranking & 70.000 & 2 & 0.500 & 0.200 & 0.000 & 0.125 \\
-M\_C\_weighted\_gated & 70.000 & 5 & 0.800 & 0.800 & 0.000 & 0.312 \\
-M\_D\_fellegi\_sunter & 65.000 & 2 & 0.000 & 0.000 & 0.091 & 0.125 \\
+M\_A\_deterministic & n/a & 3 & 0.667 & 0.400 & 0.091 & 0.188 \\
+M\_B\_text\_ranking & 70.0 & 2 & 0.500 & 0.200 & 0.000 & 0.125 \\
+M\_C\_weighted\_gated & 70.0 & 5 & 0.800 & 0.800 & 0.000 & 0.312 \\
+M\_D\_fellegi\_sunter & 65.0 & 2 & 0.000 & 0.000 & 0.091 & 0.125 \\
 \bottomrule
 \end{tabularx}
 \caption{Anchor-level metrics on the pilot split, on which the threshold was
@@ -851,10 +857,10 @@ not \(1-\text{precision}\); the two share no denominator.
 \toprule
 Method & Threshold & Accepted & Precision & Recall & FPR & Coverage \\
 \midrule
-M\_A\_deterministic & 70.000 & 15 & 0.533 & 0.444 & 0.130 & 0.208 \\
-M\_B\_text\_ranking & 70.000 & 8 & 0.875 & 0.389 & 0.000 & 0.111 \\
-M\_C\_weighted\_gated & 70.000 & 23 & 0.522 & 0.667 & 0.185 & 0.319 \\
-M\_D\_fellegi\_sunter & 65.000 & 5 & 0.200 & 0.056 & 0.018 & 0.069 \\
+M\_A\_deterministic & n/a & 15 & 0.533 & 0.444 & 0.130 & 0.208 \\
+M\_B\_text\_ranking & 70.0 & 8 & 0.875 & 0.389 & 0.000 & 0.111 \\
+M\_C\_weighted\_gated & 70.0 & 23 & 0.522 & 0.667 & 0.185 & 0.319 \\
+M\_D\_fellegi\_sunter & 65.0 & 5 & 0.200 & 0.056 & 0.018 & 0.069 \\
 \bottomrule
 \end{tabularx}
 \caption{Anchor-level linkage performance on the locked split of the regional
@@ -1322,8 +1328,8 @@ standardized mean difference
 which measures the gap between the two groups in pooled within-group standard
 deviations and so is comparable across variables on different scales. The
 largest observed gap is
-\code{text\_length\_chars}
-at 0.262.
+\code{log\_candidate\_pool\_size}
+at 0.470.
 This indicates possible differential detectability -- longer notice text gives
 the text scorer more to match on -- not proof of causal linkage bias, and it
 cannot be fully separated from genuine heterogeneity in renewal behaviour using
@@ -1367,23 +1373,21 @@ direction and rough size of the leading \(\mathrm{HR}_{k,m}\) do not.
 \begin{table}[H]
 \centering
 \small
-\begin{tabularx}{\textwidth}{lrrrll}
+\begin{tabularx}{\textwidth}{lrrrrrll}
 \toprule
-Segment & Direction & Slope/qtr & p & Last stable PELT break & HMM regime \\
+Segment & Direction & Slope/qtr & Raw p & Holm p & BH p & Last stable PELT break & HMM regime \\
 \midrule
-Overall & stable\_or\_uncertain & -0.11 & 0.921 & -- & growth \\
-CPV-32 & stable\_or\_uncertain & -0.01 & 0.989 & 2020Q2 & growth \\
-CPV-35 & stable\_or\_uncertain & 0.03 & 0.923 & -- & -- \\
-CPV-48 & decreasing & -0.84 & 0.032 & 2024Q1 & -- \\
-CPV-72 & stable\_or\_uncertain & 0.70 & 0.285 & 2021Q1 & growth \\
+Overall & stable\_or\_uncertain & -0.11 & 0.921 & 1.000 & 0.989 & -- & growth \\
+CPV-32 & stable\_or\_uncertain & -0.01 & 0.989 & 1.000 & 0.989 & 2020Q2 & growth \\
+CPV-35 & stable\_or\_uncertain & 0.03 & 0.923 & 1.000 & 0.989 & -- & -- \\
+CPV-48 & decreasing & -0.84 & 0.032 & 0.159 & 0.159 & 2024Q1 & -- \\
+CPV-72 & stable\_or\_uncertain & 0.70 & 0.285 & 1.000 & 0.714 & 2021Q1 & growth \\
 \bottomrule
 \end{tabularx}
 \caption{Trend signal matrix: OLS 12-quarter slope, PELT breaks, and
 HMM current regime (Overall and top-2 segments only).}
 \end{table}
-CPV-48 is the only segment with a statistically distinguishable 12-quarter
-decline at the exploratory \(\alpha=0.10\) level; the rest are
-\code{stable\_or\_uncertain} by this signal.
+CPV-48 carries the clearest nominal 12-quarter decline (raw \(p=0.032\)), but the five segment slopes in this table are fitted and read simultaneously, and it does not survive that multiplicity: Holm \(p=0.159\), BH \(p=0.159\), against the pre-declared exploratory \(\alpha=0.1\). It is reported as an exploratory signal to monitor, not as an established decline, and the same correction is applied to the technology trend family. The remaining segments are \code{stable\_or\_uncertain} before any adjustment.
 
 \begin{figure}[H]
 \centering
@@ -1404,7 +1408,7 @@ shift to policy, COVID, regulation, or technology.
 \item \textbf{Overall} (stable\_or\_uncertain): Maintain monitoring for Overall; no statistically clear recent direction at the pre-declared exploratory level. The HMM currently reads this series as `growth`, which describes recent quarter-over-quarter change and need not agree with the 12-quarter slope.
 \item \textbf{CPV-32} (stable\_or\_uncertain): Maintain monitoring for CPV-32; no statistically clear recent direction at the pre-declared exploratory level. A penalty-stable level shift is dated 2020Q2; treat it as a break candidate to be explained with documentary evidence, not as a demonstrated cause. The HMM currently reads this series as `growth`, which describes recent quarter-over-quarter change and need not agree with the 12-quarter slope.
 \item \textbf{CPV-35} (stable\_or\_uncertain): Maintain monitoring for CPV-35; no statistically clear recent direction at the pre-declared exploratory level.
-\item \textbf{CPV-48} (decreasing): Investigate the recent decline in CPV-48 before reducing or expanding procurement capacity; confirm whether it reflects demand, publication practice, or a routing change to another channel. A penalty-stable level shift is dated 2024Q1; treat it as a break candidate to be explained with documentary evidence, not as a demonstrated cause.
+\item \textbf{CPV-48} (decreasing): Treat the recent CPV-48 decline as exploratory: it is the clearest nominal signal in the panel, but it does not survive correction for the simultaneous segment tests. Watch it for another few quarters before acting on it. A penalty-stable level shift is dated 2024Q1; treat it as a break candidate to be explained with documentary evidence, not as a demonstrated cause.
 \item \textbf{CPV-72} (stable\_or\_uncertain): Maintain monitoring for CPV-72; no statistically clear recent direction at the pre-declared exploratory level. A penalty-stable level shift is dated 2021Q1; treat it as a break candidate to be explained with documentary evidence, not as a demonstrated cause. The HMM currently reads this series as `growth`, which describes recent quarter-over-quarter change and need not agree with the 12-quarter slope.
 \end{itemize}
 

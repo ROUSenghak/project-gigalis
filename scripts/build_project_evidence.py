@@ -18,7 +18,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from boamp_pipeline.linkage import parse_json_list  # noqa: E402
 from boamp_pipeline.evidence import (  # noqa: E402
+    adjust_p_values,
     build_quarterly_panel,
     recent_trend_signal,
     regime_diagnostics,
@@ -57,9 +59,76 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+DIGITAL_CPV_DIVISIONS = ("32", "35", "48", "72")
+
+
+def cohort_scope(cohort: pd.DataFrame, events: pd.Series) -> dict[str, Any]:
+    """Measure what the any-CPV-code digital rule actually selects.
+
+    "CPV divisions 32/35/48/72" reads like a statement about each episode's main
+    CPV. It is not: an episode qualifies on *any* of its codes, so a multi-lot
+    tender enters the cohort on one digital lot while its main CPV sits
+    elsewhere. The share is large enough to change how a reader should read
+    "3,800 digital procurement episodes", so it is measured and published rather
+    than left to the phrase.
+
+    The same applies to ``digital_segment``, the lowest-numbered digital division
+    present. The tie-break is arbitrary, so its consequences are quantified here
+    -- agreement with the main division, and event rates under both assignments
+    -- and the rule is then documented rather than changed.
+    """
+    digital = set(DIGITAL_CPV_DIVISIONS)
+    cohort = cohort.assign(event=cohort["episode_id"].map(events).astype(int))
+    main_division = cohort["main_cpv"].astype(str).str[:2]
+    inside = main_division.isin(digital)
+    digital_division_count = cohort["digital_divisions_json"].map(
+        lambda value: len(parse_json_list(value))
+    )
+    matched = (cohort.loc[inside, "digital_segment"] == "CPV-" + main_division.loc[inside])
+
+    by_assigned = cohort.groupby("digital_segment", observed=True)["event"].mean()
+    by_main = (
+        cohort.loc[inside]
+        .assign(main_segment="CPV-" + main_division.loc[inside])
+        .groupby("main_segment", observed=True)["event"]
+        .mean()
+    )
+    comparison = ", ".join(
+        f"{segment} {by_assigned[segment]:.4f} assigned vs {by_main[segment]:.4f} by main CPV"
+        for segment in sorted(set(by_assigned.index) & set(by_main.index))
+    )
+    return {
+        "rule": (
+            "episode-level any-code inclusion: an episode qualifies if at least one "
+            f"of its CPV codes is in divisions {'/'.join(DIGITAL_CPV_DIVISIONS)}"
+        ),
+        "segment_rule": (
+            "digital_segment is the lowest-numbered digital division present, so each "
+            "episode contributes to exactly one stratified curve"
+        ),
+        "cohort_rows": int(len(cohort)),
+        "main_cpv_inside_digital_set": int(inside.sum()),
+        "main_cpv_outside_digital_set": int((~inside).sum()),
+        "main_cpv_outside_digital_set_share": round(float((~inside).mean()), 4),
+        "multiple_digital_divisions": int((digital_division_count > 1).sum()),
+        "multiple_digital_divisions_share": round(
+            float((digital_division_count > 1).mean()), 4
+        ),
+        "segment_matches_main_division_share": round(float(matched.mean()), 4),
+        "event_rate_by_assigned_segment": {
+            str(key): round(float(value), 4) for key, value in by_assigned.items()
+        },
+        "event_rate_by_main_cpv_division": {
+            str(key): round(float(value), 4) for key, value in by_main.items()
+        },
+        "event_rate_comparison_note": comparison,
+    }
+
+
 def data_quality_profile(cohort: pd.DataFrame) -> dict[str, Any]:
     standardized = load_json(PROCESSED / "standardized_notice_summary.json")
     episodes = load_json(PROCESSED / "episode_reconstruction_summary.json")
+    audit_metrics = load_json(PROCESSED / "standardized_notice_episode_audit_metrics.json")
     cohort_summary = load_json(PROCESSED / "survival_cohort_summary.json")
     candidates = load_json(PROCESSED / "linkage_candidates_summary.json")
     survival = load_json(PROCESSED / "survival_dataset_summary.json")
@@ -110,7 +179,19 @@ def data_quality_profile(cohort: pd.DataFrame) -> dict[str, Any]:
             "negative_survival_durations": survival["variants"]["main"]["validation"]["negative_durations"],
             "accepted_links_with_conflicting_validated_siren": buyer_audit["hard_fail_conflicting_validated_siren"],
             "accepted_municipal_intercommunal_mixes": buyer_audit["municipal_intercommunal_mix"],
+            # Non-zero by construction and not failures. Exported by the episode
+            # layer and by notebook 10 respectively, and reported here so the
+            # integrity table is not a list of zeros with the interesting counts
+            # left out of it.
+            "reference_conflict_episodes": episodes["reference_conflict_episodes"],
+            "suspicious_review_cases": audit_metrics["suspicious_review_cases"],
         },
+        "cohort_scope": cohort_scope(
+            cohort,
+            pd.read_parquet(
+                PROCESSED / "survival_dataset.parquet", columns=["episode_id", "event"]
+            ).set_index("episode_id")["event"],
+        ),
         "cohort_missingness": missingness,
         "duration_completeness_by_award_year": {
             year: {
@@ -156,6 +237,12 @@ def data_quality_profile(cohort: pd.DataFrame) -> dict[str, Any]:
             "independent_of_linkage_algorithms": reference_manifest[
                 "independent_of_linkage_algorithms"
             ],
+            "candidate_surfacing_independence": reference_manifest[
+                "candidate_surfacing_independence"
+            ],
+            "review_candidates_cap": reference_manifest[
+                "candidate_surfacing_independence"
+            ]["review_candidates_cap"],
             "independent_human_annotation": reference_manifest[
                 "independent_human_specialist_review"
             ],
@@ -179,7 +266,12 @@ def data_quality_profile(cohort: pd.DataFrame) -> dict[str, Any]:
 
 
 def business_recommendation(
-    segment: str, state: str, slope: float, last_stable_break: Any, regime: str | None
+    segment: str,
+    state: str,
+    slope: float,
+    last_stable_break: Any,
+    regime: str | None,
+    survives_multiplicity: bool = True,
 ) -> str:
     """Translate one segment's descriptive signals into a monitoring action.
 
@@ -187,8 +279,25 @@ def business_recommendation(
     causal story: PELT reports where the series level shifted, not why, so the
     wording stays at the level of what a purchasing body should do next rather
     than what it should believe happened.
+
+    ``survives_multiplicity`` carries the adjusted-p verdict into the wording.
+    A nominal slope among five simultaneously tested series is a monitoring
+    prompt, not a finding, and the recommendation has to say which one it is.
     """
-    if state == "decreasing":
+    if state == "decreasing" and not survives_multiplicity:
+        action = (
+            f"Treat the recent {segment} decline as exploratory: it is the clearest "
+            "nominal signal in the panel, but it does not survive correction for the "
+            "simultaneous segment tests. Watch it for another few quarters before "
+            "acting on it."
+        )
+    elif state == "increasing" and not survives_multiplicity:
+        action = (
+            f"Treat the recent {segment} rise as exploratory: nominal only, and it "
+            "does not survive correction for the simultaneous segment tests. Watch "
+            "it for another few quarters before acting on it."
+        )
+    elif state == "decreasing":
         action = (
             f"Investigate the recent decline in {segment} before reducing or "
             "expanding procurement capacity; confirm whether it reflects demand, "
@@ -261,16 +370,43 @@ def build_trend_outputs(
                 "hmm_current_regime_probability": regimes.get(str(segment), {}).get(
                     "current_regime_probability"
                 ),
-                "business_recommendation": business_recommendation(
-                    str(segment),
-                    trend["state"],
-                    trend["slope_episodes_per_quarter"],
-                    last_stable_break if last_stable_break is not None else float("nan"),
-                    current_regime,
-                ),
             }
         )
-    return pd.DataFrame(breakpoint_rows), pd.DataFrame(signal_rows), diagnostics, regimes
+    signals = pd.DataFrame(signal_rows)
+
+    # One 12-quarter slope per series is one hypothesis test per series, and all
+    # of them are read from the same table at the same time. The technology
+    # trend section already reports Holm and Benjamini-Hochberg beside the raw
+    # p-value for exactly this situation; applying it there and not here is how
+    # the same evidence ends up held to two standards in two documents. The raw
+    # p-value stays in the table -- the correction qualifies it, it does not
+    # hide it -- and `state` keeps its pre-declared uncorrected definition so
+    # nothing downstream silently changes meaning.
+    signals["n_tests"] = len(signals)
+    signals["p_holm"] = adjust_p_values(signals["p_value"], "holm")
+    signals["p_bh"] = adjust_p_values(signals["p_value"], "bh")
+    signals["survives_multiplicity"] = signals["p_holm"] < signals["alpha"]
+    signals["multiplicity_status"] = np.where(
+        signals["state"].eq("stable_or_uncertain"),
+        "no nominal signal",
+        np.where(
+            signals["survives_multiplicity"],
+            "survives Holm adjustment across the segment family",
+            "nominal signal only, does not survive multiplicity adjustment",
+        ),
+    )
+    signals["business_recommendation"] = [
+        business_recommendation(
+            str(row.segment),
+            row.state,
+            row.slope_episodes_per_quarter,
+            row.last_stable_break if row.last_stable_break is not None else float("nan"),
+            row.hmm_current_regime,
+            bool(row.survives_multiplicity),
+        )
+        for row in signals.itertuples()
+    ]
+    return pd.DataFrame(breakpoint_rows), signals, diagnostics, regimes
 
 
 def plot_missingness(profile: dict[str, Any], path: Path) -> None:
@@ -515,26 +651,34 @@ The main risks are measurement rather than pipeline corruption. Validated SIREN 
 |---|---|---:|---|
 | Standardised data | BOAMP notice | {profile['volume']['standardized_notices']:,} | Official notices published 2015-2025 |
 | Reconstructed data | Procurement episode | {profile['volume']['reconstructed_episodes']:,} | Explicit links, shared folder IDs, or constrained reference links |
-| Study cohort | Awarded digital episode | {profile['volume']['survival_cohort_rows']:,} | Grand Ouest, CPV divisions 32/35/48/72, resolved award date |
+| Study cohort | Awarded digital episode | {profile['volume']['survival_cohort_rows']:,} | Grand Ouest, **at least one** CPV code in divisions 32/35/48/72, resolved award date |
 | Candidate table | Anchor-candidate pair | {profile['volume']['candidate_pairs']:,} | Same plausible buyer, 90-2,920 days later |
 | Survival table | Cohort episode | {profile['volume']['survival_cohort_rows']:,} | First accepted successor or administrative censoring |
 
 The source is the official [BOAMP API]({SOURCE_URLS['boamp']}), which publishes procurement notices and results. A notice is not necessarily a distinct contract, so episode reconstruction is necessary before successor linkage.
 
+### What "digital cohort" means, exactly
+
+The digital filter is an **any-code rule at episode level**: an episode qualifies if at least one of its CPV codes falls in divisions 32, 35, 48 or 72. It is not a rule about the episode's main CPV. The study cohort is therefore best described as *awarded Grand Ouest procurement episodes containing at least one qualifying digital CPV code*, and multi-lot episodes may have a main CPV well outside those divisions: `{profile['cohort_scope']['main_cpv_outside_digital_set']:,}` of `{profile['volume']['survival_cohort_rows']:,}` ({profile['cohort_scope']['main_cpv_outside_digital_set_share']:.1%}) do. Read literally as "3,800 digital procurements", the number would claim more than the rule delivers.
+
+`digital_segment`, the stratifying variable for the segment Kaplan-Meier curves and the Cox model, is assigned as the **lowest-numbered digital division present**, so every episode contributes to exactly one curve. That tie-break is arbitrary and it binds on the `{profile['cohort_scope']['multiple_digital_divisions']:,}` episodes ({profile['cohort_scope']['multiple_digital_divisions_share']:.1%}) carrying more than one digital division. Its consequences were measured rather than assumed: among the `{profile['cohort_scope']['main_cpv_inside_digital_set']:,}` episodes whose main CPV is itself digital, the assigned segment agrees with the main division {profile['cohort_scope']['segment_matches_main_division_share']:.1%} of the time, and event rates by assigned segment track event rates by main-CPV division closely ({profile['cohort_scope']['event_rate_comparison_note']}). The rule is documented rather than changed, because the sensitivity is negligible and changing it would move a frozen stratification for no measurable gain.
+
 ## Integrity Checks
 
-| Check | Result |
-|---|---:|
-| Duplicate standardised notice IDs | {profile['integrity']['duplicate_standardized_notice_ids']} |
-| All notices assigned to exactly one episode | {profile['integrity']['all_notices_assigned_once']} |
-| Buyer-conflict episodes | {profile['integrity']['buyer_conflict_episodes']} |
-| Impossible episode chronologies | {profile['integrity']['impossible_chronology_episodes']} |
-| Duplicate survival episodes | {profile['integrity']['duplicate_survival_episodes']} |
-| Negative survival durations | {profile['integrity']['negative_survival_durations']} |
-| Accepted links with conflicting validated SIRENs | {profile['integrity']['accepted_links_with_conflicting_validated_siren']} |
-| Accepted municipal/intercommunal entity mixes | {profile['integrity']['accepted_municipal_intercommunal_mixes']} |
+| Check | Result | Reading |
+|---|---:|---|
+| Duplicate standardised notice IDs | {profile['integrity']['duplicate_standardized_notice_ids']} | Must be zero |
+| All notices assigned to exactly one episode | {profile['integrity']['all_notices_assigned_once']} | Must be true |
+| Buyer-conflict episodes | {profile['integrity']['buyer_conflict_episodes']} | Must be zero: a merged component with two trusted, different SIRENs |
+| Impossible episode chronologies | {profile['integrity']['impossible_chronology_episodes']} | Must be zero |
+| Duplicate survival episodes | {profile['integrity']['duplicate_survival_episodes']} | Must be zero |
+| Negative survival durations | {profile['integrity']['negative_survival_durations']} | Must be zero |
+| Accepted links with conflicting validated SIRENs | {profile['integrity']['accepted_links_with_conflicting_validated_siren']} | Must be zero |
+| Accepted municipal/intercommunal entity mixes | {profile['integrity']['accepted_municipal_intercommunal_mixes']} | Must be zero |
+| Episodes with a procedure-reference conflict flag | {profile['integrity']['reference_conflict_episodes']:,} | **Not an error.** Counts episodes whose notices carry more than one distinct procedure reference. Expected in multi-lot and re-published procurements; recorded so the reconstruction's riskiest merge route is quantified rather than invisible |
+| Episodes exported for manual review | {profile['integrity']['suspicious_review_cases']:,} | **Not an error.** The union of the conflict flags above plus episodes with 10 or more notices or a span over 8 years, exported to `episode_reconstruction_review_cases.csv` so outliers can be inspected |
 
-These checks support structural consistency, not semantic truth. A syntactically valid episode can still combine notices incorrectly, and a plausible successor can still be a different procurement need.
+The first eight checks must be zero or true and are; they support structural consistency, not semantic truth. A syntactically valid episode can still combine notices incorrectly, and a plausible successor can still be a different procurement need. The last two are **counts of things to look at, not defects**: they are reported here so the table does not read as a list of clean checks with nothing behind it.
 
 ## Missingness And Treatment
 
@@ -566,9 +710,11 @@ The large event-rate range is a material uncertainty result. Absolute survival p
 
 {event_validation_section(profile)}## Reference Evidence Quality
 
-Linkage accuracy is read against the Grand Ouest regional reference: `{profile['benchmark_provenance']['reviewed_anchors']}` anchors reviewed against real BOAMP notices, of which `{profile['benchmark_provenance']['usable_anchors']}` are evaluable once each anchor is resolved onto exactly one procurement episode. The labels were produced before these linkage methods existed and are therefore independent of every method they score.
+Linkage accuracy is read against the Grand Ouest regional reference: `{profile['benchmark_provenance']['reviewed_anchors']}` anchors reviewed against real BOAMP notices, of which `{profile['benchmark_provenance']['usable_anchors']}` are evaluable once each anchor is resolved onto exactly one procurement episode. The **labels** were produced before these linkage methods existed and are independent of every method they score.
 
-Three limits remain. The labels were generated by a single LLM research pass over the notices, their official URLs, and wider public sources, then spot-checked on a subset by the project owner rather than verified anchor-by-anchor, and they are not an independent specialist panel. The sources behind each individual label were not recorded, so a given anchor's evidence trail cannot be fully reconstructed. Negatives are corpus-relative because roughly 25 candidates per anchor were considered. Recall is additionally capped at `{profile['benchmark_provenance']['candidate_generation_recall_ceiling']:.3f}` by candidate generation, before any method runs.
+Four limits remain. The labels were generated by a single LLM research pass over the notices, their official URLs, and wider public sources, then spot-checked on a subset by the project owner rather than verified anchor-by-anchor, and they are not an independent specialist panel. The sources behind each individual label were not recorded, so a given anchor's evidence trail cannot be fully reconstructed. Negatives are corpus-relative because roughly `{profile['benchmark_provenance']['review_candidates_cap']}` candidates per anchor were considered. Recall is additionally capped at `{profile['benchmark_provenance']['candidate_generation_recall_ceiling']:.3f}` by candidate generation, before any method runs.
+
+The fourth limit is narrower and worth stating separately, because it is easy to conflate with the first. Label independence and **candidate-surfacing** independence are different properties, and only the first holds here. {profile['benchmark_provenance']['candidate_surfacing_independence']['basis']}
 
 This is the main unresolved validation risk. The appropriate correction is an independent specialist review of a compact, stratified sample, especially accepted links, method disagreements, high-similarity structural negatives, and name-only buyer matches.
 
@@ -604,7 +750,8 @@ def write_trend_report(
         regime = "--" if not row.hmm_current_regime else row.hmm_current_regime
         rows.append(
             f"| {row.segment} | {row.state} | {row.slope_episodes_per_quarter:.2f} | "
-            f"{row.p_value:.3f} | {last_stable_break} | {regime} |"
+            f"{row.p_value:.3f} | {row.p_holm:.3f} | {row.p_bh:.3f} | "
+            f"{row.multiplicity_status} | {last_stable_break} | {regime} |"
         )
         recommendation_rows.append(
             f"| {row.segment} | {row.state} | {row.business_recommendation} |"
@@ -654,11 +801,13 @@ The results are descriptive signals only. Breaks are not automatically attribute
 
 ## Current Signal Matrix
 
-| Segment | Recent direction | Episodes/quarter slope | Exploratory p-value | Last stable PELT break | HMM regime |
-|---|---|---:|---:|---|---|
+| Segment | Recent direction | Episodes/quarter slope | Raw p | Holm p | BH p | Multiplicity reading | Last stable PELT break | HMM regime |
+|---|---|---:|---:|---:|---:|---|---|---|
 {chr(10).join(rows)}
 
-`stable_or_uncertain` means the 12-quarter slope is not distinguishable from zero at the pre-declared exploratory level α = 0.10. These p-values are descriptive and are not corrected for multiple testing.
+`stable_or_uncertain` means the 12-quarter slope is not distinguishable from zero at the pre-declared exploratory level α = 0.10, read on the **raw** p-value, which is the definition fixed before the series were fitted and is left unchanged here.
+
+`{len(signal_matrix)}` slopes are fitted and read from this table at once, so the raw p-values are also reported beside Holm (family-wise) and Benjamini-Hochberg (false discovery rate) adjustments across those `{len(signal_matrix)}` series. This is the same standard the technology trend section applies to its own family of simultaneous slope tests. A segment whose raw p clears α = 0.10 but whose Holm p does not is a **nominal signal to monitor, not a finding**: the raw result is shown, and its status is stated beside it rather than removed.
 
 ![Quarterly episode counts](reports/figures/trend_quarterly_episode_counts.png)
 
@@ -829,9 +978,13 @@ def write_notebook() -> None:
             "$$N_t = \\alpha + \\beta t + \\varepsilon_t$$\n\n"
             "fitted over the latest 12 quarters, where $\\hat\\beta$ is the estimated "
             "change in awarded episodes per quarter. A segment is labelled `increasing` "
-            "or `decreasing` only when the two-sided p-value falls below the pre-declared "
-            "exploratory $\\alpha = 0.10$, uncorrected for multiple testing; otherwise it "
-            "is `stable_or_uncertain`. $\\hat\\beta$ describes the window it was fitted "
+            "or `decreasing` only when the two-sided **raw** p-value falls below the "
+            "pre-declared exploratory $\\alpha = 0.10$; otherwise it is "
+            "`stable_or_uncertain`. Because five series are fitted and read together, "
+            "the signal matrix also carries Holm and Benjamini-Hochberg adjusted "
+            "p-values across those five tests, and a directional label whose Holm p "
+            "exceeds $\\alpha$ is reported as a nominal signal to monitor rather than "
+            "as a finding. $\\hat\\beta$ describes the window it was fitted "
             "on. It is **not** a forecast."
         ),
         nbf.v4.new_code_cell(
@@ -911,18 +1064,47 @@ def main() -> int:
     signal_matrix.to_csv(PROCESSED / "trend_signal_matrix.csv", index=False)
     summary = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
-        "window": {"start": "2015Q2", "end": "2025Q4", "quarters": 43},
+        "window": {
+            "start": "2015Q2",
+            "end": "2025Q4",
+            # Counted, not asserted. The partial 2015Q1 is excluded because the
+            # first BOAMP extract begins in March 2015; the technology trend
+            # series in TECHNOLOGY_TAXONOMY_REPORT.md is built from award
+            # quarters directly and therefore spans 44, one more than this panel.
+            "quarters": int(panel.groupby("segment").size().max()),
+            "partial_first_quarter_excluded": "2015Q1",
+        },
         "unit": "awarded Grand Ouest digital procurement episode",
         "method": {
             "change_point": "PELT l2 on z-standardized quarterly counts",
             "penalty": "multiplier * log(n)",
             "penalty_multipliers": [0.5, 1.0, 2.0],
             "stable_break_tolerance_quarters": 1,
-            "recent_trend": "OLS slope over latest 12 quarters; alpha=0.10",
+            "recent_trend": "OLS slope over latest 12 quarters; alpha=0.10 on the raw p-value",
+            "multiplicity": (
+                "Holm and Benjamini-Hochberg adjustment across the simultaneously "
+                "fitted segment slopes; the same standard the technology trend "
+                "section applies to its own family"
+            ),
             "regime_detection": (
                 "3-state Gaussian HMM on quarter-over-quarter change in episode "
                 "count, for Overall and the two highest-volume CPV segments"
             ),
+        },
+        "multiplicity": {
+            "tests": int(len(signal_matrix)),
+            "alpha": float(signal_matrix["alpha"].iloc[0]),
+            "segments_with_nominal_signal": signal_matrix.loc[
+                signal_matrix["state"].ne("stable_or_uncertain"), "segment"
+            ].tolist(),
+            "segments_surviving_multiplicity": signal_matrix.loc[
+                signal_matrix["survives_multiplicity"], "segment"
+            ].tolist(),
+            "segments_with_nominal_signal_only": signal_matrix.loc[
+                signal_matrix["state"].ne("stable_or_uncertain")
+                & ~signal_matrix["survives_multiplicity"],
+                "segment",
+            ].tolist(),
         },
         "stationarity": diagnostics,
         "regimes": regimes,

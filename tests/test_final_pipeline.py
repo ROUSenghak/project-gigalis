@@ -116,3 +116,98 @@ def test_every_materialised_stage_is_current() -> None:
     }
 
     assert not stale, f"outputs predate their generator: {stale}"
+
+
+def test_technology_runs_before_anything_that_quotes_it() -> None:
+    """The whole-run order, not just the order inside one group.
+
+    ``reader_artifact_refresh`` writes EXECUTIVE_SUMMARY.md, FINAL_PIPELINE.md,
+    REGIONAL_BENCHMARK_REFERENCE.md and the methodology chapter, all of which
+    quote technology-layer numbers, and ``canonical_state_validation`` certifies
+    the state those artifacts describe. When the technology group ran last, both
+    silently described the previous run. Nothing errored; the guarantee simply
+    was not true.
+    """
+    import inspect
+
+    from scripts import run_final_pipeline
+
+    # Read the loop headers, not any mention: the comment above them names the
+    # same functions while explaining the ordering they used to have.
+    order = [
+        line.strip()
+        for line in inspect.getsource(run_final_pipeline.main).splitlines()
+        if line.strip().startswith("for stage in ")
+    ]
+    assert order == [
+        "for stage in pipeline_stages():",
+        "for stage in technology_stages():",
+        "for stage in evidence_stages():",
+    ], order
+
+
+def test_the_manifest_records_the_run_that_produced_the_outputs() -> None:
+    """A manifest is only useful if it describes reality.
+
+    It must name the stages that ran -- including the technology layer -- the
+    code state, the environment, and the headline quantities read back off the
+    artifacts rather than restated as constants.
+    """
+    import json
+    from pathlib import Path
+
+    manifest_path = Path("data/processed/boamp/final_pipeline_manifest.json")
+    if not manifest_path.exists():
+        import pytest
+
+        pytest.skip("pipeline manifest not materialised")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    for key in ("created_at", "git", "environment", "canonical_facts", "stage_status"):
+        assert key in manifest, key
+    assert "technology_taxonomy" in manifest["stage_status"], (
+        "the manifest must record the technology stage as part of the run"
+    )
+    facts = manifest["canonical_facts"]
+    for key in (
+        "cohort_rows",
+        "events",
+        "censored",
+        "selected_linkage_method",
+        "selected_linkage_threshold",
+        "technology_specification",
+        "technology_deployed_confidence_variant",
+    ):
+        assert key in facts, key
+    assert facts["cohort_rows"] == facts["events"] + facts["censored"]
+    assert manifest["environment"]["python"]
+
+
+def test_manifest_canonical_facts_agree_with_the_artifacts() -> None:
+    """The manifest's headline numbers must match the files it points at."""
+    import json
+    from pathlib import Path
+
+    import pandas as pd
+
+    manifest_path = Path("data/processed/boamp/final_pipeline_manifest.json")
+    dataset_path = Path("data/processed/boamp/survival_dataset.parquet")
+    if not (manifest_path.exists() and dataset_path.exists()):
+        import pytest
+
+        pytest.skip("pipeline outputs not materialised")
+
+    facts = json.loads(manifest_path.read_text(encoding="utf-8"))["canonical_facts"]
+    dataset = pd.read_parquet(dataset_path, columns=["event"])
+    assert facts["cohort_rows"] == len(dataset)
+    assert facts["events"] == int(dataset["event"].sum())
+
+    config = json.loads(
+        Path("data/processed/boamp/technology/final_model_config.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert facts["technology_deployed_confidence_variant"] == (
+        config["calibration"]["deployed_variant"]
+    )
+    assert facts["technology_calibration_adopted"] == config["calibration"]["adopted"]

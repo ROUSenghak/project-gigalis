@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from scripts.build_survival_evidence import standardized_mean_difference
 
@@ -136,3 +137,83 @@ def test_selection_diagnostic_has_no_missing_smd() -> None:
     assert set(diagnostic["variable"]) >= {
         "text_length_chars", "framework_flag", "has_validated_siren"
     }
+
+
+def test_candidate_pool_size_is_published_in_the_detectability_diagnostic() -> None:
+    """The largest linked-vs-censored imbalance must be visible, not omitted.
+
+    ``M_B`` accepts the maximum text score over an anchor's candidate block, so
+    block size is a detectability variable. It was absent from the published
+    diagnostic while sitting above every variable that was in it.
+    """
+    diagnostic = pd.read_csv(PROCESSED / "survival_selection_diagnostic.csv")
+    published = set(diagnostic["variable"])
+    assert {"candidate_pool_size", "log_candidate_pool_size"} <= published
+
+    log_row = diagnostic.loc[diagnostic["variable"] == "log_candidate_pool_size"].iloc[0]
+    assert log_row["linked_n"] + log_row["censored_n"] == 3800
+    # It is the largest absolute imbalance; if that ever stops being true the
+    # report's framing of it should be revisited deliberately, not silently.
+    assert log_row["absolute_smd"] == diagnostic["absolute_smd"].max()
+
+
+def test_candidate_pool_size_recomputes_from_the_candidate_table() -> None:
+    candidates = pd.read_parquet(
+        PROCESSED / "linkage_candidates_scored.parquet", columns=["anchor_episode_id"]
+    )
+    survival = pd.read_parquet(
+        PROCESSED / "survival_dataset.parquet", columns=["episode_id", "event"]
+    )
+    pool = candidates.groupby("anchor_episode_id").size()
+    sizes = survival["episode_id"].map(pool).fillna(0)
+
+    diagnostic = pd.read_csv(PROCESSED / "survival_selection_diagnostic.csv").set_index(
+        "variable"
+    )
+    linked = sizes[survival["event"].eq(1).to_numpy()]
+    censored = sizes[survival["event"].eq(0).to_numpy()]
+    assert diagnostic.loc["candidate_pool_size", "linked_mean"] == pytest.approx(
+        float(linked.mean()), rel=1e-9
+    )
+    assert diagnostic.loc["candidate_pool_size", "censored_mean"] == pytest.approx(
+        float(censored.mean()), rel=1e-9
+    )
+
+
+def test_detectability_cox_is_a_sensitivity_and_not_the_headline_model() -> None:
+    """One extra model, reported beside the main one and never replacing it."""
+    sensitivity = pd.read_csv(PROCESSED / "survival_cox_detectability_sensitivity.csv")
+    main = pd.read_csv(PROCESSED / "survival_cox_results.csv")
+
+    assert "log_candidate_pool_size" in set(sensitivity["covariate"])
+    # The main Cox table is untouched by the sensitivity model.
+    assert "log_candidate_pool_size" not in set(main["covariate"])
+    assert set(main["covariate"]) <= set(sensitivity["covariate"])
+
+    summary = json.loads((PROCESSED / "survival_analysis_summary.json").read_text())
+    detectability = summary["detectability_cox"]
+    assert detectability["role"].startswith("sensitivity only")
+
+    # Main-model hazard ratios carried into the comparison must be the published
+    # ones, so the two columns really are the same model before and after.
+    published = main.set_index("covariate")["exp(coef)"]
+    for row in sensitivity.itertuples():
+        if row.covariate in published.index:
+            assert row.hazard_ratio_main == pytest.approx(
+                float(published.loc[row.covariate]), rel=1e-9
+            )
+
+
+def test_the_survival_report_publishes_the_pool_size_comparison() -> None:
+    report = Path("SURVIVAL_ANALYSIS_REPORT.md").read_text(encoding="utf-8")
+    sensitivity = pd.read_csv(
+        PROCESSED / "survival_cox_detectability_sensitivity.csv"
+    ).set_index("covariate")
+
+    assert "Candidate-pool size is the largest imbalance" in report
+    for covariate in ("framework_flag", "digital_segment_CPV-35"):
+        adjusted = sensitivity.loc[covariate, "hazard_ratio_pool_adjusted"]
+        assert f"{adjusted:.3f}" in report, covariate
+    # No causal language attached to the added term.
+    section = report.split("Candidate-pool size is the largest imbalance")[1]
+    assert "Neither statement is causal" in section

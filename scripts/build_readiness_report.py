@@ -56,6 +56,29 @@ def main() -> int:
     trend = load_json(PROCESSED / "trend_analysis_summary.json")
     trend_panel = pd.read_csv(PROCESSED / "trend_quarterly.csv")
     trend_signals = pd.read_csv(PROCESSED / "trend_signal_matrix.csv")
+    # Technology figures come from the canonical artifacts. They were literals
+    # here, including a "conservative after scaling" phrase describing a Platt
+    # scaling that the pre-specified rule rejected.
+    technology = PROCESSED / "technology"
+    technology_config = load_json(technology / "final_model_config.json")
+    technology_summary = load_json(technology / "technology_evidence_summary.json")
+    technology_boot = pd.read_csv(technology / "bootstrap_macro_f1_ci.csv").set_index("model")
+    technology_paired = pd.read_csv(technology / "bootstrap_paired_differences.csv")
+    selected = technology_config["specification"]
+    selected_ci = technology_boot.loc[selected]
+    benchmark_ci = technology_boot.loc["M0b_cpv_descriptor"]
+    gain = technology_paired.loc[
+        (technology_paired["model_a"] == "M0b_cpv_descriptor")
+        & (technology_paired["model_b"] == selected)
+    ].iloc[0]
+    deployed = technology_summary["deployed_confidence"]
+    rare_class = min(
+        (row for row in pd.read_csv(technology / "per_class_metrics.csv")
+         .query("model == @selected").to_dict("records")),
+        key=lambda row: row["support"],
+    )
+    surviving_segments = trend["multiplicity"]["segments_surviving_multiplicity"]
+    nominal_only_segments = trend["multiplicity"]["segments_with_nominal_signal_only"]
     generated_at = datetime.now().isoformat(timespec="seconds")
 
     main = survival["variants"]["main"]
@@ -65,7 +88,11 @@ def main() -> int:
         method_rows.append(
             {
                 "method": item["method"],
-                "threshold": item["threshold"] / 100,
+                # None for a comparator whose rule reads no threshold
+                # (M_A_deterministic is a conjunction of fixed gates).
+                "threshold": (
+                    None if item["threshold"] is None else item["threshold"] / 100
+                ),
                 "accepted_links": metrics["accepted_links"],
                 "precision": metrics["precision_at_1"],
                 "recall": metrics["recall_at_1"],
@@ -150,17 +177,26 @@ def main() -> int:
             "component": "Guide technology classifier",
             "status": "Implemented, single-annotator corpus",
             "evidence": (
-                "500 annotated notices, 11 classes; group-aware out-of-fold macro-F1 "
-                "0.744 (95% family-bootstrap CI 0.682-0.791) against 0.473 for a "
+                f"{technology_config['training_data']['rows']} annotated notices, "
+                f"{len(technology_config['classes'])} classes; group-aware out-of-fold macro-F1 "
+                f"{selected_ci['macro_f1']:.3f} (95% family-bootstrap CI "
+                f"{selected_ci['ci_lower']:.3f}-{selected_ci['ci_upper']:.3f}) against "
+                f"{benchmark_ci['macro_f1']:.3f} for a "
                 "CPV/descriptor benchmark on identical folds, paired difference "
-                "0.271 (0.201-0.340); deployed to every cohort episode "
+                f"{abs(gain['observed_difference']):.3f} "
+                f"({abs(gain['ci_upper']):.3f}-{abs(gain['ci_lower']):.3f}); deployed to all "
+                f"{technology_summary['cohort_episodes']:,} cohort episodes "
                 "(TECHNOLOGY_TAXONOMY_REPORT.md)"
             ),
             "remaining_gap": (
-                "No inter-annotator agreement statistic; AI has 7 labelled notices "
-                "and cannot be evaluated; confidence remains conservative after "
-                "scaling and encodes the quota class prior, so the 0.70 cutoff "
-                "retains only 6.2% of episodes"
+                "No inter-annotator agreement statistic; "
+                f"{rare_class['technology']} has {int(rare_class['support'])} labelled notices "
+                "and cannot be evaluated; the deployed confidence is the "
+                f"{deployed['variant']} class score -- Platt scaling was evaluated and "
+                f"{'adopted' if deployed['adopted'] else 'rejected by the pre-specified rule'} -- "
+                "so it stays conservative and encodes the quota class prior, and the "
+                f"{technology_config['confidence']['operational_cutoff']} cutoff retains only "
+                f"{technology_summary['high_confidence_share']:.1%} of episodes"
             ),
             "priority": 5,
         },
@@ -458,8 +494,20 @@ def main() -> int:
             "sourceId": "trend",
             "body": (
                 "## Trend Evidence\n\n"
-                "Quarterly episode counts are descriptive. The latest 12-quarter overall slope is stable or uncertain; "
-                "CPV-48 is the only current segment with a decreasing exploratory signal. PELT breakpoints identify candidate "
+                "Quarterly episode counts are descriptive. The latest 12-quarter overall slope is stable or uncertain. "
+                + (
+                    f"{', '.join(surviving_segments)} shows a direction that survives Holm correction across the "
+                    f"{int(trend['multiplicity']['tests'])} segment series tested. "
+                    if surviving_segments
+                    else (
+                        f"{', '.join(nominal_only_segments)} carries a nominal directional signal that does **not** "
+                        f"survive correction for the {int(trend['multiplicity']['tests'])} segment series tested "
+                        "simultaneously, so it is a monitoring prompt rather than a finding. "
+                        if nominal_only_segments
+                        else "No segment shows a direction distinguishable from zero. "
+                    )
+                )
+                + "PELT breakpoints identify candidate "
                 "structural changes, not causes. Awarded-amount trends are omitted because no canonical episode-level amount "
                 "has been validated."
             ),

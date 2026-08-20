@@ -1,6 +1,6 @@
 # BOAMP Descriptive Trend Analysis
 
-Generated: `2026-08-16T16:28:53`  
+Generated: `2026-08-20T11:55:02`  
 Analysis window: `2015Q2-2025Q4`  
 Unit: awarded Grand Ouest digital procurement episodes
 
@@ -12,15 +12,17 @@ The results are descriptive signals only. Breaks are not automatically attribute
 
 ## Current Signal Matrix
 
-| Segment | Recent direction | Episodes/quarter slope | Exploratory p-value | Last stable PELT break | HMM regime |
-|---|---|---:|---:|---|---|
-| Overall | stable_or_uncertain | -0.11 | 0.921 | -- | growth |
-| CPV-32 | stable_or_uncertain | -0.01 | 0.989 | 2020Q2 | growth |
-| CPV-35 | stable_or_uncertain | 0.03 | 0.923 | -- | -- |
-| CPV-48 | decreasing | -0.84 | 0.032 | 2024Q1 | -- |
-| CPV-72 | stable_or_uncertain | 0.70 | 0.285 | 2021Q1 | growth |
+| Segment | Recent direction | Episodes/quarter slope | Raw p | Holm p | BH p | Multiplicity reading | Last stable PELT break | HMM regime |
+|---|---|---:|---:|---:|---:|---|---|---|
+| Overall | stable_or_uncertain | -0.11 | 0.921 | 1.000 | 0.989 | no nominal signal | -- | growth |
+| CPV-32 | stable_or_uncertain | -0.01 | 0.989 | 1.000 | 0.989 | no nominal signal | 2020Q2 | growth |
+| CPV-35 | stable_or_uncertain | 0.03 | 0.923 | 1.000 | 0.989 | no nominal signal | -- | -- |
+| CPV-48 | decreasing | -0.84 | 0.032 | 0.159 | 0.159 | nominal signal only, does not survive multiplicity adjustment | 2024Q1 | -- |
+| CPV-72 | stable_or_uncertain | 0.70 | 0.285 | 1.000 | 0.714 | no nominal signal | 2021Q1 | growth |
 
-`stable_or_uncertain` means the 12-quarter slope is not distinguishable from zero at the pre-declared exploratory level α = 0.10. These p-values are descriptive and are not corrected for multiple testing.
+`stable_or_uncertain` means the 12-quarter slope is not distinguishable from zero at the pre-declared exploratory level α = 0.10, read on the **raw** p-value, which is the definition fixed before the series were fitted and is left unchanged here.
+
+`5` slopes are fitted and read from this table at once, so the raw p-values are also reported beside Holm (family-wise) and Benjamini-Hochberg (false discovery rate) adjustments across those `5` series. This is the same standard the technology trend section applies to its own family of simultaneous slope tests. A segment whose raw p clears α = 0.10 but whose Holm p does not is a **nominal signal to monitor, not a finding**: the raw result is shown, and its status is stated beside it rather than removed.
 
 ![Quarterly episode counts](reports/figures/trend_quarterly_episode_counts.png)
 
@@ -37,7 +39,7 @@ technology.
 | Overall | stable_or_uncertain | Maintain monitoring for Overall; no statistically clear recent direction at the pre-declared exploratory level. The HMM currently reads this series as `growth`, which describes recent quarter-over-quarter change and need not agree with the 12-quarter slope. |
 | CPV-32 | stable_or_uncertain | Maintain monitoring for CPV-32; no statistically clear recent direction at the pre-declared exploratory level. A penalty-stable level shift is dated 2020Q2; treat it as a break candidate to be explained with documentary evidence, not as a demonstrated cause. The HMM currently reads this series as `growth`, which describes recent quarter-over-quarter change and need not agree with the 12-quarter slope. |
 | CPV-35 | stable_or_uncertain | Maintain monitoring for CPV-35; no statistically clear recent direction at the pre-declared exploratory level. |
-| CPV-48 | decreasing | Investigate the recent decline in CPV-48 before reducing or expanding procurement capacity; confirm whether it reflects demand, publication practice, or a routing change to another channel. A penalty-stable level shift is dated 2024Q1; treat it as a break candidate to be explained with documentary evidence, not as a demonstrated cause. |
+| CPV-48 | decreasing | Treat the recent CPV-48 decline as exploratory: it is the clearest nominal signal in the panel, but it does not survive correction for the simultaneous segment tests. Watch it for another few quarters before acting on it. A penalty-stable level shift is dated 2024Q1; treat it as a break candidate to be explained with documentary evidence, not as a demonstrated cause. |
 | CPV-72 | stable_or_uncertain | Maintain monitoring for CPV-72; no statistically clear recent direction at the pre-declared exploratory level. A penalty-stable level shift is dated 2021Q1; treat it as a break candidate to be explained with documentary evidence, not as a demonstrated cause. The HMM currently reads this series as `growth`, which describes recent quarter-over-quarter change and need not agree with the 12-quarter slope. |
 
 ## Stationarity (ADF/KPSS)

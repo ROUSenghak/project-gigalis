@@ -437,3 +437,167 @@ def test_the_confidence_threshold_trend_sensitivity_was_actually_run() -> None:
     unfiltered = sensitivity.loc[sensitivity["arm"] == "all_predictions"]
     assert filtered["episodes"].sum() < unfiltered["episodes"].sum()
     assert unfiltered["zero_quarters"].max() <= filtered["zero_quarters"].max()
+
+
+# ---------------------------------------------------------------------------
+# Deployed-confidence consistency
+#
+# The published section 12 once described a Platt-scaled score while the
+# pipeline deployed the raw one, and every existing test passed: each artifact
+# was internally consistent, and nothing compared them to each other. These
+# tests tie the report, the notebook, the config, the run log and the deployment
+# CSV to one declared variant, so the same drift cannot recur silently.
+# ---------------------------------------------------------------------------
+
+REPORT = Path("TECHNOLOGY_TAXONOMY_REPORT.md")
+NOTEBOOK = Path("notebooks/15_technology_taxonomy_classification.ipynb")
+BUILD_LOG = Path("logs/build_technology_taxonomy.log")
+
+
+def deployed_variant() -> str:
+    return load_json("final_model_config.json")["calibration"]["deployed_variant"]
+
+
+def report_text() -> str:
+    return REPORT.read_text(encoding="utf-8")
+
+
+def test_the_deployed_variant_is_one_of_the_evaluated_variants() -> None:
+    calibration = load_json("final_model_config.json")["calibration"]
+    assert calibration["deployed_variant"] in calibration["variants"]
+    # The adoption flag and the deployed variant are one decision, not two.
+    expected = "calibrated" if calibration["adopted"] else "raw"
+    assert calibration["deployed_variant"] == expected
+
+
+def test_deployment_rows_declare_the_deployed_variant() -> None:
+    calibration = load_json("final_model_config.json")["calibration"]
+    predictions = pd.read_csv(TECHNOLOGY / "episode_technology_predictions.csv")
+    declared = set(predictions["confidence_type"].dropna())
+    assert len(declared) == 1, declared
+    expected = (
+        "calibrated_class_probability"
+        if calibration["adopted"]
+        else "uncalibrated_class_score"
+    )
+    assert declared == {expected}
+
+
+def test_the_evidence_summary_records_the_deployed_variant() -> None:
+    summary = load_json("technology_evidence_summary.json")["deployed_confidence"]
+    config = load_json("final_model_config.json")["calibration"]
+    predictions = pd.read_csv(TECHNOLOGY / "episode_technology_predictions.csv")
+    assert summary["variant"] == config["deployed_variant"]
+    assert summary["adopted"] == config["adopted"]
+    assert summary["confidence_type"] == predictions["confidence_type"].iloc[0]
+    assert summary["episodes"] == len(predictions)
+    assert summary["max_confidence"] == pytest.approx(
+        float(predictions["confidence"].max())
+    )
+
+
+def test_the_report_names_the_deployed_variant_and_not_the_other_one() -> None:
+    variant = deployed_variant()
+    text = report_text()
+    section = text.split("## 12.")[1].split("## 13.")[0]
+    assert f"the **{variant}** variant" in section
+
+    if variant == "raw":
+        # The rejected branch must be described as rejected, never as adopted.
+        assert "**was evaluated and rejected**" in section
+        assert "Calibration was adopted" not in text
+        assert "calibrated model confidence\nscore" not in section
+        assert "uncalibrated model confidence score" in section
+    else:
+        assert "**Calibration was adopted**" in section
+        assert "calibrated model confidence score" in section
+
+
+def test_the_published_reliability_table_is_the_deployed_variant() -> None:
+    """Bin counts in the report must match the deployed variant's bins."""
+    reliability = pd.read_csv(TECHNOLOGY / "confidence_reliability_oof.csv")
+    deployed = reliability.loc[reliability["variant"] == deployed_variant()]
+    other = reliability.loc[reliability["variant"] != deployed_variant()]
+    section = report_text().split("## 12.")[1].split("### Result 5")[0]
+
+    rows = [line for line in section.splitlines() if line.startswith("| [")]
+    assert len(rows) == len(deployed), (len(rows), len(deployed))
+    published_n = [int(line.split("|")[2].strip()) for line in rows]
+    assert published_n == deployed["n"].tolist()
+    # And it must not be the variant that did not ship, when the two differ.
+    if published_n != other["n"].tolist():
+        assert published_n != other["n"].tolist()
+
+
+def test_the_reported_cutoff_behaviour_recomputes_from_deployed_predictions() -> None:
+    predictions = pd.read_csv(TECHNOLOGY / "episode_technology_predictions.csv")
+    sweep = pd.read_csv(TECHNOLOGY / "confidence_cutoff_sweep.csv")
+    summary = load_json("technology_evidence_summary.json")["deployed_confidence"]
+    scores = predictions["confidence"].astype(float)
+
+    for cutoff in sweep["cutoff"]:
+        recomputed = int((scores >= float(cutoff)).sum())
+        assert int(sweep.loc[sweep["cutoff"] == cutoff, "retained"].iloc[0]) == recomputed
+        assert summary["counts_at_or_above"][f"{float(cutoff):g}"] == recomputed
+
+    # Any claim about an unusable cutoff must be true of the shipped scores.
+    for cutoff in summary["cutoffs_with_no_predictions"]:
+        assert int((scores >= float(cutoff)).sum()) == 0
+    reachable = summary["highest_reachable_cutoff"]
+    if reachable is not None:
+        assert int((scores >= float(reachable)).sum()) > 0
+
+
+def test_the_report_never_claims_an_unreachable_cutoff() -> None:
+    predictions = pd.read_csv(TECHNOLOGY / "episode_technology_predictions.csv")
+    section = report_text().split("## 12.")[1].split("## 13.")[0]
+    maximum = float(predictions["confidence"].max())
+    for cutoff in (0.80, 0.90):
+        claim = f"no {deployed_variant()} prediction reaches `{cutoff:.2f}`"
+        if int((predictions["confidence"] >= cutoff).sum()) > 0:
+            assert claim.lower() not in section.lower()
+    assert f"`{maximum:.4f}`" in section
+
+
+def test_the_run_log_agrees_with_the_deployed_variant() -> None:
+    if not BUILD_LOG.exists():
+        pytest.skip("build log not present in this checkout")
+    adopted = [
+        line for line in BUILD_LOG.read_text(encoding="utf-8").splitlines()
+        if "Confidence variant adopted:" in line
+    ]
+    assert adopted, "the build log records no confidence decision"
+    assert adopted[-1].split("Confidence variant adopted:")[1].strip().split()[0] == (
+        deployed_variant()
+    )
+
+
+def test_the_notebook_narrative_matches_the_deployed_variant() -> None:
+    notebook = json.loads(NOTEBOOK.read_text(encoding="utf-8"))
+    prose = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "markdown"
+    )
+    if deployed_variant() == "raw":
+        assert "**rejected**" in prose
+        assert "Calibration was adopted under a" not in prose
+        assert "The deployed model emits Platt-scaled class probabilities" not in prose
+    else:
+        assert "Platt-scaled" in prose
+    # The reliability display must select the variant from the config, never a
+    # literal, so it follows the decision instead of restating it.
+    code = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    )
+    assert 'config["calibration"]["deployed_variant"]' in code
+
+
+def test_one_prediction_per_cohort_episode() -> None:
+    predictions = pd.read_csv(TECHNOLOGY / "episode_technology_predictions.csv")
+    cohort = pd.read_parquet(PROCESSED / "survival_cohort.parquet", columns=["episode_id"])
+    assert predictions["episode_id"].is_unique
+    assert set(predictions["episode_id"]) == set(cohort["episode_id"])
+    assert len(predictions) == len(cohort)

@@ -115,6 +115,50 @@ def pelt_break_indices(
     return [int(index) for index in endpoints if int(index) < len(array)]
 
 
+def adjust_p_values(values: Iterable[float], method: str) -> np.ndarray:
+    """Holm (family-wise) or Benjamini-Hochberg (false discovery rate).
+
+    Implemented here rather than pulled from statsmodels so the exact step
+    ordering is visible next to the numbers it produces; both are standard
+    step-wise procedures on the sorted p-values.
+
+    It lives in this shared module because the project runs two families of
+    simultaneous slope tests -- the CPV segment series and the technology class
+    series -- and applying the correction to one family but not the other is
+    how the same situation ends up reported to two different standards.
+    """
+
+    raw = np.asarray(list(values), dtype=float)
+    n = len(raw)
+    if n == 0:
+        return raw
+    if method not in {"holm", "bh"}:
+        raise ValueError(f"unknown multiplicity method {method!r}")
+    order = np.argsort(raw)
+    ordered = raw[order]
+    ranks = np.arange(1, n + 1)
+    if method == "holm":
+        # Holm: multiply the k-th smallest by (n - k + 1), then enforce
+        # monotonicity upward from the smallest.
+        adjusted = np.maximum.accumulate((n - ranks + 1) * ordered)
+    else:
+        # Benjamini-Hochberg: multiply the k-th smallest by n/k, then take a
+        # running minimum downward from the largest.
+        #
+        # The multiplier is indexed by ascending rank. An earlier version built
+        # it as `n / arange(n, 0, -1)` and reversed it alongside the p-values,
+        # which paired the n/1 multiplier with the *largest* p-value and the
+        # n/n multiplier with the smallest -- so the most significant test came
+        # back unadjusted. Holm was unaffected, and every published verdict in
+        # this project filters on the Holm column, so no conclusion rested on
+        # it; the BH column itself was wrong and read anti-conservatively.
+        adjusted = np.minimum.accumulate(((n / ranks) * ordered)[::-1])[::-1]
+    adjusted = np.clip(adjusted, 0.0, 1.0)
+    result = np.empty(n)
+    result[order] = adjusted
+    return np.round(result, 4)
+
+
 def recent_trend_signal(
     values: Iterable[float],
     *,

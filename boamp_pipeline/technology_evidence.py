@@ -53,6 +53,7 @@ import joblib  # noqa: E402
 from lifelines import KaplanMeierFitter  # noqa: E402
 from lifelines.statistics import multivariate_logrank_test  # noqa: E402
 
+from boamp_pipeline.evidence import adjust_p_values  # noqa: E402
 from boamp_pipeline.linkage import parse_json_list  # noqa: E402
 from boamp_pipeline.technology_taxonomy import (  # noqa: E402
     CLASS_ORDER,
@@ -492,6 +493,47 @@ def load_predictions() -> pd.DataFrame:
     return predictions
 
 
+def deployed_confidence_facts(
+    predictions: pd.DataFrame, config: dict[str, Any], sweep: pd.DataFrame
+) -> dict[str, Any]:
+    """Describe the confidence variant that actually scored the cohort.
+
+    Section 12 is the published reading guide for an operational cutoff, so
+    every number in it has to be read off the column that shipped. An earlier
+    version of this generator hardcoded the calibrated branch -- the reliability
+    table, the "calibration was adopted" sentence, and a claim that no
+    prediction reaches 0.90 -- while the pipeline deployed the raw score. The
+    two happen to coincide only when the calibration rule fires, so the branch
+    is taken from ``calibration["deployed_variant"]`` and the cutoff facts are
+    recomputed from ``episode_technology_predictions.csv`` rather than asserted.
+    """
+    calibration = config["calibration"]
+    variant = str(calibration["deployed_variant"])
+    if variant not in calibration["variants"]:
+        raise RuntimeError(f"deployed variant {variant!r} has no reliability summary")
+    declared = sorted(predictions["confidence_type"].dropna().astype(str).unique())
+    if len(declared) != 1:
+        raise RuntimeError(f"deployed predictions declare {len(declared)} confidence types: {declared}")
+    scores = predictions["confidence"].astype(float)
+    cutoffs = [float(value) for value in sweep["cutoff"]]
+    reachable = [cutoff for cutoff in cutoffs if int((scores >= cutoff).sum()) > 0]
+    return {
+        "variant": variant,
+        "adopted": bool(calibration["adopted"]),
+        "confidence_type": declared[0],
+        "episodes": int(len(scores)),
+        "max_confidence": float(scores.max()),
+        "expected_calibration_error": calibration["variants"][variant][
+            "expected_calibration_error"
+        ],
+        "counts_at_or_above": {
+            f"{cutoff:g}": int((scores >= cutoff).sum()) for cutoff in cutoffs
+        },
+        "highest_reachable_cutoff": max(reachable) if reachable else None,
+        "cutoffs_with_no_predictions": [cutoff for cutoff in cutoffs if cutoff not in reachable],
+    }
+
+
 def composition(predictions: pd.DataFrame, cohort: pd.DataFrame) -> pd.DataFrame:
     """Technology composition of the cohort, with the CPV segments it spans."""
     merged = predictions.merge(
@@ -870,27 +912,9 @@ def technology_trend(quarterly: pd.DataFrame, support: pd.DataFrame) -> pd.DataF
     return table
 
 
-def _adjust_p(values: pd.Series, method: str) -> np.ndarray:
-    """Holm (family-wise) or Benjamini-Hochberg (false discovery rate).
-
-    Implemented here rather than pulled from statsmodels so the exact step
-    ordering is visible next to the numbers it produces; both are standard
-    step-wise procedures on the sorted p-values.
-    """
-    raw = np.asarray(values, dtype=float)
-    n = len(raw)
-    order = np.argsort(raw)
-    ordered = raw[order]
-    if method == "holm":
-        adjusted = np.maximum.accumulate((n - np.arange(n)) * ordered)
-    else:
-        adjusted = np.minimum.accumulate(
-            (n / (np.arange(n, 0, -1)))[::-1] * ordered[::-1]
-        )[::-1]
-    adjusted = np.clip(adjusted, 0.0, 1.0)
-    result = np.empty(n)
-    result[order] = adjusted
-    return np.round(result, 4)
+#: One implementation for both trend families. See
+#: :func:`boamp_pipeline.evidence.adjust_p_values`.
+_adjust_p = adjust_p_values
 
 
 def trend_confidence_sensitivity(
@@ -1070,7 +1094,13 @@ def write_report(payload: dict[str, Any]) -> Path:
     trend_summary = payload["trend_summary"]
     coverage_year = payload["coverage_year"]
     coverage_class = payload["coverage_class"]
-    reliability = payload["reliability"].loc[payload["reliability"]["variant"] == "calibrated"]
+    deployed = payload["deployed_confidence"]
+    # The deployed variant, never a literal: the reliability table a reader
+    # calibrates their expectations against must be the one that scored the
+    # cohort. See deployed_confidence_facts.
+    reliability = payload["reliability"].loc[
+        payload["reliability"]["variant"] == deployed["variant"]
+    ]
     errors = payload["error_triage"]
     selected = decision["selected_model"]
     grouping = audit["grouping"]
@@ -1117,6 +1147,70 @@ def write_report(payload: dict[str, Any]) -> Path:
             lambda row: "OTHER_DIGITAL" in {row["true_label"], row["predicted_label"]}, axis=1
         ).sum()
     )
+
+    # -- Section 12 narrative, branched on what was actually deployed ---------
+    # Both branches must be reachable: the calibration rule is evaluated every
+    # run and either fires or does not. Nothing below may name a variant, a
+    # reliability table, or a cutoff that the deployed column does not carry.
+    calibration = config["calibration"]
+    if deployed["adopted"]:
+        confidence_source_sentence = (
+            "Confidence is the predicted class probability, Platt-scaled by\n"
+            f"`CalibratedClassifierCV(method='{calibration['method']}')` fitted on labelled data only,\n"
+            "inside the same grouped splits. **Calibration was adopted** under the pre-specified\n"
+            f"rule -- it reduced the expected calibration error by `{calibration['expected_calibration_error_improvement']}`\n"
+            f"at a macro-F1 cost of `{abs(calibration['macro_f1_change'])}`, inside the `0.02` budget. The table\n"
+            "below and every confidence figure quoted in this report are the **calibrated**\n"
+            "variant, which is the one that scored the cohort."
+        )
+        residual_mechanism_sentence = (
+            "First, the residual miscalibration above: reweighting eleven classes with\n"
+            "  `class_weight='balanced'` flattens the probability simplex and Platt scaling\n"
+            "  only partly undoes it, so the values remain conservative and must be read\n"
+            "  through the table."
+        )
+        honest_name = "calibrated model confidence score"
+        scaling_clause = "The scaling was fitted where"
+    else:
+        confidence_source_sentence = (
+            "Confidence is the **raw** predicted class probability of the refitted multinomial\n"
+            "logistic regression -- `predict_proba`, with no post-hoc scaling. Platt scaling\n"
+            f"(`CalibratedClassifierCV(method='{calibration['method']}')`, fitted on labelled data only inside\n"
+            "the same grouped splits) **was evaluated and rejected** under the pre-specified\n"
+            f"rule: adopt it only when it cuts the expected calibration error by at least `0.02`\n"
+            f"and costs at most `0.02` macro-F1. It cut the error by `{calibration['expected_calibration_error_improvement']}`, which passes,\n"
+            f"but cost `{abs(calibration['macro_f1_change'])}` macro-F1, which exceeds the budget. The rule was written\n"
+            "before the numbers were read and was not relaxed to admit it. The table below\n"
+            f"and every confidence figure in this report are therefore the **{deployed['variant']}** variant,\n"
+            f"the one that scored the cohort; deployed rows carry `confidence_type = {deployed['confidence_type']}`."
+        )
+        residual_mechanism_sentence = (
+            "First, the miscalibration above, which is not corrected: reweighting eleven\n"
+            "  classes with `class_weight='balanced'` flattens the probability simplex, and no\n"
+            "  post-hoc scaling was applied, so the values are conservative by a wide margin\n"
+            "  and must be read through the table rather than at face value."
+        )
+        honest_name = "uncalibrated model confidence score"
+        scaling_clause = "The classifier was fitted where"
+
+    lowest_bin = reliability.iloc[0]
+    highest_bin = reliability.iloc[-1]
+    empty_cutoffs = deployed["cutoffs_with_no_predictions"]
+    reachable_cutoff = deployed["highest_reachable_cutoff"]
+    counts = deployed["counts_at_or_above"]
+    if empty_cutoffs:
+        cutoff_ceiling_sentence = (
+            f"The highest {deployed['variant']} confidence in the deployed predictions is "
+            f"`{deployed['max_confidence']:.4f}`, so cutoffs at "
+            + ", ".join(f"`{value:g}`" for value in empty_cutoffs)
+            + " retain nothing and are not usable."
+        )
+    else:
+        cutoff_ceiling_sentence = (
+            f"The highest {deployed['variant']} confidence in the deployed predictions is "
+            f"`{deployed['max_confidence']:.4f}`; every cutoff in the published sweep still "
+            f"retains episodes, down to `{counts[f'{reachable_cutoff:g}']:,}` at `{reachable_cutoff:g}`."
+        )
 
     text = f"""# Technology Taxonomy Classification
 
@@ -1218,7 +1312,11 @@ repair, Unicode NFC, lowercasing, whitespace collapse. **Accents are preserved**
 and no stemming is applied, because the classes are distinguished by words like
 `cybersécurité`, `logiciel métier` and `intelligence artificielle`, and
 flattening French orthography discards the evidence. Features are TF-IDF word
-unigrams and bigrams, so phrases stay addressable.
+n-grams. Both unigrams and unigrams-plus-bigrams are offered to the grouped inner
+cross-validation so phrases stay addressable if they earn it; the **search space**
+includes bigrams and the **selected representation** is
+`{config['vectoriser']['ngram_range'][0]}-{config['vectoriser']['ngram_range'][1]}` -- every fold chose unigrams alone, because with 500 short
+documents the bigram vocabulary is too sparse to pay for itself.
 
 The vectoriser lives inside a scikit-learn `Pipeline` and is fitted within each
 training fold. No held-out document contributes to its own features.
@@ -1447,7 +1545,7 @@ training in full, which costs test observations and cannot flatter the result.
 
 The gate was written before the classical results were read: a transformer is
 tested only if the frozen classical model is materially inadequate (macro-F1
-below `0.55`) **and** fewer than half of its errors come from label ambiguity or
+below `{payload['gate']['macro_f1_floor']}`) **and** fewer than half of its errors come from label ambiguity or
 missing information, which no encoder can supply.
 
 The selected model reaches `{payload['gate']['selected_model_macro_f1']}`. The first condition fails
@@ -1464,20 +1562,18 @@ deployment. **That refit has no validation score and none is reported.** The
 evidence for this model is the grouped cross-validation and the temporal split
 above.
 
-Confidence is the predicted class probability, Platt-scaled by
-`CalibratedClassifierCV(method='{config['calibration']['method']}')` fitted on labelled data only, inside
-the same grouped splits. Calibration was adopted under a pre-specified rule: it
-reduced the expected calibration error by `{config['calibration']['expected_calibration_error_improvement']}`
-at a macro-F1 cost of `{abs(config['calibration']['macro_f1_change'])}`.
+{confidence_source_sentence}
+
+Out-of-fold reliability of the deployed (`{deployed['variant']}`) confidence score:
 
 {markdown_table(reliability, {'bin': 'Stated confidence', 'n': 'n', 'observed_accuracy': 'Observed accuracy', 'mean_confidence': 'Mean stated', 'calibration_gap': 'Gap'}, '---,---:,---:,---:,---:')}
 
 ### Result 5 -- confidence ranks well but remains conservative
 
-* **Observation.** Observed accuracy rises monotonically with stated confidence,
-  from `0.27` in the lowest bin to `1.00` in the highest. But the gap is positive
-  in every bin above `0.3`: a stated `0.45` is worth about `0.65` in practice.
-  Expected calibration error after scaling is `{config['calibration']['variants']['calibrated']['expected_calibration_error']}`.
+* **Observation.** Observed accuracy rises with stated confidence, from
+  `{lowest_bin['observed_accuracy']}` in the `{lowest_bin['bin']}` bin to `{highest_bin['observed_accuracy']}` in the `{highest_bin['bin']}` bin. But the gap is
+  positive in every bin above `0.3`: the score understates its own hit rate.
+  Expected calibration error of the deployed variant is `{deployed['expected_calibration_error']}`.
 * **Confidence.** High for the ranking, high for the direction of the residual
   miscalibration; it is measured out of fold on `{audit['rows']}` notices.
 * **What can be concluded.** The score is a usable ordering and a usable filter.
@@ -1487,28 +1583,24 @@ at a macro-F1 cost of `{abs(config['calibration']['macro_f1_change'])}`.
 * **What cannot be concluded.** That a stated confidence is the probability the
   deployment label is correct. Two separate reasons.
 
-  First, the residual miscalibration above: reweighting eleven classes with
-  `class_weight='balanced'` flattens the probability simplex and Platt scaling
-  only partly undoes it, so the values remain conservative and must be read
-  through the table.
+  {residual_mechanism_sentence}
 
   Second, and more fundamental: **the corpus is quota-stratified and the
-  deployment population is not.** The scaling was fitted where `AI` is 1.4% of
+  deployment population is not.** {scaling_clause} `AI` is 1.4% of
   observations by design; in the cohort it is a fraction of a percent. A
-  calibrated score on the reference sample is therefore not a posterior
+  confidence score read off the reference sample is therefore not a posterior
   probability in the deployment population, because the class prior it encodes
   is an artefact of the annotation design. The reliability table describes
   behaviour *on the reference distribution*. No prior correction is applied,
   because the deployment prior is exactly what the classifier is being used to
   estimate and assuming it would make the estimate circular.
 
-  The honest name for the published value is a **calibrated model confidence
-  score**, useful for ranking and for selecting an operational subset, not a
+  The honest name for the published value is an **{honest_name}**,
+  useful for ranking and for selecting an operational subset, not a
   population probability.
 * **Operational note.** `{confidence['operational_cutoff']}` is a reporting convention, not a truth
   boundary, and it is unrelated to the `0.70` linkage acceptance threshold, which
-  scores an entirely different quantity. No calibrated prediction reaches `0.90`,
-  so cutoffs above `0.80` are not usable.
+  scores an entirely different quantity. {cutoff_ceiling_sentence}
 
 ## 13. Propagation To The Study Cohort
 
@@ -1605,7 +1697,16 @@ question.
 
 One slope per analysed class is one hypothesis test per analysed class, so raw
 p-values are reported beside Holm (family-wise) and Benjamini-Hochberg (false
-discovery rate) adjustments.
+discovery rate) adjustments. `TREND_ANALYSIS_REPORT.md` applies the same
+correction to its own family of CPV segment slopes, using the same
+implementation.
+
+The two panels are one quarter apart by design and the difference is not an
+error: this series is built directly from the award quarters of the cohort and
+spans `{int(payload['trend_summary'][0]['quarters'])}` quarters from 2015Q1, whereas the CPV series drops the partial
+2015Q1 -- the first BOAMP extract begins in March 2015 -- and spans one fewer.
+Nothing is compared across the two panels at quarter granularity, so the offset
+has no consequence beyond the count printed in each table.
 
 {payload['trend_narrative']}
 
@@ -1651,7 +1752,9 @@ still a series.
 3. **`AI` cannot be evaluated.** Seven annotated notices, `{[r['n'] for r in composition_table if r['technology'] == 'AI'][0]}` predicted cohort
    episodes, `{[r['events'] for r in survival_support_table if r['technology'] == 'AI'][0]}` observed successor event. Nothing about AI procurement is
    established here beyond its rarity in this corpus over 2015-2025.
-4. **Confidence is conservative, not calibrated.** See section 12.
+4. **The deployed confidence score is the `{deployed['variant']}` variant and is conservative.**
+   {'Platt scaling was adopted and the values below the diagonal remain' if deployed['adopted'] else 'Platt scaling was evaluated and rejected by the pre-specified rule, so no post-hoc correction is'}
+   applied. See section 12.
 5. **Fallback classes absorb ambiguity.** `OTHER_DIGITAL` carries
    `{[r['n'] for r in composition_table if r['technology'] == 'OTHER_DIGITAL'][0]:,}` predicted episodes and is definitionally heterogeneous.
 6. **No inter-annotator agreement statistic exists.** The corpus was delivered
@@ -1896,6 +1999,7 @@ def build_evidence(force: bool = True) -> dict[str, Any]:
 
     per_class = pd.read_csv(TECHNOLOGY / "per_class_metrics.csv")
     per_class = per_class.loc[per_class["model"] == decision["selected_model"]]
+    cutoff_sweep = pd.read_csv(TECHNOLOGY / "confidence_cutoff_sweep.csv")
     payload = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "audit": audit,
@@ -1915,6 +2019,8 @@ def build_evidence(force: bool = True) -> dict[str, Any]:
         "coverage_year": coverage_year,
         "coverage_class": coverage_class,
         "reliability": pd.read_csv(TECHNOLOGY / "confidence_reliability_oof.csv"),
+        "cutoff_sweep": cutoff_sweep,
+        "deployed_confidence": deployed_confidence_facts(predictions, config, cutoff_sweep),
         "error_triage": decision["error_triage_counts"],
         "gate": decision["camembert_gate"],
         "annotated_in_cohort": annotated_in_cohort,
@@ -1951,6 +2057,10 @@ def build_evidence(force: bool = True) -> dict[str, Any]:
             for row in composition_table.to_dict("records")
         },
         "high_confidence_share": round(payload["high_confidence_share"], 4),
+        # Machine-readable statement of which confidence column shipped, so the
+        # report, the notebook, the config, the log and the deployment CSV can
+        # be checked against one artifact rather than against each other's prose.
+        "deployed_confidence": payload["deployed_confidence"],
         "crosswalk": cross_summary,
         "survival": {
             "gate": {"min_episodes": SURVIVAL_MIN_EPISODES, "min_events": SURVIVAL_MIN_EVENTS},

@@ -1,6 +1,6 @@
 # Survival Analysis Report
 
-Generated: `2026-08-16T16:28:48`  
+Generated: `2026-08-20T11:54:58`  
 Event: **accepted observable successor procurement**, not certified legal renewal.
 
 ## Cohort And Event Definition
@@ -87,6 +87,14 @@ events, and gives:
 The direction of both headline hazard ratios is unchanged, so the comparative findings the project actually claims do not rest on borderline linkage decisions. The absolute KM level does move, which is the expected mechanical consequence of removing borderline events and is consistent with the four-arm linkage sensitivity: absolute probabilities remain threshold-uncertain and are not quoted alone. The band is a fixed `±0.05` around the frozen threshold; it was not
 searched over, and the excluded episodes are removed rather than relabelled.
 
+One coincidence to head off, because the same number appears twice in this project
+with two unrelated meanings: `280` anchors fall in the borderline band, and
+`280` anchors generated no candidate at all. These are different sets and
+different questions. Every anchor removed here had a candidate and a best score
+inside the band; anchors with no candidate are not near any threshold, since their
+event status is decided by blocking rather than by the acceptance bar, and they stay
+in the analysis as censored exposure.
+
 ## Template-Risk Robustness
 
 The threshold arms and the borderline band both move where the acceptance bar
@@ -139,18 +147,80 @@ certified renewal. Segment-level curves are in `survival_segment_summary.csv`.
 
 ## Detectability And Censoring Diagnostic
 
-Linked and censored observations differ most on these standardized comparisons:
+Linked and censored observations differ on these standardized comparisons:
 
-- `text_length_chars`: SMD `0.262`.
-- `framework_flag`: SMD `0.187`.
-- `administrative_followup_months`: SMD `0.146`.
-- `award_year`: SMD `-0.137`.
+| Variable | Linked mean | Censored mean | SMD |
+|---|---:|---:|---:|
+| `log_candidate_pool_size` | 4.787 | 3.972 | +0.470 |
+| `candidate_pool_size` | 274.3 | 188.6 | +0.285 |
+| `text_length_chars` | 1611 | 1087 | +0.262 |
+| `framework_flag` | 0.2647 | 0.1867 | +0.187 |
+| `administrative_followup_months` | 70.65 | 65.38 | +0.146 |
+| `award_year` | 2020 | 2020 | -0.137 |
+| `has_validated_siren` | 0.3107 | 0.3409 | -0.065 |
+| `notice_count` | 1.978 | 2.045 | -0.058 |
+| `has_reliable_duration` | 0.2445 | 0.2518 | -0.017 |
 
 These differences indicate differential observed-event detection and unequal
 follow-up; they do not prove causal linkage bias. In particular, recent contracts
 cannot yet show long successor gaps. Administrative censoring and missed successors
 from imperfect linkage remain conceptually distinct but cannot be fully separated
 with BOAMP alone.
+
+### Candidate-pool size is the largest imbalance
+
+The largest of these is not a property of the contract at all. `M_B_text_ranking`
+accepts the maximum text score over an anchor's candidate block, and the maximum of
+more draws is larger, so an anchor whose buyer publishes prolifically is
+mechanically more likely to yield an accepted link than an otherwise identical
+anchor whose buyer publishes rarely. On the log scale the linked-versus-censored
+standardized difference is
+`+0.470`,
+above every contract-level variable above it in the table.
+
+This is a detectability channel, not a cause of re-procurement, so the response is
+one **sensitivity** model rather than a change to the reported specification. The
+main Cox model is unchanged. Adding `log(1 + candidate pool size)` to it gives:
+
+| Covariate | HR, main model | HR, + log(candidate pool) | p, adjusted |
+|---|---:|---:|---:|
+| `framework_flag` | 1.751 | 1.617 | 2.6e-06 |
+| `has_validated_siren` | 1.082 | 0.983 | 0.87 |
+| `award_year_centered` | 1.107 | 1.145 | 4.1e-11 |
+| `digital_segment_CPV-35` | 1.553 | 1.512 | 0.00085 |
+| `digital_segment_CPV-48` | 0.828 | 0.769 | 0.048 |
+| `digital_segment_CPV-72` | 1.056 | 0.977 | 0.83 |
+| `buyer_region_Normandie` | 0.800 | 0.796 | 0.046 |
+| `buyer_region_Pays de la Loire` | 1.003 | 0.975 | 0.81 |
+| `log_candidate_pool_size` | -- | 1.184 | 6e-09 |
+
+The added term is itself strongly associated with an observed event
+(HR `1.1837`, p `6e-09`), which is what a detectability
+channel looks like.
+
+Two readings follow, and they differ:
+
+- **CPV-35 is largely insensitive to it.** The hazard ratio moves from
+  `1.553` to
+  `1.512`
+  (p `0.00085`). Together with its
+  stability across the four linkage arms, the borderline band, and template-risk
+  re-censoring, the CPV-35 result is the most robust comparative finding here and
+  can be stated as such.
+- **The framework association is partly detectability.** Its hazard ratio
+  attenuates from `1.751` to
+  `1.617`
+  (p `2.6e-06`), roughly
+  `14%`
+  of the log hazard ratio. The direction survives every check the study runs, but
+  buyers who use framework agreements also publish more, and publishing more raises
+  the chance that a max-over-block text score clears `0.70`. The association is real
+  and smaller than the main model alone implies; template boilerplate is not the
+  only alternative explanation, and differential detectability is the other.
+
+Neither statement is causal. Candidate-pool size is a description of a buyer's
+publication volume, and this model adjusts for it to separate observability from
+behaviour -- it does not identify an effect of either.
 
 ## Linkage Sensitivity
 

@@ -5,7 +5,7 @@
     "surface": "report",
     "title": "BOAMP Project: Current Methodological Readiness",
     "description": "Evidence-backed status of data quality, linkage, survival, trends, limitations, and next actions.",
-    "generatedAt": "2026-08-19T21:15:46",
+    "generatedAt": "2026-08-20T11:55:08",
     "cards": [
       {
         "id": "cohort-card",
@@ -405,7 +405,7 @@
         "id": "trend-finding",
         "type": "markdown",
         "sourceId": "trend",
-        "body": "## Trend Evidence\n\nQuarterly episode counts are descriptive. The latest 12-quarter overall slope is stable or uncertain; CPV-48 is the only current segment with a decreasing exploratory signal. PELT breakpoints identify candidate structural changes, not causes. Awarded-amount trends are omitted because no canonical episode-level amount has been validated."
+        "body": "## Trend Evidence\n\nQuarterly episode counts are descriptive. The latest 12-quarter overall slope is stable or uncertain. CPV-48 carries a nominal directional signal that does **not** survive correction for the 5 segment series tested simultaneously, so it is a monitoring prompt rather than a finding. PELT breakpoints identify candidate structural changes, not causes. Awarded-amount trends are omitted because no canonical episode-level amount has been validated."
       },
       {
         "id": "trend",
@@ -441,7 +441,7 @@
   },
   "snapshot": {
     "version": 1,
-    "generatedAt": "2026-08-19T21:15:46",
+    "generatedAt": "2026-08-20T11:55:08",
     "status": "ready",
     "datasets": {
       "headline": [
@@ -455,7 +455,7 @@
       "methods": [
         {
           "method": "M_A_deterministic",
-          "threshold": 0.7,
+          "threshold": NaN,
           "accepted_links": 15,
           "precision": 0.5333,
           "recall": 0.4444,
@@ -910,8 +910,8 @@
         {
           "component": "Guide technology classifier",
           "status": "Implemented, single-annotator corpus",
-          "evidence": "500 annotated notices, 11 classes; group-aware out-of-fold macro-F1 0.744 (95% family-bootstrap CI 0.682-0.791) against 0.473 for a CPV/descriptor benchmark on identical folds, paired difference 0.271 (0.201-0.340); deployed to every cohort episode (TECHNOLOGY_TAXONOMY_REPORT.md)",
-          "remaining_gap": "No inter-annotator agreement statistic; AI has 7 labelled notices and cannot be evaluated; confidence remains conservative after scaling and encodes the quota class prior, so the 0.70 cutoff retains only 6.2% of episodes",
+          "evidence": "500 annotated notices, 11 classes; group-aware out-of-fold macro-F1 0.744 (95% family-bootstrap CI 0.682-0.790) against 0.473 for a CPV/descriptor benchmark on identical folds, paired difference 0.271 (0.201-0.340); deployed to all 3,800 cohort episodes (TECHNOLOGY_TAXONOMY_REPORT.md)",
+          "remaining_gap": "No inter-annotator agreement statistic; AI has 7 labelled notices and cannot be evaluated; the deployed confidence is the raw class score -- Platt scaling was evaluated and rejected by the pre-specified rule -- so it stays conservative and encodes the quota class prior, and the 0.7 cutoff retains only 6.2% of episodes",
           "priority": 5
         }
       ]

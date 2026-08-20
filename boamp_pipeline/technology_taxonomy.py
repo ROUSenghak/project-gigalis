@@ -34,9 +34,12 @@ them to share one helper:
    mojibake, and collapses whitespace.
 
 2. Linkage uses a character analyser to survive typos across two documents.
-   Classification uses word unigrams and bigrams, because the evidence for a
-   class is phrasal -- "intelligence artificielle", "logiciel métier",
-   "business intelligence" -- and bigrams keep those phrases addressable.
+   Classification searches word unigrams and unigrams-plus-bigrams, because the
+   evidence for a class can be phrasal -- "intelligence artificielle", "logiciel
+   métier", "business intelligence" -- and bigrams keep those phrases
+   addressable if the inner cross-validation finds they help. On this corpus
+   every fold selected unigrams alone; the bigram option is part of the search
+   space, not of the deployed model.
 """
 
 from __future__ import annotations

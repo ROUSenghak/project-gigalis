@@ -83,6 +83,23 @@ def standardized_mean_difference(event: pd.Series, censored: pd.Series) -> float
     return float((event.mean() - censored.mean()) / denominator)
 
 
+def candidate_pool_sizes() -> pd.Series:
+    """Exposed candidates per anchor -- the block size the linkage rule searches.
+
+    ``M_B_text_ranking`` accepts the maximum text score over an anchor's block,
+    and the maximum of more draws is larger. An anchor whose buyer publishes
+    prolifically is therefore mechanically more likely to produce an accepted
+    link than an otherwise identical anchor whose buyer publishes rarely, quite
+    apart from whether either was actually re-procured. That makes block size a
+    detectability variable, and it belongs in the selection diagnostic beside
+    the ones already published.
+    """
+    pairs = pd.read_parquet(
+        PROCESSED / "linkage_candidates_scored.parquet", columns=["anchor_episode_id"]
+    )
+    return pairs.groupby("anchor_episode_id").size()
+
+
 def prepare(frame: pd.DataFrame) -> pd.DataFrame:
     frame = frame.copy()
     frame["t_months"] = np.maximum(frame["duration_days"], 1) / MONTH_DAYS
@@ -90,6 +107,14 @@ def prepare(frame: pd.DataFrame) -> pd.DataFrame:
     frame["administrative_followup_months"] = frame["days_to_cutoff"] / MONTH_DAYS
     frame["has_reliable_duration"] = frame["duration_months_reliable"].notna()
     frame["has_validated_siren"] = frame["buyer_identifier_quality"].eq("trusted_siren")
+    pool = candidate_pool_sizes()
+    # Anchors with no exposed candidate get 0, not NaN: no candidates is a real
+    # and consequential state -- those anchors cannot produce an event at all --
+    # and dropping them from the diagnostic would remove the clearest cases.
+    frame["candidate_pool_size"] = (
+        frame["episode_id"].map(pool).fillna(0).astype(int)
+    )
+    frame["log_candidate_pool_size"] = np.log1p(frame["candidate_pool_size"])
     return frame
 
 
@@ -186,6 +211,7 @@ def selection_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     for column in (
         "award_year", "notice_count", "text_length_chars",
         "administrative_followup_months",
+        "candidate_pool_size", "log_candidate_pool_size",
     ):
         smd = standardized_mean_difference(linked[column], censored[column])
         continuous.append({
@@ -284,6 +310,70 @@ def cox_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict[s
         "interpretation": "descriptive time-averaged associations; not a validated individual prediction model",
     }
     return results, ph_results, diagnostics
+
+
+def detectability_cox_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """One sensitivity Cox model: the main specification plus log candidate pool.
+
+    This is a **sensitivity model, not the headline model**. The main Cox
+    specification is unchanged and stays the reported one. The question here is
+    narrow: how much of each association survives holding constant how many
+    candidates the linkage rule had to search for that anchor?
+
+    Candidate pool size is not treated as a cause of anything. It is a property
+    of how prolifically a buyer publishes, which is a channel through which an
+    event becomes *observable*, and adjusting for it separates "this contract
+    type is re-procured sooner" from "this contract type belongs to buyers whose
+    successors are easier to find".
+    """
+    design = cox_design(frame)
+    main = CoxPHFitter().fit(design, duration_col="t_months", event_col="event")
+    adjusted_design = design.copy()
+    adjusted_design["log_candidate_pool_size"] = frame["log_candidate_pool_size"].to_numpy()
+    adjusted = CoxPHFitter().fit(
+        adjusted_design, duration_col="t_months", event_col="event"
+    )
+
+    rows: list[dict[str, Any]] = []
+    for covariate, row in adjusted.summary.iterrows():
+        in_main = covariate in main.summary.index
+        rows.append({
+            "covariate": covariate,
+            "hazard_ratio_main": (
+                float(main.summary.loc[covariate, "exp(coef)"]) if in_main else None
+            ),
+            "p_value_main": float(main.summary.loc[covariate, "p"]) if in_main else None,
+            "hazard_ratio_pool_adjusted": float(row["exp(coef)"]),
+            "ci_95_low_pool_adjusted": float(row["exp(coef) lower 95%"]),
+            "ci_95_high_pool_adjusted": float(row["exp(coef) upper 95%"]),
+            "p_value_pool_adjusted": float(row["p"]),
+            "log_hazard_ratio_attenuation": (
+                round(
+                    float(
+                        np.log(main.summary.loc[covariate, "exp(coef)"])
+                        - np.log(row["exp(coef)"])
+                    ),
+                    4,
+                )
+                if in_main
+                else None
+            ),
+        })
+    table = pd.DataFrame(rows)
+    pool = adjusted.summary.loc["log_candidate_pool_size"]
+    diagnostics = {
+        "role": "sensitivity only; the main Cox model is unchanged and remains the reported one",
+        "added_covariate": "log_candidate_pool_size = log(1 + exposed candidates for the anchor)",
+        "pool_hazard_ratio": round(float(pool["exp(coef)"]), 4),
+        "pool_p_value": float(pool["p"]),
+        "interpretation": (
+            "Candidate pool size is a detectability variable, not a cause. A larger "
+            "block gives the max-over-block text score more draws to clear 0.70, so "
+            "part of any association with a buyer-level publishing habit is "
+            "observability rather than re-procurement behaviour."
+        ),
+    }
+    return table, diagnostics
 
 
 def sensitivity_outputs() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -647,6 +737,7 @@ def write_report(
     cox: pd.DataFrame,
     selection: pd.DataFrame,
     conditional: pd.DataFrame,
+    detectability_cox: pd.DataFrame,
 ) -> None:
     temporal = summary["cox"]["temporal_validation"]
     extended = summary["cox"]["temporal_validation_including_latest_cohort"]
@@ -674,11 +765,29 @@ def write_report(
             for age in wide.index
         ],
     ])
-    important_smd = selection.sort_values("absolute_smd", ascending=False).head(4)
-    smd_lines = "\n".join(
-        f"- `{row.variable}`: SMD `{row.standardized_mean_difference:.3f}`."
-        for row in important_smd.itertuples()
-    )
+    important_smd = selection.sort_values("absolute_smd", ascending=False)
+    smd_lines = "\n".join([
+        "| Variable | Linked mean | Censored mean | SMD |",
+        "|---|---:|---:|---:|",
+        *[
+            f"| `{row.variable}` | {row.linked_mean:.4g} | {row.censored_mean:.4g} "
+            f"| {row.standardized_mean_difference:+.3f} |"
+            for row in important_smd.itertuples()
+        ],
+    ])
+    pool_cox = detectability_cox.set_index("covariate")
+    detectability = summary["detectability_cox"]
+    pool_lines = "\n".join([
+        "| Covariate | HR, main model | HR, + log(candidate pool) | p, adjusted |",
+        "|---|---:|---:|---:|",
+        *[
+            f"| `{row.Index}` "
+            f"| {'--' if pd.isna(row.hazard_ratio_main) else f'{row.hazard_ratio_main:.3f}'} "
+            f"| {row.hazard_ratio_pool_adjusted:.3f} "
+            f"| {row.p_value_pool_adjusted:.2g} |"
+            for row in pool_cox.itertuples()
+        ],
+    ])
     hr = cox.set_index("covariate")
     text = f"""# Survival Analysis Report
 
@@ -769,6 +878,14 @@ events, and gives:
 {border_verdict} The band is a fixed `±0.05` around the frozen threshold; it was not
 searched over, and the excluded episodes are removed rather than relabelled.
 
+One coincidence to head off, because the same number appears twice in this project
+with two unrelated meanings: `{border['contracts_removed']:,}` anchors fall in the borderline band, and
+`{summary['cohort']['contracts'] - summary['candidate_coverage']['anchors_with_candidates']:,}` anchors generated no candidate at all. These are different sets and
+different questions. Every anchor removed here had a candidate and a best score
+inside the band; anchors with no candidate are not near any threshold, since their
+event status is decided by blocking rather than by the acceptance bar, and they stay
+in the analysis as censored exposure.
+
 ## Template-Risk Robustness
 
 The threshold arms and the borderline band both move where the acceptance bar
@@ -815,7 +932,7 @@ certified renewal. Segment-level curves are in `survival_segment_summary.csv`.
 
 ## Detectability And Censoring Diagnostic
 
-Linked and censored observations differ most on these standardized comparisons:
+Linked and censored observations differ on these standardized comparisons:
 
 {smd_lines}
 
@@ -824,6 +941,51 @@ follow-up; they do not prove causal linkage bias. In particular, recent contract
 cannot yet show long successor gaps. Administrative censoring and missed successors
 from imperfect linkage remain conceptually distinct but cannot be fully separated
 with BOAMP alone.
+
+### Candidate-pool size is the largest imbalance
+
+The largest of these is not a property of the contract at all. `M_B_text_ranking`
+accepts the maximum text score over an anchor's candidate block, and the maximum of
+more draws is larger, so an anchor whose buyer publishes prolifically is
+mechanically more likely to yield an accepted link than an otherwise identical
+anchor whose buyer publishes rarely. On the log scale the linked-versus-censored
+standardized difference is
+`{selection.set_index('variable').loc['log_candidate_pool_size', 'standardized_mean_difference']:+.3f}`,
+above every contract-level variable above it in the table.
+
+This is a detectability channel, not a cause of re-procurement, so the response is
+one **sensitivity** model rather than a change to the reported specification. The
+main Cox model is unchanged. Adding `log(1 + candidate pool size)` to it gives:
+
+{pool_lines}
+
+The added term is itself strongly associated with an observed event
+(HR `{detectability['pool_hazard_ratio']}`, p `{detectability['pool_p_value']:.2g}`), which is what a detectability
+channel looks like.
+
+Two readings follow, and they differ:
+
+- **CPV-35 is largely insensitive to it.** The hazard ratio moves from
+  `{pool_cox.loc['digital_segment_CPV-35', 'hazard_ratio_main']:.3f}` to
+  `{pool_cox.loc['digital_segment_CPV-35', 'hazard_ratio_pool_adjusted']:.3f}`
+  (p `{pool_cox.loc['digital_segment_CPV-35', 'p_value_pool_adjusted']:.2g}`). Together with its
+  stability across the four linkage arms, the borderline band, and template-risk
+  re-censoring, the CPV-35 result is the most robust comparative finding here and
+  can be stated as such.
+- **The framework association is partly detectability.** Its hazard ratio
+  attenuates from `{pool_cox.loc['framework_flag', 'hazard_ratio_main']:.3f}` to
+  `{pool_cox.loc['framework_flag', 'hazard_ratio_pool_adjusted']:.3f}`
+  (p `{pool_cox.loc['framework_flag', 'p_value_pool_adjusted']:.2g}`), roughly
+  `{100 * pool_cox.loc['framework_flag', 'log_hazard_ratio_attenuation'] / np.log(pool_cox.loc['framework_flag', 'hazard_ratio_main']):.0f}%`
+  of the log hazard ratio. The direction survives every check the study runs, but
+  buyers who use framework agreements also publish more, and publishing more raises
+  the chance that a max-over-block text score clears `0.70`. The association is real
+  and smaller than the main model alone implies; template boilerplate is not the
+  only alternative explanation, and differential detectability is the other.
+
+Neither statement is causal. Candidate-pool size is a description of a buyer's
+publication volume, and this model adjusts for it to separate observability from
+behaviour -- it does not identify an effect of either.
 
 ## Linkage Sensitivity
 
@@ -857,6 +1019,7 @@ def main() -> int:
     conditional = conditional_outputs(km, frame)
     selection, selection_categories = selection_outputs(frame)
     cox, ph, cox_diagnostics = cox_outputs(frame)
+    detectability_cox, detectability_diagnostics = detectability_cox_outputs(frame)
     sensitivity, cox_sensitivity = sensitivity_outputs()
     borderline, borderline_summary = borderline_outputs(frame)
     template_risk, template_risk_summary = template_risk_outputs(frame)
@@ -872,6 +1035,7 @@ def main() -> int:
         "survival_ph_diagnostics.csv": ph,
         "survival_linkage_sensitivity.csv": sensitivity,
         "survival_cox_linkage_sensitivity.csv": cox_sensitivity,
+        "survival_cox_detectability_sensitivity.csv": detectability_cox,
         "survival_borderline_link_sensitivity.csv": borderline,
         "survival_template_risk_sensitivity.csv": template_risk,
         "survival_parametric_comparison.csv": parametric,
@@ -902,8 +1066,18 @@ def main() -> int:
             "median_months": round_or_none(km.median_survival_time_, 2),
             "median_status": "not_reached" if not np.isfinite(km.median_survival_time_) else "reached",
         },
+        "candidate_coverage": {
+            "anchors": len(frame),
+            "anchors_with_candidates": int((frame["candidate_pool_size"] > 0).sum()),
+            "anchors_without_candidates": int((frame["candidate_pool_size"] == 0).sum()),
+            "candidate_pairs": int(frame["candidate_pool_size"].sum()),
+            "median_pool_size_among_anchors_with_candidates": int(
+                frame.loc[frame["candidate_pool_size"] > 0, "candidate_pool_size"].median()
+            ),
+        },
         "logrank": logrank,
         "cox": cox_diagnostics,
+        "detectability_cox": detectability_diagnostics,
         "parametric": {
             "selected_model": selected_model,
             "selection_basis": "minimum AIC and BIC, checked against empirical KM",
@@ -943,7 +1117,7 @@ def main() -> int:
         json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
-    write_report(summary, cox, selection, conditional)
+    write_report(summary, cox, selection, conditional, detectability_cox)
     if not summary["validation_passed"]:
         raise RuntimeError("survival evidence validation failed")
     print(json.dumps(summary, ensure_ascii=False, indent=2, default=str))

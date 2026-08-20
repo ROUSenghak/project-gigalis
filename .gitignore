@@ -6,8 +6,12 @@ logs/
 __pycache__/
 *.py[cod]
 .ipynb_checkpoints/
-scratchpad/
 .DS_Store
+
+# Retired working material kept on disk for provenance, out of version control
+# because it is superseded and large. See its README for what it was.
+archive/retired_national_benchmark_reannotation/assignments_A/
+archive/retired_national_benchmark_reannotation/submissions_A/
 
 # LaTeX build intermediates
 *.aux
@@ -16,3 +20,4 @@ scratchpad/
 *.out
 *.toc
 *.synctex.gz
+reports/*.log

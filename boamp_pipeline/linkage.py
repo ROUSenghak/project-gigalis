@@ -71,8 +71,11 @@ BUYER_SCORE_MAP: Mapping[str, float] = {
     "none": 0.0,
 }
 
-#: Weights ported from the ``buyer_precision_v1`` configuration frozen in
-#: ``data/processed/boamp_grand_ouest/high_precision_linkage_config.json``.
+#: Weights ported from the ``buyer_precision_v1`` configuration frozen during the
+#: retired high-precision linkage iteration; that processed tree no longer exists
+#: and the weights now live here, in code, as the single source. The current
+#: applied configuration is written to
+#: ``data/processed/boamp/linkage_config.json`` by ``scripts/evaluate_linkage.py``.
 #: The geography weight (0.05) is redistributed onto CPV, which is the
 #: component it was competing with for the same "functional continuity" role.
 DEFAULT_WEIGHTS: Mapping[str, float] = {

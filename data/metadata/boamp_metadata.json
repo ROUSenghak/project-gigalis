@@ -1,5 +1,5 @@
 {
-  "retrieved_at": "2026-08-07",
+  "retrieved_at": "2026-08-20",
   "base_url": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1",
   "dataset_id": "boamp",
   "dataset": {
@@ -380,8 +380,8 @@
         "modified": "2025-08-25T07:18:41+00:00",
         "modified_updates_on_metadata_change": false,
         "modified_updates_on_data_change": false,
-        "data_processed": "2026-08-06T23:11:37.059000+00:00",
-        "metadata_processed": "2026-08-07T01:20:00.074000+00:00",
+        "data_processed": "2026-08-19T23:11:32.501000+00:00",
+        "metadata_processed": "2026-08-20T01:20:00.055000+00:00",
         "geographic_reference": [
           "world_fr"
         ],
@@ -393,7 +393,7 @@
         "bbox": null,
         "publisher": null,
         "references": null,
-        "records_count": 1695879,
+        "records_count": 1698876,
         "attributions": null,
         "source_domain": null,
         "source_domain_title": null,

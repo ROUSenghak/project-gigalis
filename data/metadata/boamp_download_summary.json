@@ -2,7 +2,7 @@
   "dataset_id": "boamp",
   "source_api": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1",
   "endpoint": "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp/exports/jsonl",
-  "retrieved_at": "2026-08-07",
+  "retrieved_at": "2026-08-20",
   "period": {
     "start": "2015-01-01",
     "end_exclusive": "2026-01-01"
@@ -34,8 +34,8 @@
       "max_dateparution": "2015-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1266240135,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2015.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2015",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2015.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2015",
       "validation_passed": true
     },
     "2016": {
@@ -52,8 +52,8 @@
       "max_dateparution": "2016-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1385088989,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2016.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2016",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2016.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2016",
       "validation_passed": true
     },
     "2017": {
@@ -70,8 +70,8 @@
       "max_dateparution": "2017-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1416652763,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2017.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2017",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2017.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2017",
       "validation_passed": true
     },
     "2018": {
@@ -88,8 +88,8 @@
       "max_dateparution": "2018-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1411828764,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2018.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2018",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2018.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2018",
       "validation_passed": true
     },
     "2019": {
@@ -106,8 +106,8 @@
       "max_dateparution": "2019-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1399030885,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2019.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2019",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2019.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2019",
       "validation_passed": true
     },
     "2020": {
@@ -124,8 +124,8 @@
       "max_dateparution": "2020-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1177780514,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2020.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2020",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2020.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2020",
       "validation_passed": true
     },
     "2021": {
@@ -142,8 +142,8 @@
       "max_dateparution": "2021-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1303562164,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2021.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2021",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2021.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2021",
       "validation_passed": true
     },
     "2022": {
@@ -160,8 +160,8 @@
       "max_dateparution": "2022-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1164055823,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2022.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2022",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2022.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2022",
       "validation_passed": true
     },
     "2023": {
@@ -178,8 +178,8 @@
       "max_dateparution": "2023-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 1205329191,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2023.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2023",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2023.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2023",
       "validation_passed": true
     },
     "2024": {
@@ -196,8 +196,8 @@
       "max_dateparution": "2024-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 2349426258,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2024.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2024",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2024.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2024",
       "validation_passed": true
     },
     "2025": {
@@ -214,8 +214,8 @@
       "max_dateparution": "2025-12-31",
       "outside_expected_range": 0,
       "file_size_bytes": 2547493576,
-      "file": "/home/senghakrou/project-gigalis/data/raw/boamp/boamp_2025.jsonl",
-      "completed_marker": "/home/senghakrou/project-gigalis/data/raw/boamp/.completed_2025",
+      "file": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/boamp_2025.jsonl",
+      "completed_marker": "/Users/macbookair/Desktop/project-gigalis/data/raw/boamp/.completed_2025",
       "validation_passed": true
     }
   }
