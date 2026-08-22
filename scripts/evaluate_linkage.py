@@ -29,8 +29,10 @@ Evaluation runs against the Grand Ouest regional reference sample
 review of real BOAMP notices before these methods existed, so unlike the
 retired France-level benchmark it does not score a method against a rule built
 from the method's own evidence. ``dev`` is the reference's own pilot stratum
-and exists for threshold display; ``validation`` is its locked stratum, and the
-operating point below was frozen before either was consulted.
+and ``validation`` is its recorded ``LOCKED_TEST`` stratum. Project history
+shows that evidence from this reference informed the final operating policy, so
+both are internal-validation evidence, not an untouched holdout. The labels
+themselves remain independent of the methods because they predate them.
 
 Without ``--evaluate-split``, the script applies the frozen production policy
 to the complete study cohort.
@@ -74,17 +76,18 @@ FUZZY_BUYER_MIN_SIMILARITY = 0.82
 #: This is a documented judgement, not an automatic selection, and the
 #: reasoning is recorded here because it must survive into the write-up.
 #:
-#: With event volume not binding, the stated a-priori principle governs: a
+#: With event volume not binding, the precision-first principle governs: a
 #: false link fabricates both a survival event and its event time, so precision
 #: and the false-positive rate on no-successor anchors take priority over
 #: coverage. The current computed metrics live in the JSON summaries; this
 #: comment deliberately avoids frozen numeric claims.
 #:
-#: The choice remains a frozen conservative baseline rather than a claim that
-#: 0.70 is universally optimal, and 0.60 is carried as a required sensitivity
-#: arm. The operating point was fixed before the regional reference was
-#: consulted and was not moved afterwards, which is what allows the regional
-#: locked split to be read as held-out rather than as a tuning set.
+#: The choice remains a frozen post-development conservative baseline rather
+#: than a claim that 0.70 is universally optimal, and 0.60 is carried as a
+#: required sensitivity arm. Because reference evidence informed the retained
+#: policy, the recorded locked stratum is internal validation rather than an
+#: untouched holdout. Replacing the policy now requires fresh independent
+#: evidence, not another post-hoc read of the same reference.
 PRIMARY_METHOD = "M_B_text_ranking"
 PRIMARY_THRESHOLD = 70.0
 
@@ -385,10 +388,12 @@ def apply_primary_linkage(output_dir: Path) -> dict[str, Any]:
         "gate_parameters": M_C_DEFAULTS,
         "reference": "regional_grand_ouest",
         "selection_rule": (
-            "Frozen conservative baseline, not an optimal-threshold claim. 0.70 was fixed "
-            "a priori on a precision-first principle - a false link fabricates both a "
-            "survival event and its event time - and was not moved after the regional "
-            "reference was consulted. 0.60 remains a required sensitivity arm."
+            "Frozen post-development conservative baseline, not an optimal-threshold "
+            "claim. 0.70 was retained on a precision-first principle - a false link "
+            "fabricates both a survival event and its event time - after inspection of "
+            "regional reference evidence. The reported split evaluation is therefore "
+            "internal validation, not an untouched holdout. 0.60 remains a required "
+            "sensitivity arm."
         ),
     }
     (output_dir / "linkage_config.json").write_text(

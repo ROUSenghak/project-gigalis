@@ -426,6 +426,21 @@ def test_simultaneous_trend_tests_are_multiplicity_adjusted() -> None:
         assert "does not survive" in row.direction, row.technology
 
 
+def test_technology_trends_share_the_canonical_window_and_recent_slope() -> None:
+    quarterly = pd.read_csv(TECHNOLOGY / "technology_quarterly_counts.csv")
+    trend = pd.read_csv(TECHNOLOGY / "technology_trend_summary.csv")
+
+    assert quarterly["quarter"].iloc[0] == "2015Q2"
+    assert quarterly["quarter"].iloc[-1] == "2025Q4"
+    assert len(quarterly) == 43
+    assert (trend["observation_window_quarters"] == 43).all()
+    assert (trend["quarters"] == 12).all()
+
+    protocol = Path("PROJECT_WORK_PROTOCOL.md").read_text(encoding="utf-8")
+    assert "technology series of §3.9 is fitted on `44` quarters" not in protocol
+    assert "same `43`-quarter observation" in protocol
+
+
 def test_the_confidence_threshold_trend_sensitivity_was_actually_run() -> None:
     sensitivity = pd.read_csv(TECHNOLOGY / "technology_trend_confidence_sensitivity.csv")
     assert set(sensitivity["arm"]) == {"all_predictions", "confidence_ge_0.70"}

@@ -795,6 +795,10 @@ def trend_support(predictions: pd.DataFrame, survival: pd.DataFrame) -> tuple[pd
         predictions[["episode_id", "predicted_technology"]], on="episode_id", how="inner"
     )
     merged["quarter"] = pd.PeriodIndex(merged["award_date"], freq="Q")
+    # The BOAMP acquisition starts in March 2015, so 2015Q1 is only a partial
+    # quarter.  The canonical CPV trend series excludes it; technology trends
+    # must use the same observation window to avoid a known design mismatch.
+    merged = merged.loc[merged["quarter"] >= pd.Period("2015Q2", freq="Q")]
     quarterly = (
         merged.pivot_table(
             index="quarter", columns="predicted_technology", values="episode_id", aggfunc="count"
@@ -854,9 +858,10 @@ def trend_support(predictions: pd.DataFrame, survival: pd.DataFrame) -> tuple[pd
 
 
 def technology_trend(quarterly: pd.DataFrame, support: pd.DataFrame) -> pd.DataFrame:
-    """Ordinary least squares slope per qualifying quarterly series.
+    """Recent ordinary least squares slope per qualifying quarterly series.
 
-    A slope and its p-value, nothing more. The breakpoint and regime machinery
+    The CPV analysis defines "recent" as the last twelve quarters. Technology
+    slopes use the same window and multiplicity correction. The breakpoint and regime machinery
     stays on the CPV reference series in ``TREND_ANALYSIS_REPORT.md``: running
     PELT and an HMM on eleven derived series would multiply the number of tests
     without adding a question anyone asked.
@@ -868,9 +873,11 @@ def technology_trend(quarterly: pd.DataFrame, support: pd.DataFrame) -> pd.DataF
     rows = []
     for label in eligible:
         series = quarterly[label]
-        index = np.arange(len(series), dtype=float)
-        fit = stats.linregress(index, series.to_numpy(dtype=float))
-        share = (series / total).astype(float)
+        recent = series.tail(12)
+        recent_total = total.loc[recent.index]
+        index = np.arange(len(recent), dtype=float)
+        fit = stats.linregress(index, recent.to_numpy(dtype=float))
+        share = (recent / recent_total).astype(float)
         share_fit = stats.linregress(index, share.to_numpy())
         first_three = series.iloc[:12].mean()
         last_three = series.iloc[-12:].mean()
@@ -878,7 +885,8 @@ def technology_trend(quarterly: pd.DataFrame, support: pd.DataFrame) -> pd.DataF
             {
                 "technology": label,
                 "episodes": int(series.sum()),
-                "quarters": int(len(series)),
+                "quarters": int(len(recent)),
+                "observation_window_quarters": int(len(series)),
                 "mean_per_quarter": round(float(series.mean()), 2),
                 "slope_episodes_per_quarter": round(float(fit.slope), 4),
                 "slope_p_value": round(float(fit.pvalue), 4),
@@ -1040,7 +1048,7 @@ def survival_figure(curves: dict[str, Any], path: Path) -> None:
     axes.set_ylabel("P(no observable successor yet)")
     axes.set_title(
         "Time to an observable successor by predicted technology\n"
-        "classes clearing the support gate only; confidence bands omitted for legibility",
+        "classes clearing both the classifier and the support gates; confidence bands omitted for legibility",
         fontsize=11,
     )
     axes.legend(frameon=False, fontsize=8)
@@ -1701,12 +1709,8 @@ discovery rate) adjustments. `TREND_ANALYSIS_REPORT.md` applies the same
 correction to its own family of CPV segment slopes, using the same
 implementation.
 
-The two panels are one quarter apart by design and the difference is not an
-error: this series is built directly from the award quarters of the cohort and
-spans `{int(payload['trend_summary'][0]['quarters'])}` quarters from 2015Q1, whereas the CPV series drops the partial
-2015Q1 -- the first BOAMP extract begins in March 2015 -- and spans one fewer.
-Nothing is compared across the two panels at quarter granularity, so the offset
-has no consequence beyond the count printed in each table.
+The technology and CPV series use the same window: 2015Q2--2025Q4. The partial
+2015Q1 is excluded because the first BOAMP extract begins in March 2015.
 
 {payload['trend_narrative']}
 

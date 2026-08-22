@@ -221,6 +221,18 @@ bound on true re-procurement: missed successors push the measured level down and
 residual false links push it up, so the net direction is not identified. They are
 linkage-conditioned estimates.
 
+The one operational artifact derived from these curves is
+`data/processed/boamp/segment_watch_km.csv` (renamed on 2026-08-21 from
+`renewal_watchlist_top20.csv`, a filename that implied an individual ranking the study
+deliberately does not produce). It lists, for each of the four CPV segments, the five
+still-unlinked episodes awarded in `2021` or later with the highest conditional probability of
+showing a successor in the next twelve months. It is read off the **segment-stratified
+Kaplan-Meier curves**, not off the Cox model, and it is stratified by segment on purpose: because
+the conditional probability is a function of segment and age alone, an unstratified ranking would
+simply return the highest-hazard segment at the age closest to the renewal shoulder, which would
+suggest an individual-level precision the out-of-time C-index of `0.479` does not support. It is a
+cohort-level monitoring aid, not a prediction for any single contract.
+
 ### 3.8 Descriptive Trend Analysis
 
 Quarterly awarded-episode counts are analysed from `2015Q2` through `2025Q4`.
@@ -234,6 +246,12 @@ Neither PELT, the HMM, nor the OLS slope supplies a causal explanation, and the
 HMM's current-regime read is not forced to agree with the PELT/OLS signals.
 Monetary trend analysis is omitted because no canonical awarded-amount field
 has been validated at episode grain.
+
+The CPV and technology trend families use the same `43`-quarter observation
+window (`2015Q2`-`2025Q4`), excluding the partial `2015Q1` extract. In both
+families, the published OLS slope describes only the latest `12` quarters. This
+alignment prevents an avoidable difference in time support from being mistaken
+for a substantive difference between CPV and predicted-technology results.
 
 Five slopes are fitted and read together, so the raw p-values are reported beside
 Holm and Benjamini-Hochberg adjustments across those five series -- the same
@@ -448,8 +466,8 @@ The final report may state that:
 - the main operating rule accepts `544` successors in a `3,800`-episode cohort;
 - survival estimates are conditional on the linkage rule;
 - the regional reference supports `M_B @ 0.70` as a provisional,
-  precision-first baseline, held out because the threshold was frozen before
-  that reference was consulted;
+  precision-first baseline; because that evidence informed the retained policy,
+  it is internal validation rather than an untouched holdout;
 - procurement text supports a business technology taxonomy that CPV codes do
   not carry, with an out-of-fold macro-F1 of `0.744` (95% family-bootstrap CI
   `0.682`-`0.791`) against `0.473` (`0.413`-`0.526`) for a CPV/descriptor
@@ -469,9 +487,9 @@ The final report may state that:
 - framework agreements are associated with an earlier observable successor, but
   the association is **partly differential detectability**: adding
   `log(candidate pool size)` attenuates the hazard ratio from `1.751` to `1.617`;
-- lower thresholds trade precision for recall on the locked split and are
-  retained as sensitivity arms rather than promoted, because selecting one from
-  those rows would convert the locked split into a tuning set;
+- lower thresholds trade precision for recall on the recorded locked stratum
+  and are retained as sensitivity arms; replacing the frozen post-development
+  policy requires fresh independent evidence;
 - trend findings are descriptive and non-causal.
 
 The report must not state that:
@@ -514,7 +532,7 @@ current internship analysis.
 
 - `EXECUTIVE_SUMMARY.md`
 - `FINAL_PIPELINE.md`
-- `reports/current_project_readiness_report.html`
+- `reports/current_project_readiness_artifact.json`
 - `reports/boamp_methodology_chapter.pdf`
 - `DATA_QUALITY_REPORT.md`
 - `QUALITY_EVIDENCE.md`

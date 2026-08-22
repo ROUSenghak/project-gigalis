@@ -18,7 +18,7 @@ The figures below are generated from this project's data and code. Generic web o
 - **Precision-recall curve:** pair-level score-ranking diagnostic. This is the better curve for this project because the locked split has only 16 positive pairs among 20917 candidate pairs.
 - **Threshold trade-off:** anchor-level sweep of the actual `M_B` top-1 decision. It shows how strict acceptance changes precision, recall, false-positive rate, and link volume.
 
-## Held-Out Event-Detection Confusion Matrix
+## Internal-Validation Event-Detection Confusion Matrix
 
 Rows are actual anchor status; columns are predicted link/abstention. Here, a wrong candidate on a positive anchor still counts as detecting that the anchor has a successor.
 
@@ -29,7 +29,7 @@ Rows are actual anchor status; columns are predicted link/abstention. Here, a wr
 | M_C_weighted_gated | 70.0000 | 13 | 10 | 5 | 44 |
 | M_D_fellegi_sunter | 65.0000 | 4 | 1 | 14 | 53 |
 
-## Held-Out Exact-Successor Accounting
+## Internal-Validation Exact-Successor Accounting
 
 This is the stricter accounting behind project precision and recall. Cells do not necessarily sum to the number of anchors because a wrong successor contributes one FP and one FN.
 
@@ -40,7 +40,7 @@ This is the stricter accounting behind project precision and recall. Cells do no
 | M_C_weighted_gated | 70.0000 | 12 | 11 | 6 | 44 |
 | M_D_fellegi_sunter | 65.0000 | 1 | 4 | 17 | 53 |
 
-## Held-Out Pair-Level ROC and Precision-Recall Metrics
+## Internal-Validation Pair-Level ROC and Precision-Recall Metrics
 
 | method | pair_roc_auc | pair_average_precision | positive_pairs | negative_pairs |
 | --- | --- | --- | --- | --- |
@@ -63,7 +63,7 @@ A negative pair here is any exposed candidate that is not the reviewed successor
 | 0.7500 | 7 | 6 | 0.8571 | 0.3333 | 0.0000 | 0.0972 |
 | 0.8000 | 6 | 5 | 0.8333 | 0.2778 | 0.0000 | 0.0833 |
 
-On the locked split the frozen `0.70` gives 7 correct of 8 accepted (precision `0.8750`), recall `0.3889`, FPR `0.0000`; `0.60` gives 9 correct of 13 accepted (precision `0.6923`), recall `0.5000`, FPR `0.0556`. On the pilot split `0.70` gives 1 correct of 2 accepted (precision `0.5000`), recall `0.2000`, FPR `0.0000` against 2 correct of 3 accepted (precision `0.6667`), recall `0.4000`, FPR `0.0000` at `0.60`. `0.70` was fixed before this reference was read and has not been moved since, which is the only reason the locked split can be reported as held out. Selecting a threshold now, from these rows, would convert the locked split into a tuning set and forfeit that. `0.60` therefore stays a sensitivity arm whatever these rows say.
+On the recorded locked stratum the frozen `0.70` gives 7 correct of 8 accepted (precision `0.8750`), recall `0.3889`, FPR `0.0000`; `0.60` gives 9 correct of 13 accepted (precision `0.6923`), recall `0.5000`, FPR `0.0556`. On the pilot split `0.70` gives 1 correct of 2 accepted (precision `0.5000`), recall `0.2000`, FPR `0.0000` against 2 correct of 3 accepted (precision `0.6667`), recall `0.4000`, FPR `0.0000` at `0.60`. Project history shows that this reference informed the retained `0.70` policy, so these rows are internal validation rather than an untouched holdout. The policy is now frozen after development; replacing it requires fresh independent evidence. `0.60` remains a required sensitivity arm.
 
 ## Interpretation
 

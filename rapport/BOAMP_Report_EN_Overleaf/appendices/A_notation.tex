@@ -1,0 +1,94 @@
+\section{Notation and formal definitions}
+\label{app:notation}
+
+\subsection*{Units and symbols}
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+Symbol & Meaning \\
+\midrule\noalign{}
+\endhead
+$n$ & one official BOAMP notice \\
+$e$ & one reconstructed procurement episode \\
+$i$ & an \emph{anchor}: an awarded cohort episode \\
+$j$ & a \emph{candidate}: a later episode exposed for comparison \\
+$u_i$ & award date of anchor $i$ (time origin) \\
+$v_j$ & first-publication date of candidate $j$ \\
+$J_i$ & candidate set surviving blocking for anchor $i$ \\
+$T_{ij}$ & text similarity between anchor $i$ and candidate $j$ \\
+$\hat{j}_i$ & the accepted successor, or $\varnothing$ on abstention \\
+$Y_i$ & event indicator, $1$ if a successor is accepted \\
+$\tau_i$ & observed or censored time from $u_i$ \\
+$S(t)$ & probability of no observable successor by $t$ \\
+$h(t\mid X)$ & hazard of an observable successor given covariates $X$ \\
+$Z_i$ & annotated technology class of a notice \\
+$\hat{Z}_e$ & predicted technology class of a cohort episode \\
+\bottomrule\noalign{}
+\end{longtable}
+
+\subsection*{Cohort rule}
+
+An episode $e$ enters the study cohort if it is awarded, geolocated in the Grand Ouest, has a resolvable
+award date, and
+\[
+\exists\, c \in \mathrm{CPV}(e) \quad\text{such that}\quad \left\lfloor c/10^{6} \right\rfloor \in \{32,35,48,72\}.
+\]
+This is an \emph{any-code} rule at episode level, not a rule about the main CPV. The stratifying variable
+\texttt{digital\_segment} is the lowest-numbered qualifying division present, so each episode contributes to
+exactly one curve.
+
+\subsection*{Blocking rule (candidate generation)}
+
+Candidate $j$ is exposed for anchor $i$ if buyer identifiers are compatible --- same buyer key or same
+normalised buyer name, with two \emph{different} validated SIRENs disqualifying --- and
+\[
+u_i + 90\ \text{days} \;\le\; v_j \;\le\; u_i + 2{,}920\ \text{days}.
+\]
+Compatibility is deliberately asymmetric: two unknown SIRENs are \emph{not} treated as evidence of identity.
+
+\subsection*{Buyer evidence ladder}
+
+The strongest available evidence determines the buyer component: validated SIREN $=1.00$, exact normalised
+name $=0.90$, fuzzy name match at ratio $\ge 0.82$ giving $0.70$, informative-token Jaccard $\ge 0.34$ giving
+$0.60$, otherwise $0$. Municipal prefixes (\emph{commune de}, \emph{ville de}, \dots) are stripped for
+blocking; intercommunal legal forms are preserved, so \emph{Rennes Métropole} does not collapse onto
+\emph{Ville de Rennes}.
+
+\subsection*{Decision rule (primary event definition)}
+
+\[
+\hat{j}_i = \arg\max_{j \in J_i} T_{ij},
+\qquad
+Y_i = \mathbf{1}\!\left(T_{i\hat{j}_i} \ge 0.70\right),
+\]
+where $T_{ij}$ is the maximum of a word-level TF--IDF cosine (1--2 grams) and a character-level TF--IDF
+cosine (\texttt{char\_wb}, 3--5 grams). At most one successor is accepted per anchor; otherwise the method
+abstains.
+
+\subsection*{Missing evidence versus negative evidence}
+
+Two components return \texttt{NaN} rather than $0$ when the evidence does not exist: CPV continuity when
+either side carries no CPV code, and the time component when the anchor has no reliable declared duration.
+The weighted score of the contrast arm renormalises over the components that do carry evidence,
+\[
+\text{score} = 100 \times \frac{\sum_{k \in \mathcal{O}} w_k \, c_k}{\sum_{k \in \mathcal{O}} w_k},
+\qquad \mathcal{O} = \{k : c_k \text{ observed}\},
+\]
+so a pair lacking CPV evidence is judged on its remaining evidence rather than penalised as though the codes
+disagreed.
+
+\subsection*{Survival variables}
+
+\[
+\tau_i =
+\begin{cases}
+v_{\hat{j}_i} - u_i, & Y_i = 1,\\[2pt]
+\text{2025-12-31} - u_i, & Y_i = 0 \quad \text{(administrative right censoring)}.
+\end{cases}
+\]
+
+\subsection*{Procurement family (NLP grouping unit)}
+
+Two annotated notices belong to the same family if they were placed in one reconstructed episode, or if
+their object texts reach a character-level cosine similarity of at least $0.80$. Every family sits in exactly
+one cross-validation fold.

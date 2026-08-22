@@ -49,6 +49,12 @@ development and has been removed in full; see `PROJECT_WORK_PROTOCOL.md` §3.6.
   `data/processed/boamp/technology/episode_technology_predictions.csv`
 - Final workflow summary: `FINAL_PIPELINE.md`
 - Technical report: `reports/boamp_methodology_chapter.pdf`
+- Final internship report: `rapport/BOAMP_Report_EN_Final.pdf`, with its
+  authoritative LaTeX source under `rapport/BOAMP_Report_EN_Overleaf/` and a
+  clean upload package at `rapport/BOAMP_Report_EN_Final_Overleaf.zip`
+- Teaching/defence guide: `reports/boamp_project_masterclass.md`, delivered as
+  `output/pdf/boamp_project_masterclass.pdf` with an editable Overleaf package
+  under `output/overleaf/`
 - Active notebooks: `notebooks/10` through `notebooks/15`, executed by
   `scripts/run_final_pipeline.py --with-notebooks`
 - Pipeline entry point: `scripts/run_final_pipeline.py`. Every other script under
@@ -179,6 +185,10 @@ reported precision/recall figures below.
   classes qualify for survival. Including the fallback residuals instead would
   make the log-rank result look markedly stronger (`p = 0.0001` against
   `p = 0.036`), which is why the classifier gate is applied.
+- CPV and technology trend series share the `2015Q2`-`2025Q4` observation
+  window, excluding the partial first quarter. Published OLS slopes in both
+  families use the latest `12` quarters; no technology-class slope is nominally
+  significant on the current run (smallest raw `p = 0.194`).
 - Accepted links stay inside one CPV division in `351` of the `538` cases where
   both divisions are observed (`0.652`); the reviewed reference successors cross
   divisions at a comparable rate (`9` of `23`). Hard same-CPV blocking is
@@ -246,13 +256,16 @@ and the headline counts read back off the artifacts.
 - `REVIEW_AUDIT_RESULTS.md`: frozen independent-link-review diagnostic.
 - `METHODOLOGICAL_REFERENCES.md`: primary external methodological sources.
 - `INTERNSHIP_GUIDE_COMPLIANCE.md`: mapping to the internship requirements.
+- `rapport/README.md`: final-report authority, retained working notes, build
+  command, and the four administrative fields still required before submission.
 
 ## Boundaries
 
 - Do not call accepted links confirmed legal renewals.
 - Do not impute a missing duration or assume a four-year contract.
-- Do not promote a threshold after inspecting the locked split; it is held out
-  only because the operating point was frozen before that split was read.
+- Do not describe the recorded locked stratum as an untouched holdout. Project
+  history shows that its evidence informed the retained policy; replacing the
+  frozen post-development threshold requires fresh independent evidence.
 - Do not describe the reference labels as independent human ground truth.
 - Do not call the survival probabilities lower bounds. Missed successors push
   the measured level down and residual false links push it up, so the net

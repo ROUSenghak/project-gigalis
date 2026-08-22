@@ -1,0 +1,19 @@
+\section{Conclusion}
+
+The internship was meant to estimate the probability that a digital procurement generates an identifiable purchasing need within twelve to twenty-four months. It produced something else, and that difference is the main result.
+
+\textbf{What was built.} A reproducible chain from 1,620,712 official BOAMP notices to a cohort of 3,800 reconstructed awarded Grand Ouest procurement episodes containing a digital CPV code, with an observable-successor variable whose quality is measured rather than assumed and a cross-artifact validator that checks the published documents and code agree.
+
+\textbf{What was learnt about timing.} Under the retained event definition, the probability that an episode shows an observable successor is estimated at 4.6 \% within twelve months and 6.7 \% within twenty-four, with a re-procurement shoulder between 36 and 48 months. At population level CPV-35 episodes show earlier successors, but the contrast attenuates within buyer. Framework status remains positively associated after direct detectability and primary within-buyer controls, with a smaller magnitude.
+
+\textbf{What survived the robustness tests.} Absolute successor levels are strongly sensitive to the linkage definition, whereas several comparative patterns are more stable. Robustness to event definition is distinct from robustness to buyer composition: CPV-35 is stable across event-definition perturbations but attenuates within buyer; framework remains positive but smaller; CPV-48 emerges principally in the within-buyer sensitivity and remains exploratory.
+
+\textbf{What the text workstream added.} A supervised classifier on the contract object alone separates eleven business technology classes at an out-of-fold macro-F1 of 0.744, against 0.473 for the best CPV-based comparator on identical folds and budget: a paired difference of +0.271 whose interval excludes zero. Text therefore carries business information the administrative vocabulary does not. Its predictions, filtered through two explicit gates, reveal a difference in timing across technologies (\(p = 0.036\)).
+
+\textbf{What the trend analysis showed.} Little, and that is a result: no segment slope survives correction for multiple testing. Three level shifts are stably dated, with no cause attributed to any of them.
+
+\textbf{What individual prediction did not achieve.} The Cox model's out-of-time concordance point estimate is 0.479, close to chance; the available temporal validation does not establish useful individual discrimination, and the buyer-cluster interval is wide. The model is therefore not used as an individual ranking engine, and the table of twenty priority contracts foreseen in the brief was replaced by cohort-level monitoring logic.
+
+\textbf{What could not be undertaken.} The causal question --- does opening a pooled framework agreement change the purchasing behaviour of Gigalis members? --- requires internal membership data absent from the BOAMP; the identification design is described \citep{angrist2009}, no estimate is produced. Inter-annotator agreement on the technology corpus requires a second annotator. And external validation of the linkage requires an independent human review, whose protocol and sample are ready.
+
+\textbf{The value for Gigalis.} BOAMP supports a reproducible measurement and monitoring framework for recurring digital purchasing needs, not a certified legal-renewal database or a validated individual prediction engine. The value lies in an explicit observable, a reproducible instrument, an honest evidence hierarchy, and a business segmentation absent from the source data. Moving to legal-renewal prevalence, causal segment effects, calibrated individual probabilities or true technology market shares would require evidence the current project does not contain.

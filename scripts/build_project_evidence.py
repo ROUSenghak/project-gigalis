@@ -534,11 +534,12 @@ search range, not an assumed contract duration.
 candidate per anchor and accepts it when that similarity reaches the threshold.
 At most one successor is selected per anchor; otherwise the method abstains.
 
-**4. Frozen threshold.** `0.70`, fixed a priori on a precision-first principle,
-because a false link fabricates both a survival event and its event time. It was
-not moved after the regional reference was read — which is the only reason the
-locked split can be reported as held out — and it was not tuned toward any target
-event rate. The internship guide's 40-60% linkage expectation was treated as a
+**4. Frozen post-development threshold.** `0.70`, retained on a precision-first
+principle because a false link fabricates both a survival event and its event
+time. Project history shows that regional-reference evidence informed the final
+policy, so the split evaluation is internal validation rather than an untouched
+holdout. It was not tuned toward any target event rate. The internship guide's
+40-60% linkage expectation was treated as a
 planning figure, never as an optimisation target; the realised
 `{sensitivity['main']['event_rate']:.1%}` is a consequence of the precision-first rule,
 not a miss against a goal.
@@ -635,7 +636,7 @@ def write_data_quality_report(profile: dict[str, Any]) -> Path:
     sensitivity = profile["linkage_sensitivity"]
     text = f"""# BOAMP Data Quality Report
 
-Generated: `{profile['generated_at']}`  
+Generated: `{profile['generated_at']}`
 Data through: `{profile['data_as_of']}`  
 Assessment: **Share with caveats**
 
@@ -789,7 +790,7 @@ def write_trend_report(
 
     text = rf"""# BOAMP Descriptive Trend Analysis
 
-Generated: `{summary['generated_at']}`  
+Generated: `{summary['generated_at']}`
 Analysis window: `2015Q2-2025Q4`  
 Unit: awarded Grand Ouest digital procurement episodes
 

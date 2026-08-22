@@ -1,6 +1,6 @@
 # Technology Taxonomy Classification
 
-Generated: `2026-08-20T11:54:43`
+Generated: `2026-08-22T15:41:03`
 Taxonomy: `boamp_technology_taxonomy_v1.0` | Classifier: `boamp_technology_classifier_v1.0`
 
 ## 1. Why This Component Exists
@@ -658,27 +658,23 @@ discovery rate) adjustments. `TREND_ANALYSIS_REPORT.md` applies the same
 correction to its own family of CPV segment slopes, using the same
 implementation.
 
-The two panels are one quarter apart by design and the difference is not an
-error: this series is built directly from the award quarters of the cohort and
-spans `44` quarters from 2015Q1, whereas the CPV series drops the partial
-2015Q1 -- the first BOAMP extract begins in March 2015 -- and spans one fewer.
-Nothing is compared across the two panels at quarter granularity, so the offset
-has no consequence beyond the count printed in each table.
+The technology and CPV series use the same window: 2015Q2--2025Q4. The partial
+2015Q1 is excluded because the first BOAMP extract begins in March 2015.
 
 | Class | Episodes | Mean/quarter | Slope | Raw p | Holm p | BH p | Reading |
 |---|---:|---:|---:|---:|---:|---:|---|
-| CYBERSECURITY | 316 | 7.18 | 0.0245 | 0.4857 | 1 | 0.934 | no linear trend detected |
-| NETWORK_TELECOM | 859 | 19.52 | -0.1668 | 0.0563 | 0.2815 | 0.2815 | no linear trend detected |
-| IT_INFRASTRUCTURE | 298 | 6.77 | 0.0078 | 0.8116 | 1 | 0.9617 | no linear trend detected |
-| BUSINESS_SOFTWARE | 854 | 19.41 | 0.044 | 0.5604 | 1 | 0.934 | no linear trend detected |
-| IT_SERVICES | 492 | 11.18 | 0.0021 | 0.9617 | 1 | 0.9617 | no linear trend detected |
+| CYBERSECURITY | 314 | 7.3 | 0.1958 | 0.4631 | 1 | 0.6442 | no linear trend detected |
+| NETWORK_TELECOM | 855 | 19.88 | -0.2552 | 0.5154 | 1 | 0.6442 | no linear trend detected |
+| IT_INFRASTRUCTURE | 295 | 6.86 | -0.0175 | 0.901 | 1 | 0.901 | no linear trend detected |
+| BUSINESS_SOFTWARE | 849 | 19.74 | -0.7622 | 0.2479 | 0.9916 | 0.6198 | no linear trend detected |
+| IT_SERVICES | 486 | 11.3 | 0.4476 | 0.1944 | 0.972 | 0.6198 | no linear trend detected |
 
 #### Result 10 -- no technology series shows a detectable linear trend
 
 * **Observation.** 5 classes were tested simultaneously.
-  The smallest raw p-value is `NETWORK_TELECOM` at `0.0563`, which does not reach the 5% level before any adjustment and gives Holm-adjusted `0.2815` across `5` tests.
+  The smallest raw p-value is `IT_SERVICES` at `0.1944`, which does not reach the 5% level before any adjustment and gives Holm-adjusted `0.972` across `5` tests.
 * **Confidence.** Low to moderate. These are counts of awarded episodes per
-  quarter carrying predicted labels, over `44` quarters, with no
+  quarter carrying predicted labels, over `12` quarters, with no
   adjustment for anything else that changed over the period.
 * **What can be concluded.** No analysed technology class shows a linear
   movement in awarded Grand Ouest procurement volume that survives correction

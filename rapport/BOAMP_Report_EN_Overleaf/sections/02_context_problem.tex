@@ -1,0 +1,36 @@
+\section{Context and reformulation of the problem}
+
+\subsection{The business problem}
+
+A central purchasing body pools demand. Its value is twofold: lower prices through volume, and one procedure instead of many. Both depend on opening the right framework agreement at the right time. Open one too early and it ties up a contract nobody uses; open it too late and members have already run their own procurements. The operational question is therefore a question about timing: when will a need that has already been met reappear?
+
+The internship brief decomposed that question into three sub-problems, each attached to a family of methods: the lifetime problem (survival analysis), the trend problem (change-point detection in time series), and the text-signal problem (natural language processing). A fourth, causal dimension was mentioned as a research perspective if time allowed.
+
+\subsection{What the BOAMP contains, and what it does not}
+
+The BOAMP publishes notices: calls for competition, corrections, award notices. It does not publish contracts, and above all it publishes \textbf{no renewal identifier}. Nothing indicates that a contract awarded in 2023 replaces one awarded in 2019. There is therefore no ground truth for the event the brief called ``renewal''.
+
+This is not a data-quality detail: it makes it impossible to pose the problem in its apparently natural form, ``estimate P(renewal within 12 months)'', because no renewal observation exists in the data from which to estimate anything. Two routes remain. The first is to \emph{assume} renewal --- for instance by declaring that a four-year framework agreement is renewed after four years. It was rejected: it would fabricate expiry dates for three quarters of the cohort, whose declared duration is missing (\S~3.4), and it would measure the assumption rather than the data. The second is to construct an observable and to own the gap between that observable and the legal concept. That is the route taken.
+
+\subsection{The estimand: the observable successor}
+
+\begin{quote}
+\textbf{Definition.} An \emph{observable successor} of an awarded digital procurement is a later procurement episode, published in the BOAMP by the same buyer, that plausibly continues or replaces the same need, and that is \textbf{accepted} as such by a frozen, documented linkage rule.
+\end{quote}
+
+Three consequences follow, and the report carries them throughout.
+
+First, the event is \emph{conditional on a rule}. Changing the rule changes the number of events: from 296 to 1,332 across the retained arms (\S~5.7). No absolute level can be quoted on its own.
+
+Second, the event is \emph{observable}, not legal. A contract can be renewed without that being visible in the BOAMP --- through a central purchasing body, below publication thresholds, or through a successor the rule failed to recover. The absence of an accepted successor is \textbf{censoring}, never evidence of abandonment.
+
+Third, linkage errors do not cancel out. A missed link removes an event and artificially extends a censored exposure; a false link fabricates both an event and its date. The two biases run in opposite directions, which forbids presenting the observed rate as a lower bound on the true re-procurement rate --- a point the record-linkage literature is explicit about \citep{doidge2019}.
+
+\subsection{The questions as actually addressed}
+
+\textbf{Q1.} Can an observable-successor variable of measurable quality be constructed from the BOAMP alone? (\S~4)
+\textbf{Q2.} How long does it take for an awarded digital procurement to show an observable successor, and does that delay differ by segment and contract type? (\S~5)
+\textbf{Q3.} Does the text of the notices carry a business technology segmentation that the administrative CPV vocabulary does not? (\S~6)
+\textbf{Q4.} Does that learnt segmentation support readings the CPV segmentation cannot support? (\S~7)
+\textbf{Q5.} Do quarterly volumes by segment show usable trends or breaks? (\S~8)
+\textbf{Q6.} Does the model support individual, contract-level prediction? (\S~5.5 --- and the answer is no.)

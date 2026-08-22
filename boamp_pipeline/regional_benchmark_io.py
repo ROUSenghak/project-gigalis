@@ -76,7 +76,7 @@ def load_manifest(benchmark_dir: Path = DEFAULT_BENCHMARK_DIR) -> dict[str, Any]
 def wilson_interval(successes: int, trials: int, z: float = 1.959963985) -> list[float] | None:
     """Wilson score interval.
 
-    Used rather than a bare proportion because on 72 held-out anchors, of which
+    Used rather than a bare proportion because on 72 internal-reference anchors, of which
     18 are positive, a point estimate on its own invites reading two digits of
     precision that are not there.
     """

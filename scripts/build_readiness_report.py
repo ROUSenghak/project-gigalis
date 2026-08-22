@@ -102,6 +102,9 @@ def main() -> int:
                 "reference_status": "regional reference sample; LLM-generated labels, spot-checked on a subset",
             }
         )
+    primary_method = next(
+        row for row in method_rows if row["method"] == "M_B_text_ranking"
+    )
 
     sensitivity_rows = []
     labels = {
@@ -278,7 +281,7 @@ def main() -> int:
         ),
         source(
             "evaluation",
-            "Held-out internal development-reference evaluation",
+            "Internal development-reference evaluation",
             "methods",
             "SELECT * FROM methods",
             "Anchor-level exact-successor evaluation on the locked split of the regional reference.",
@@ -395,8 +398,8 @@ def main() -> int:
     tables = [
         {
             "id": "method-table",
-            "title": "Held-Out Internal Method Comparison",
-            "subtitle": "Grand Ouest regional reference sample; independent of the methods scored, but not an independent specialist panel.",
+            "title": "Internal-Validation Method Comparison",
+            "subtitle": "Grand Ouest regional reference sample; labels predate the methods, but reference evidence informed the retained policy.",
             "dataset": "methods",
             "sourceId": "evaluation",
             "defaultSort": {"field": "precision", "direction": "desc"},
@@ -439,8 +442,9 @@ def main() -> int:
                 "## Executive Summary\n\n"
                 "**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is "
                 "reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable "
-                "frozen conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from deterministic "
-                "an LLM-generated, subset-spot-checked reference sample rather than independent specialist ground truth. Survival and trend "
+                "frozen post-development conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from "
+                "an LLM-generated, subset-spot-checked reference sample rather than independent specialist ground truth. Reference evidence "
+                "informed the retained policy, so the comparison is internal validation rather than an untouched holdout. Survival and trend "
                 "results are therefore descriptive and conditional on the linkage definition. The "
                 "model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. "
                 "Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."
@@ -467,8 +471,9 @@ def main() -> int:
             "sourceId": "evaluation",
             "body": (
                 "## Linkage Evidence\n\n"
-                "The held-out internal reference favors `M_B` for false-positive control. Its exact-successor precision is "
-                "80.0%, recall 18.2%, and negative-anchor FPR 0.0%, but only five links were accepted. One changed decision "
+                "The internal reference favors `M_B` for false-positive control. Its exact-successor precision is "
+                f"{primary_method['precision']:.1%}, recall {primary_method['recall']:.1%}, and negative-anchor FPR "
+                f"{primary_method['fpr']:.1%}, with {primary_method['accepted_links']} accepted links. One changed decision "
                 "would move precision materially. These values guide method development; they must not be reported as "
                 "independently validated accuracy."
             ),

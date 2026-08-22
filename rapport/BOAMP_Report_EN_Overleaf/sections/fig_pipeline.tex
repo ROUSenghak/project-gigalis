@@ -1,0 +1,45 @@
+\begin{figure}[htbp]
+\centering
+\footnotesize
+\makebox[\linewidth][c]{%
+\begin{tikzpicture}[
+  node distance = 6mm and 12mm,
+  box/.style   = {draw, rounded corners=2pt, align=center, inner sep=4pt,
+                  minimum height=8mm, text width=52mm, fill=black!3},
+  side/.style  = {align=left, text width=42mm, font=\scriptsize, text=black!65},
+  flow/.style  = {-{Latex[length=2mm]}, thick, black!60},
+  note/.style  = {draw, dashed, rounded corners=2pt, align=center, inner sep=4pt,
+                  minimum height=8mm, text width=48mm, fill=black!2}
+]
+
+\node[box] (n1) {Official BOAMP notices};
+\node[box, below=of n1] (n2) {Procurement episodes};
+\node[box, below=of n2] (n3) {Study cohort};
+\node[box, below=of n3] (n4) {Anchor--candidate pairs};
+\node[box, below=of n4] (n5) {Accepted successor links};
+\node[box, below=of n5] (n6) {Survival observations};
+
+\draw[flow] (n1) -- node[right=1mm, font=\scriptsize] {schema-aware standardisation} (n2);
+\draw[flow] (n2) -- node[right=1mm, font=\scriptsize] {Grand Ouest + digital CPV + awarded} (n3);
+\draw[flow] (n3) -- node[right=1mm, font=\scriptsize] {same-buyer blocking, 90--2{,}920 days} (n4);
+\draw[flow] (n4) -- node[right=1mm, font=\scriptsize] {\texttt{M\_B} top-1, accept at $0.70$} (n5);
+\draw[flow] (n5) -- node[right=1mm, font=\scriptsize] {censor at 2025-12-31} (n6);
+
+\node[side, left=of n1] {one official notice\\\textbf{1{,}620{,}712}};
+\node[side, left=of n2] {one reconstructed procedure\\\textbf{1{,}103{,}632}};
+\node[side, left=of n3] {one awarded digital episode\\\textbf{3{,}800}};
+\node[side, left=of n4] {one pair to examine\\\textbf{763{,}417} over 3{,}520 anchors};
+\node[side, left=of n5] {one accepted successor\\\textbf{544}};
+\node[side, left=of n6] {one contract, event or censored\\\textbf{544} events, \textbf{3{,}256} censored};
+
+\node[note, right=18mm of n6] (tech) {Predicted technology class\\for all 3{,}800 episodes\\\scriptsize (two quality gates before use)};
+\draw[flow, dashed] (n3.east) -- ++(28mm,0) |- (tech.north);
+\draw[flow, dashed] (tech.west) -- ++(-6mm,0) |- (n6.east);
+
+\end{tikzpicture}}
+\caption{The analytical chain, with the unit of observation at each stage. Every arrow is a change of
+statistical unit, and each introduces uncertainty that propagates downstream. The dashed path is the
+enrichment layer: the technology classifier reads the cohort's procurement text and returns a predicted class
+that is joined back onto the survival table, without altering the cohort definition or the event.}
+\label{fig:pipeline}
+\end{figure}

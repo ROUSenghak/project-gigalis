@@ -1,6 +1,6 @@
 # Final Defensible Pipeline
 
-Generated: `2026-08-20T11:55:05`
+Generated: `2026-08-22T15:52:01`
 
 ## Linkage Decision
 
@@ -31,8 +31,10 @@ be reconstructed, so the recall and candidate-reachability figures below should 
 be read as fully independent of the text score they evaluate. Precision is
 unaffected by that gap.
 
-The threshold was frozen before this reference was consulted and has not been moved
-since. `0.60` remains a required survival sensitivity arm. The completed
+Project history shows that this reference informed the retained `0.70` policy,
+so the split evaluation is internal validation rather than an untouched holdout.
+The policy is now frozen after development, and `0.60` remains a required
+survival sensitivity arm. The completed
 production-link diagnostic at `0.70` confirmed `14/20` sampled links conservatively.
 
 `M_C_weighted_gated` has higher recall but also higher false-positive risk.

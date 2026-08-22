@@ -80,10 +80,12 @@ error rate into every downstream technology-level figure, and that operational
 12/24-month individual prediction remains future work because no active Gigalis
 portfolio with adequate temporal validation is available.
 
-The guide's indicative 40-60% linkage rate was treated throughout as a planning
-expectation, never as an optimisation target. The realised 14.3% follows from the
-precision-first threshold that was frozen before the reference was consulted; it
-is a consequence of the chosen operating point, not a miss against a goal.
+The guide's indicative 40-60% linkage rate was treated as a planning expectation,
+never as an optimisation target. The realised 14.3% follows from the retained
+precision-first threshold. Project history shows that the operating point and
+candidate-generation choices drew on the reviewed reference evidence, so the
+reported sweep is internal validation and sensitivity analysis, not a fully
+held-out test.
 
 Independent human specialist review remains necessary before claiming
 independently validated linkage accuracy, but that stronger claim is outside the

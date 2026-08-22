@@ -1,0 +1,112 @@
+%=====================================================================
+%  ENSAE — Stage d'application 2025-2026
+%  Analysis and modelling of digital public procurement (BOAMP / Gigalis)
+%  Entry file: main.tex   |   Compile: pdfLaTeX + BibTeX + pdfLaTeX x2
+%=====================================================================
+\documentclass[11pt,a4paper]{article}
+
+% ---------- encoding, language ----------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[round,authoryear]{natbib}
+\usepackage[french,english]{babel}   % English main; French available for the note de synthèse
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ---------- page geometry ----------
+\usepackage[left=2.5cm,right=2.5cm,top=2.6cm,bottom=2.6cm]{geometry}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\footnotesize\itshape Digital public procurement: observable successors, survival, and text}
+\fancyhead[R]{\footnotesize\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+\setlength{\headheight}{14pt}
+\setlength{\parskip}{0.55em}
+\setlength{\parindent}{0pt}
+
+% ---------- maths, figures, tables ----------
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{calc}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usepackage[font=small,labelfont=bf,width=0.95\textwidth]{caption}
+
+% pandoc helpers
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\passthrough}[1]{#1}
+\newcommand{\real}[1]{#1}
+
+% ---------- bibliography ----------
+\bibliographystyle{plainnat}
+\setcitestyle{aysep={,}}
+
+% ---------- links ----------
+\usepackage[hidelinks,breaklinks=true]{hyperref}
+\hypersetup{pdftitle={Analysis and modelling of digital public procurement using BOAMP data},
+            pdfauthor={ENSAE applied internship}}
+
+% ---------- administrative placeholders: EDIT THESE FOUR LINES ----------
+\newcommand{\studentName}{\textbf{[SURNAME First name]}}
+\newcommand{\hostCity}{[City]}
+\newcommand{\supervisorName}{[First name SURNAME]}
+\newcommand{\internshipDates}{[start date] to [end date]}
+%-----------------------------------------------------------------------
+
+\begin{document}
+\hypersetup{pageanchor=false}
+
+\input{sections/00_cover}
+
+\cleardoublepage
+\hypersetup{pageanchor=true}
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+
+\input{sections/00_synthesis_en}
+\clearpage
+
+\cleardoublepage
+\pagenumbering{arabic}
+
+\input{sections/01_introduction}
+\input{sections/02_context_problem}
+\input{sections/03_data_pipeline}
+\input{sections/04_linkage}
+\input{sections/05_survival}
+\input{sections/06_nlp}
+\input{sections/07_nlp_downstream}
+\input{sections/08_trends}
+\input{sections/09_discussion}
+\input{sections/10_limitations}
+\input{sections/11_conclusion}
+
+\clearpage
+\bibliography{references}
+
+\clearpage
+\appendix
+\renewcommand{\thesection}{\Alph{section}}
+\setcounter{section}{0}
+\section*{Annexes}
+\addcontentsline{toc}{section}{Annexes}
+The annexes are accessory: the report is written to be read without them. Each is referenced from the body.
+\input{appendices/A_notation}
+\input{appendices/B_data_quality}
+\input{appendices/C_linkage_validation}
+\input{appendices/D_survival_detail}
+\input{appendices/E_nlp_detail}
+\input{appendices/F_trend_detail}
+\input{appendices/G_reproducibility}
+
+\clearpage
+\input{sections/99_synthesis_fr}
+
+\end{document}

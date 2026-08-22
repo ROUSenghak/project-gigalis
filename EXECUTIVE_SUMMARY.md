@@ -1,6 +1,6 @@
 # Executive Summary
 
-Generated: `2026-08-20T11:55:05`
+Generated: `2026-08-22T15:52:01`
 Audience: Gigalis Data & AI Hub management
 
 ## What This Project Does
@@ -21,7 +21,8 @@ legal renewal.
 - Compared four linkage algorithms on a `120`-anchor Grand
   Ouest regional reference, labelled by an LLM research pass over BOAMP notices,
   official URLs, and wider public sources before those algorithms existed and
-  spot-checked on a subset, and kept the pre-frozen `M_B_text_ranking @ 0.70` as the
+  spot-checked on a subset, and kept `M_B_text_ranking @ 0.70` as the frozen
+  post-development
   primary, precision-first rule (precision `0.875`, recall
   `0.389` on its locked split of
   `72` anchors).

@@ -1,6 +1,6 @@
 # Regional Reference Datasheet
 
-Generated: `2026-08-20T11:55:05`
+Generated: `2026-08-22T15:52:01`
 
 ## What This Reference Is
 
@@ -56,11 +56,10 @@ must survive that overlap.
 
 ## Decision Rule
 
-`M_B_text_ranking @ 0.70` remains the frozen primary event definition. It was
-fixed before this reference was consulted and has not been moved since, which is
-what allows the locked split to be reported as held out. Choosing a threshold
-from these rows now would convert the locked split into a tuning set. A
-replacement requires a pre-specified selection rule, direct review of the
+`M_B_text_ranking @ 0.70` remains the frozen post-development primary event
+definition. Project history shows that this reference informed the retained
+policy, so the split evaluation is internal validation rather than an untouched
+holdout. A replacement requires a pre-specified selection rule, direct review of the
 incremental links, and fresh evidence.
 
 ## Known Limitations
@@ -75,7 +74,7 @@ incremental links, and fresh evidence.
 
 ## What It May Legitimately Be Used For
 
-Comparing linkage methods on the same exposed candidate pairs, reading the
-frozen operating point held out, and bounding recall through candidate
+Comparing linkage methods on the same exposed candidate pairs, documenting the
+frozen post-development operating point, and bounding recall through candidate
 generation. It may not be used to claim externally validated accuracy, national
 prevalence, or legal renewal status.

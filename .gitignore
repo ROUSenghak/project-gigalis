@@ -5,8 +5,11 @@ logs/
 *.jsonl.part
 __pycache__/
 *.py[cod]
+.pytest_cache/
 .ipynb_checkpoints/
 .DS_Store
+tmp/
+_to_delete/
 
 # Retired working material kept on disk for provenance, out of version control
 # because it is superseded and large. See its README for what it was.
@@ -20,4 +23,6 @@ archive/retired_national_benchmark_reannotation/submissions_A/
 *.out
 *.toc
 *.synctex.gz
-reports/*.log
+*.bbl
+*.blg
+*.log

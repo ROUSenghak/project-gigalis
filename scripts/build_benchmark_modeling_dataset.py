@@ -158,7 +158,7 @@ def build(benchmark_dir: Path, force: bool) -> dict[str, Any]:
         "source_benchmark_dir": str(benchmark_dir),
         "role": {
             "dev": "pilot stratum of the reference; threshold display only",
-            "validation": "locked stratum of the reference; held-out reading of the frozen policy",
+            "validation": "recorded locked stratum; internal validation of the retained policy",
         },
         "target_columns": {
             "y_primary": ["reviewed observable successor"],

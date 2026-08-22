@@ -76,6 +76,32 @@ def test_academic_precision_recall_sources_and_boundary_are_recorded() -> None:
     assert "not as academic" in generator
 
 
+def test_linkage_reference_is_not_overclaimed_as_untouched_holdout() -> None:
+    """Project history shows that reference evidence informed the retained rule.
+
+    The reference labels still predate the methods, but that is different from
+    saying the final operating policy was never informed by the reference.
+    """
+    paths = [
+        PROJECT_ROOT / "scripts/evaluate_linkage.py",
+        PROJECT_ROOT / "scripts/build_regional_benchmark.py",
+        PROJECT_ROOT / "scripts/build_quality_evidence.py",
+        PROJECT_ROOT / "scripts/build_project_evidence.py",
+        PROJECT_ROOT / "scripts/refresh_reader_artifacts.py",
+        PROJECT_ROOT / "README.md",
+        PROJECT_ROOT / "PROJECT_WORK_PROTOCOL.md",
+    ]
+    text = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+    assert "internal validation" in text.lower()
+    for unsupported in (
+        "operating point was frozen before",
+        "fixed before this reference was read",
+        "fixed before the regional reference was consulted",
+        "only reason the locked split can be reported as held out",
+    ):
+        assert unsupported not in text.lower(), unsupported
+
+
 def test_a_threshold_free_comparator_is_not_shown_with_a_threshold() -> None:
     """``M_A_deterministic`` is a conjunction of fixed gates and reads no
     threshold, so printing one advertises an operating point that does not

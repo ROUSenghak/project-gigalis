@@ -1,0 +1,162 @@
+% Compile with LuaLaTeX on Overleaf.
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[a4paper,top=24mm,bottom=25mm,left=22mm,right=22mm,headheight=19pt]{geometry}
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\setmainfont{TeX Gyre Pagella}
+\setsansfont{TeX Gyre Heros}
+\newfontfamily\headingfont{TeX Gyre Heros}
+\setmonofont[Scale=0.88]{TeX Gyre Cursor}
+\setmathfont{TeX Gyre Pagella Math}
+
+\usepackage[table]{xcolor}
+\definecolor{Ink}{HTML}{17202A}
+\definecolor{DeepBlue}{HTML}{173B57}
+\definecolor{Blue}{HTML}{2B6484}
+\definecolor{PaleBlue}{HTML}{EAF2F7}
+\definecolor{Gold}{HTML}{B88A2B}
+\definecolor{PaleGold}{HTML}{F8F1DF}
+\definecolor{RuleGrey}{HTML}{D8DEE3}
+\definecolor{SoftGrey}{HTML}{F5F7F8}
+
+\usepackage{microtype}
+\usepackage{setspace}
+\setstretch{1.06}
+\usepackage{parskip}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5.5pt plus 1pt minus 1pt}
+\setlength{\emergencystretch}{2em}
+
+\usepackage{booktabs,longtable,array,calc,tabularx}
+\newcounter{none}
+\usepackage{ragged2e}
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\footnotesize}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.22}
+\setlength{\LTpre}{6pt}
+\setlength{\LTpost}{10pt}
+
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=1.6em,topsep=3pt}
+\setlist[itemize]{label=\textcolor{Blue}{\small\textbullet}}
+
+\usepackage{titlesec}
+\titleformat{\section}
+  {\needspace{5\baselineskip}\headingfont\Large\bfseries\color{DeepBlue}}
+  {\thesection}{0.65em}{}
+\titleformat{\subsection}
+  {\needspace{3\baselineskip}\headingfont\large\bfseries\color{Blue}}
+  {\thesubsection}{0.55em}{}
+\titleformat{\subsubsection}
+  {\needspace{2\baselineskip}\headingfont\normalsize\bfseries\color{Ink}}
+  {\thesubsubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{20pt}{7pt}
+\titlespacing*{\subsection}{0pt}{13pt}{4pt}
+\titlespacing*{\subsubsection}{0pt}{10pt}{3pt}
+% Major sections are already numbered in the teaching-guide source.
+\setcounter{secnumdepth}{0}
+% Pandoc emits the guide's top-level Markdown headings as subsections because
+% this file supplies the outer article wrapper.
+\setcounter{tocdepth}{2}
+\usepackage{needspace}
+
+\usepackage[most]{tcolorbox}
+\renewenvironment{quote}
+  {\begin{tcolorbox}[colback=PaleBlue,colframe=Blue!45,boxrule=0.6pt,
+     arc=1.5mm,left=4mm,right=4mm,top=2.5mm,bottom=2.5mm]}
+  {\end{tcolorbox}}
+
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\},fontsize=\small}
+\DefineVerbatimEnvironment{verbatim}{Verbatim}{breaklines,breakanywhere,fontsize=\small}
+\usepackage{framed}
+\definecolor{shadecolor}{HTML}{F3F6F8}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+
+% Pandoc support commands.
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\pandocbounded}[1]{#1}
+\providecommand{\passthrough}[1]{#1}
+
+\usepackage{graphicx}
+\usepackage{bookmark}
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=DeepBlue,
+  urlcolor=Blue,
+  citecolor=DeepBlue,
+  pdfauthor={BOAMP Observable-Successor Study},
+  pdftitle={Complete Teaching and Defense Guide}
+}
+\urlstyle{same}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\sffamily\footnotesize\color{DeepBlue}BOAMP Observable-Successor Study}
+\fancyhead[R]{\sffamily\footnotesize\color{Blue}\nouppercase{\rightmark}}
+\fancyfoot[C]{\sffamily\footnotesize\color{Ink}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\hbox to\headwidth{\color{RuleGrey}\leaders\hrule height \headrulewidth\hfill}}
+\renewcommand{\subsectionmark}[1]{\markright{#1}}
+
+\usepackage{lastpage}
+\usepackage{caption}
+\captionsetup{font=small,labelfont={bf,color=DeepBlue}}
+
+\begin{document}
+\hypersetup{pageanchor=false}
+
+\begin{titlepage}
+  \color{Ink}
+  \vspace*{18mm}
+  {\color{Gold}\rule{34mm}{2.4pt}}\\[14mm]
+  {\headingfont\fontsize{29}{34}\selectfont\bfseries\color{DeepBlue}
+   BOAMP Observable-Successor\\Study\par}
+  \vspace{5mm}
+  {\headingfont\fontsize{19}{23}\selectfont\color{Blue}
+   Complete Teaching and Defense Guide\par}
+  \vspace{12mm}
+  {\large From official notices to procurement episodes, successor linkage,
+   survival analysis, trends, and technology classification\par}
+  \vfill
+  \begin{tcolorbox}[colback=PaleGold,colframe=Gold!55,boxrule=0.7pt,arc=2mm,
+      left=5mm,right=5mm,top=4mm,bottom=4mm]
+    \textbf{Scientific boundary.} This study identifies observable successor
+    procurements under a documented linkage rule. It does not certify legal
+    contract renewals, causal effects, or individual forecasts.
+  \end{tcolorbox}
+  \vspace{12mm}
+  {\sffamily\small Canonical project state: BOAMP 2015--2025\par}
+  {\sffamily\small Prepared 22 August 2026\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+\begingroup
+\footnotesize
+\setlength{\parskip}{0pt}
+\tableofcontents
+\endgroup
+\clearpage
+\hypersetup{pageanchor=true}
+\pagenumbering{arabic}
+
+\input{content.tex}
+
+\section*{Source-of-truth note}
+This guide is derived from the active canonical repository state, especially:
+\begin{itemize}
+  \item \texttt{PROJECT\_WORK\_PROTOCOL.md} and \texttt{FINAL\_PIPELINE.md};
+  \item \texttt{DATA\_QUALITY\_REPORT.md};
+  \item \texttt{SURVIVAL\_ANALYSIS\_REPORT.md};
+  \item \texttt{TREND\_ANALYSIS\_REPORT.md};
+  \item \texttt{TECHNOLOGY\_TAXONOMY\_REPORT.md}; and
+  \item the current materialised JSON/CSV summaries under
+        \texttt{data/processed/boamp/}.
+\end{itemize}
+Archived and retired methods are excluded.
+
+\end{document}

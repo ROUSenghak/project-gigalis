@@ -1,0 +1,43 @@
+\section{Downstream use of the predictions}
+
+\subsection{Two gates before any use}
+
+Nothing was re-run mechanically for eleven classes. A class enters downstream analysis only by clearing \textbf{both} gates, fixed before any curve was fitted.
+
+\textbf{Gate A --- classifier evidence.} Does the label mean anything? A class the model cannot separate produces a group that mixes several technologies, and a curve fitted to it estimates the mixture. The gate requires a substantive class, annotated support of at least 10, and out-of-fold F1 of at least 0.65. The three fallback classes are excluded outright: \texttt{OTHER\_DIGITAL} simultaneously holds video surveillance, RFID and website maintenance; placing that bucket beside cybersecurity in a ``comparison across technologies'' would invite reading the heterogeneity of the bucket as a technology effect.
+
+\textbf{Gate B --- statistical support.} At least 100 episodes and 20 events. A perfectly classified class with fourteen episodes and one event cannot carry a curve.
+
+Five classes of eleven clear both: \texttt{CYBERSECURITY}, \texttt{NETWORK\_TELECOM}, \texttt{IT\_INFRASTRUCTURE}, \texttt{BUSINESS\_SOFTWARE}, \texttt{IT\_SERVICES}. \texttt{CLOUD\_HOSTING} (115 episodes, 11 events) and \texttt{DATA\_BI} (86, 15) fail Gate B; \texttt{AI} fails both.
+
+\textbf{What Gate A costs.} The same log-rank test over every class clearing the statistical gate alone --- that is, with the residual classes reinstated --- gives \(p = 0.000119\) against \(p = 0.0363\) with the gate. The gate \textbf{weakens} the result, and it was kept. That is published in the technical report, and it is the strongest available evidence that the analysis was not steered toward a result.
+
+\subsection{Survival by technology}
+
+\begingroup\footnotesize
+\begin{longtable}[]{@{}lrrrr@{}}
+\toprule\noalign{}
+Class & Episodes & Events & P(successor $\le$ 24 m) & At risk at 24 m \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+BUSINESS\_SOFTWARE & 854 & 106 & 8.57 \% & 673 \\
+NETWORK\_TELECOM & 859 & 140 & 6.49 \% & 716 \\
+CYBERSECURITY & 316 & 60 & 6.46 \% & 246 \\
+IT\_SERVICES & 492 & 72 & 6.17 \% & 393 \\
+IT\_INFRASTRUCTURE & 298 & 38 & 6.11 \% & 239 \\
+\end{longtable}
+\endgroup
+
+The multivariate log-rank test over these five classes gives a statistic of 10.26 for \(p = 0.0363\) on 416 events: \textbf{the five sufficiently supported predicted technology groups show evidence of different observable-successor timing}. The spread between extremes is 2.5 points at 24 months.
+
+Confidence in this secondary descriptive result is moderate, for three cumulative reasons: the event is an accepted observable successor under the retained rule, not a renewal; the class labels are \textbf{predictions} carrying the error rate of \S~6.6, which does not propagate into the published intervals; and the comparison is unadjusted for buyer and procedure differences. It does not support a causal technology effect.
+
+\subsection{Trends by technology}
+
+Five quarterly series use the same 2015Q2--2025Q4 observation window as the CPV series, with recent slopes fitted over the last twelve quarters. \textbf{None shows a recent linear trend}, before or after multiplicity correction. The smallest raw p-value is 0.194 (\texttt{IT\_SERVICES}, slope $+0.45$ episodes per quarter; Holm 0.972); the strongest negative slope is \texttt{BUSINESS\_SOFTWARE} at $-0.76$ (raw $p=0.248$; Holm 0.992). The reading is therefore: at this noise level, \textbf{no recent technology trend is established}.
+
+\subsection{The three inherited uncertainties}
+
+Every technology-level figure inherits, in this order: \textbf{linkage uncertainty} (the event itself depends on the rule, \S~5.7), \textbf{classifier uncertainty} (macro-F1 0.744, with errors concentrated on definitional boundaries), and \textbf{sampling uncertainty} (the published intervals). Only the third appears in the confidence intervals. That is acceptable for a layer explicitly presented as enrichment; it would not be for a reference analysis.

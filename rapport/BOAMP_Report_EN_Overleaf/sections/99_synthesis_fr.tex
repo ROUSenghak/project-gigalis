@@ -1,0 +1,64 @@
+\begin{otherlanguage}{french}
+\section*{Note de synthèse (français)}
+\addcontentsline{toc}{section}{Note de synthèse (français)}
+\markboth{Note de synthèse}{}
+
+\emph{Cette note est indépendante du rapport et se lit seule. Elle s'adresse à un lecteur non spécialiste.}
+
+\textbf{\studentName{} --- ENSAE 2\textsuperscript{e} année --- Stage d'application 2025-2026}\\
+\textbf{Gigalis --- Analyse et modélisation des marchés publics numériques à partir des données du BOAMP}
+
+\subsection*{Le contexte}
+
+Gigalis est le groupement d'intérêt public du numérique en Pays de la Loire. Il agit notamment comme centrale d'achat : il négocie des contrats mutualisés --- cloud, cybersécurité, réseaux, intelligence artificielle --- que les collectivités et établissements publics peuvent utiliser sans y être tenus. L'intérêt de ces contrats dépend du moment où ils sont ouverts. Trop tôt, ils restent inutilisés ; trop tard, les acheteurs ont déjà passé leurs propres marchés. D'où la question posée au stage : peut-on anticiper, à partir des données publiques, quand un besoin d'achat numérique va réapparaître ?
+
+\subsection*{Ce que nous savons}
+
+Les avis de marchés publics sont publiés au BOAMP, un bulletin officiel accessible librement. Le stage a traité \textbf{1,6 million d'avis} publiés entre 2015 et 2025, et en a tiré une population d'étude de \textbf{3 800 épisodes de commande publique attribués et reconstruits}, contenant un code CPV numérique, dans le Grand Ouest.
+
+Un obstacle est apparu d'emblée, et il a structuré tout le travail : \textbf{le BOAMP n'indique jamais qu'un marché en renouvelle un autre}. Il n'existe donc aucune liste de renouvellements à partir de laquelle apprendre. Il a fallu construire l'information : pour chaque marché attribué, rechercher parmi les marchés publiés ensuite par le même acheteur celui qui poursuit le même besoin, et n'accepter ce rapprochement que lorsque la ressemblance est forte. Ce que l'étude mesure est donc un \textbf{`` successeur observable ''} --- un marché ultérieur qui prend visiblement le relais --- et non un renouvellement juridique. La distinction est maintenue partout, parce qu'elle change ce que l'on a le droit de conclure.
+
+\subsection*{Ce que les modèles indiquent}
+
+Sur cette base, environ \textbf{un épisode sur sept} voit apparaître un successeur observable avant fin 2025. La probabilité qu'un successeur devienne visible est estimée à \textbf{4,6 \% dans les douze mois} suivant l'attribution et \textbf{6,7 \% dans les vingt-quatre mois}. Le suivi diffère selon l'année d'attribution et l'estimateur de Kaplan--Meier prend explicitement en compte la censure à droite ; aucune explication causale n'est donnée au niveau numérique de ces probabilités.
+
+Le résultat le plus utile n'est pas ce niveau moyen, mais son profil dans le temps : la probabilité \textbf{s'élève nettement entre la troisième et la quatrième année} du marché, ce qui correspond à la durée usuelle des contrats-cadres publics. C'est la fenêtre où la surveillance a le plus de valeur.
+
+Deux comparaisons demandent des niveaux de prudence différents. Dans la population du Grand Ouest, les épisodes relevant du \textbf{CPV-35, matériel de sécurité et de surveillance} montrent un successeur observable plus tôt ; l'écart s'atténue lorsque l'on compare les achats d'un même acheteur. Les \textbf{accords-cadres} montrent également un successeur plus tôt. L'association reste positive après ajustement direct de la détectabilité et dans l'analyse principale intra-acheteur, mais son ampleur diminue.
+
+Le second apport est d'une autre nature. Les marchés publics sont classés par une nomenclature administrative européenne, trop large pour un usage métier : une même catégorie mélange téléphonie, logiciels et prestations informatiques. Un modèle entraîné sur \textbf{500 avis annotés à la main} apprend à retrouver, à partir du seul texte de l'objet du marché, une segmentation métier en huit familles --- cloud, cybersécurité, réseaux, infrastructures, logiciels métier, données, intelligence artificielle, services informatiques. Il est \textbf{nettement meilleur que la nomenclature officielle} pour cet usage, et l'écart est mesuré avec sa marge d'incertitude. Gigalis dispose donc d'une lecture par technologie qui n'existait pas dans les données de départ.
+
+\subsection*{Ce qui reste incertain}
+
+Trois points doivent être dits clairement.
+
+\textbf{La qualité des rapprochements n'est pas validée de façon indépendante.} Elle a été mesurée sur un échantillon de référence constitué pour le projet, et sur un très petit nombre de liens acceptés. L'ordre de grandeur est encourageant, l'intervalle d'incertitude est large. Une relecture par un spécialiste de la commande publique est le contrôle qui manque ; le protocole et l'échantillon sont prêts.
+
+\textbf{Les niveaux absolus dépendent fortement de la règle choisie.} Selon que l'on est plus ou moins exigeant sur le rapprochement, le nombre de successeurs identifiés varie de 296 à 1 332. Plusieurs comparaisons résistent mieux aux changements de définition de l'événement, mais la composition par acheteur compte : le contraste CPV-35 s'atténue au sein d'un même acheteur, l'association des accords-cadres diminue sous contrôle, et le ralentissement CPV-48 apparaît surtout dans une analyse de sensibilité intra-acheteur.
+
+\textbf{La prédiction marché par marché n'est pas établie.} Un modèle a été entraîné sur les années anciennes puis testé sur les années récentes sans réajustement : son estimation ponctuelle est proche du hasard et la validation temporelle disponible ne démontre pas une discrimination individuelle utile. Le modèle n'est donc pas utilisé comme moteur de classement individuel, et la liste des `` vingt marchés les plus susceptibles d'être renouvelés '' prévue au départ n'a pas été livrée.
+
+\subsection*{Ce que cela signifie pour Gigalis}
+
+Le travail fournit \textbf{un instrument de mesure et de veille, pas un moteur de prédiction}.
+
+Concrètement, il permet de dire quels \emph{groupes} de marchés entrent dans la période où un successeur devient probable --- par segment et par ancienneté --- et de concentrer l'attention humaine sur la fenêtre de trois à quatre ans, en priorité sur les segments les plus rapides. Il fournit une segmentation technologique du portefeuille régional utilisable pour cartographier l'activité. Et il laisse un pipeline reproductible, documenté et testé, qui peut être relancé sur des données actualisées.
+
+Il ne permet pas, en l'état, d'affirmer qu'un marché précis sera renouvelé, ni de prévoir l'évolution d'un segment : sur la période observée, aucune tendance de volume ne résiste aux tests statistiques appropriés.
+
+\subsection*{Ce que nous recommandons ensuite}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Faire relire un échantillon de rapprochements par un spécialiste indépendant, avant toute communication chiffrée sur la précision de la méthode.
+\item
+  Faire annoter une partie du corpus technologique par une seconde personne, afin de mesurer la fiabilité des étiquettes.
+\item
+  Fournir les données internes d'adhésion à Gigalis pour traiter la question causale --- l'ouverture d'un contrat mutualisé change-t-elle réellement le comportement d'achat des membres ? --- que les données publiques seules ne permettent pas d'aborder.
+\item
+  Traiter la prédiction individuelle comme une expérience distincte, avec ses variables, son protocole de validation et son critère de réussite fixés à l'avance, plutôt que comme un ajustement du modèle actuel.
+\end{enumerate}
+
+\end{otherlanguage}

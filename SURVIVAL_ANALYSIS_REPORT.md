@@ -1,6 +1,6 @@
 # Survival Analysis Report
 
-Generated: `2026-08-20T11:54:58`  
+Generated: `2026-08-22T15:51:54`
 Event: **accepted observable successor procurement**, not certified legal renewal.
 
 ## Cohort And Event Definition
@@ -49,12 +49,13 @@ The primary split is the one the internship guideline specifies. The extended sp
 adds the 2025 award cohort, whose follow-up is shortest, and is carried only as a
 sensitivity read.
 
-Out-of-time discrimination is weak in both: a C-index near `0.5` means the model
-does not usefully rank individual episodes by time to successor on unseen award
-years. That is the result, not a prompt to retune. Part of it is structural, since
-episodes awarded from 2022 onwards can only contribute short-gap events, but the
-model has no demonstrated out-of-time discriminative power and nothing in the
-operational deliverable rests on it.
+The primary point estimate is close to chance. Its 95% interval is
+`[0.415, 0.542]` under episode resampling and
+`[0.36, 0.634]` under buyer-cluster
+resampling. The latter is wider because several episodes belong to the same buyer.
+The available temporal validation therefore does not establish useful individual
+discrimination, and the model is not used as an individual ranking engine. This is
+the result, not a prompt to retune.
 
 ## Parametric Models And Indicators
 
@@ -66,7 +67,7 @@ The selected parametric model is **not** the source of the operational numbers.
 Every horizon reported here falls inside the observed window, and the smooth
 families flatten the observed renewal shoulder, so the 12/24-month conditional
 probabilities in `survival_conditional_probabilities.csv` are read off the
-Kaplan-Meier estimator, with 500-draw episode-bootstrap intervals. The generalized
+Kaplan-Meier estimator, with 500-draw episode and buyer-cluster bootstrap intervals. The generalized
 gamma is reported as the best-fitting family and as the instrument any
 extrapolation past `2025-12-31` would use.
 
@@ -129,15 +130,15 @@ This is the check the framework-agreement finding most needs, because framework 
 For a contract that has reached age `a` months with no accepted successor, the
 probability that one becomes visible within the next `h` months is
 `P(T <= a+h | T > a) = 1 - S(a+h)/S(a)`, read off the Kaplan-Meier estimator with
-500-draw episode-bootstrap intervals. This is the study's operational output.
+500-draw episode and buyer-cluster bootstrap intervals. This is the study's operational output.
 
-| Contract age | P(successor within 12m) | 95% CI | P(successor within 24m) | 95% CI |
-|---:|---:|---|---:|---|
-| 0 months | 4.621% | [3.912%, 5.239%] | 6.733% | [5.914%, 7.577%] |
-| 12 months | 2.215% | [1.704%, 2.726%] | 4.260% | [3.554%, 4.980%] |
-| 24 months | 2.091% | [1.575%, 2.598%] | 9.399% | [8.330%, 10.676%] |
-| 36 months | 7.464% | [6.522%, 8.587%] | 9.693% | [8.579%, 11.117%] |
-| 48 months | 2.409% | [1.765%, 3.069%] | 2.893% | [2.154%, 3.719%] |
+| Episode age | P(successor within 12m) | Episode-bootstrap 95% CI | Buyer-cluster 95% CI | P(successor within 24m) | Episode-bootstrap 95% CI | Buyer-cluster 95% CI |
+|---:|---:|---|---|---:|---|---|
+| 0 months | 4.621% | [3.912%, 5.239%] | [3.630%, 5.678%] | 6.733% | [5.914%, 7.577%] | [5.248%, 8.590%] |
+| 12 months | 2.215% | [1.704%, 2.726%] | [1.383%, 3.234%] | 4.260% | [3.554%, 4.980%] | [3.250%, 5.361%] |
+| 24 months | 2.091% | [1.575%, 2.598%] | [1.536%, 2.631%] | 9.399% | [8.330%, 10.676%] | [7.687%, 11.199%] |
+| 36 months | 7.464% | [6.522%, 8.587%] | [5.880%, 9.058%] | 9.693% | [8.579%, 11.117%] | [7.878%, 11.708%] |
+| 48 months | 2.409% | [1.765%, 3.069%] | [1.664%, 3.320%] | 2.893% | [2.154%, 3.719%] | [2.078%, 3.909%] |
 
 The intervals are wide relative to the estimates, and the profile is not monotone
 in age: it rises into the 36-48 month renewal shoulder and falls away after it.
@@ -221,6 +222,26 @@ Two readings follow, and they differ:
 Neither statement is causal. Candidate-pool size is a description of a buyer's
 publication volume, and this model adjusts for it to separate observability from
 behaviour -- it does not identify an effect of either.
+
+### Buyer-stratified sensitivity has a different role
+
+Giving each buyer its own baseline hazard controls fixed buyer characteristics,
+including persistent procurement culture and long-run publication propensity. It
+does not eliminate anchor-specific detectability: candidate-pool size varies within
+`473`
+of `514` multi-episode buyers.
+The direct detectability sensitivity therefore remains the model adding
+`log(1 + candidate pool size)`.
+
+In the primary buyer-stratified arm, framework HR is
+`1.497`
+(`p=0.00271`), CPV-35 is
+`1.213`
+(`p=0.262`), and CPV-48 is
+`0.482`
+(`p=1.67e-05`). Thus the
+population CPV-35 contrast attenuates within buyer, framework remains positive,
+and the CPV-48 pattern is an exploratory secondary within-buyer result.
 
 ## Linkage Sensitivity
 

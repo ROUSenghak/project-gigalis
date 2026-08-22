@@ -122,6 +122,37 @@ def test_conditional_probabilities_cover_the_reported_ages_with_intervals() -> N
     assert conditional["probability"].between(0, 1).all()
     assert (conditional["ci_95_low"] <= conditional["probability"]).all()
     assert (conditional["probability"] <= conditional["ci_95_high"]).all()
+    assert (
+        conditional["buyer_cluster_ci_95_low"] <= conditional["probability"]
+    ).all()
+    assert (
+        conditional["probability"] <= conditional["buyer_cluster_ci_95_high"]
+    ).all()
+    assert set(conditional["episode_interval_method"]) == {
+        "episode bootstrap, 500 draws"
+    }
+    assert set(conditional["buyer_interval_method"]) == {
+        "buyer-cluster bootstrap, 500 draws"
+    }
+    report_generator = Path("scripts/refresh_reader_artifacts.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'conditional_probabilities["episode_interval_method"]' in report_generator
+    assert 'conditional_probabilities["interval_method"]' not in report_generator
+
+
+def test_buyer_stratification_does_not_claim_constant_candidate_pools() -> None:
+    summary = json.loads((PROCESSED / "survival_analysis_summary.json").read_text())
+    diagnostic = summary["buyer_stratified_cox"]
+    assert diagnostic["multi_episode_buyers_with_varying_candidate_pool_size"] > 0
+    assert diagnostic["share_multi_episode_buyers_with_varying_candidate_pool_size"] > 0.5
+    assert "does not eliminate" in diagnostic["interpretation"]
+
+    table = pd.read_csv(PROCESSED / "survival_cox_buyer_stratified_sensitivity.csv")
+    assert set(table["arm"]) == {"strict", "main", "looser", "contrast_high_recall"}
+    assert {"framework_flag", "digital_segment_CPV-35", "digital_segment_CPV-48"} <= set(
+        table["covariate"]
+    )
 
 
 def test_parametric_model_is_not_the_operational_probability_source() -> None:

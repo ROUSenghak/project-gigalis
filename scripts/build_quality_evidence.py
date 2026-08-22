@@ -260,7 +260,7 @@ def plot_confusion(confusion: pd.DataFrame, path: Path) -> None:
         for i in range(2):
             for j in range(2):
                 ax.text(j, i, str(matrix[i, j]), ha="center", va="center", color="#1f2933")
-    fig.suptitle("Held-out internal anchor-level event-detection matrices", fontsize=12)
+    fig.suptitle("Internal-validation anchor-level event-detection matrices", fontsize=12)
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(path, dpi=180, bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -284,7 +284,7 @@ def plot_curves(curves: dict[str, dict[str, Any]], path_roc: Path, path_pr: Path
             color=colors[method],
             linewidth=2,
         )
-    ax.set_title("Held-out internal pair-level ROC curves")
+    ax.set_title("Internal-validation pair-level ROC curves")
     ax.set_xlabel("False positive rate")
     ax.set_ylabel("True positive rate")
     ax.set_xlim(0, 1)
@@ -316,7 +316,7 @@ def plot_curves(curves: dict[str, dict[str, Any]], path_roc: Path, path_pr: Path
             color=colors[method],
             linewidth=2,
         )
-    ax.set_title("Held-out internal pair-level precision-recall curves")
+    ax.set_title("Internal-validation pair-level precision-recall curves")
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
     ax.set_xlim(0, 1)
@@ -511,14 +511,13 @@ def threshold_narrative(
     frozen_dev = sweep_row(dev_sweep, 70.0)
     lower_dev = sweep_row(dev_sweep, 60.0)
     return (
-        f"On the locked split the frozen `0.70` gives {describe_point(frozen_validation)}; "
+        f"On the recorded locked stratum the frozen `0.70` gives {describe_point(frozen_validation)}; "
         f"`0.60` gives {describe_point(lower_validation)}. On the pilot split `0.70` gives "
         f"{describe_point(frozen_dev)} against {describe_point(lower_dev)} at `0.60`. "
-        "`0.70` was fixed before this reference was read and has not been moved since, "
-        "which is the only reason the locked split can be reported as held out. Selecting "
-        "a threshold now, from these rows, would convert the locked split into a tuning "
-        "set and forfeit that. `0.60` therefore stays a sensitivity arm whatever these "
-        "rows say."
+        "Project history shows that this reference informed the retained `0.70` policy, "
+        "so these rows are internal validation rather than an untouched holdout. The "
+        "policy is now frozen after development; replacing it requires fresh independent "
+        "evidence. `0.60` remains a required sensitivity arm."
     )
 
 
@@ -586,13 +585,13 @@ def write_quality_markdown(
         "- **ROC curve:** pair-level score-ranking diagnostic over exposed candidate pairs. Useful, but less important than precision-recall because positives are rare.\n"
         f"- **Precision-recall curve:** pair-level score-ranking diagnostic. This is the better curve for this project because the locked split has only {positive_pairs} positive pairs among {positive_pairs + negative_pairs} candidate pairs.\n"
         "- **Threshold trade-off:** anchor-level sweep of the actual `M_B` top-1 decision. It shows how strict acceptance changes precision, recall, false-positive rate, and link volume.\n\n"
-        "## Held-Out Event-Detection Confusion Matrix\n\n"
+        "## Internal-Validation Event-Detection Confusion Matrix\n\n"
         "Rows are actual anchor status; columns are predicted link/abstention. Here, a wrong candidate on a positive anchor still counts as detecting that the anchor has a successor.\n\n"
         f"{markdown_table(event, ['method', 'threshold', 'tp', 'fp', 'fn', 'tn'])}\n\n"
-        "## Held-Out Exact-Successor Accounting\n\n"
+        "## Internal-Validation Exact-Successor Accounting\n\n"
         "This is the stricter accounting behind project precision and recall. Cells do not necessarily sum to the number of anchors because a wrong successor contributes one FP and one FN.\n\n"
         f"{markdown_table(exact, ['method', 'threshold', 'tp', 'fp', 'fn', 'tn'])}\n\n"
-        "## Held-Out Pair-Level ROC and Precision-Recall Metrics\n\n"
+        "## Internal-Validation Pair-Level ROC and Precision-Recall Metrics\n\n"
         f"{markdown_table(pair, ['method', 'pair_roc_auc', 'pair_average_precision', 'positive_pairs', 'negative_pairs'])}\n\n"
         "A negative pair here is any exposed candidate that is not the reviewed successor. The reviewer inspected roughly 25 candidates per anchor, so most negatives were never individually rejected; these curves rank scores and do not measure accuracy.\n\n"
         "## M_B Anchor-Level Threshold Trade-Off\n\n"

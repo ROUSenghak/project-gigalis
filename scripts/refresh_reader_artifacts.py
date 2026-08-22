@@ -247,17 +247,25 @@ def latex_parametric_rows(frame: pd.DataFrame) -> str:
 
 
 def latex_conditional_rows(frame: pd.DataFrame) -> str:
-    """One row per episode age, both horizons side by side with their intervals."""
+    """One row per episode age with episode- and buyer-bootstrap intervals."""
     wide = frame.pivot(
         index="contract_age_months", columns="horizon_months",
-        values=["probability", "ci_95_low", "ci_95_high"],
+        values=[
+            "probability",
+            "ci_95_low",
+            "ci_95_high",
+            "buyer_cluster_ci_95_low",
+            "buyer_cluster_ci_95_high",
+        ],
     )
     return "\n".join(
         f"{age} months & "
         f"{wide.loc[age, ('probability', 12)] * 100:.2f}\\% & "
         f"[{wide.loc[age, ('ci_95_low', 12)] * 100:.2f}, {wide.loc[age, ('ci_95_high', 12)] * 100:.2f}] & "
+        f"[{wide.loc[age, ('buyer_cluster_ci_95_low', 12)] * 100:.2f}, {wide.loc[age, ('buyer_cluster_ci_95_high', 12)] * 100:.2f}] & "
         f"{wide.loc[age, ('probability', 24)] * 100:.2f}\\% & "
-        f"[{wide.loc[age, ('ci_95_low', 24)] * 100:.2f}, {wide.loc[age, ('ci_95_high', 24)] * 100:.2f}] \\\\"
+        f"[{wide.loc[age, ('ci_95_low', 24)] * 100:.2f}, {wide.loc[age, ('ci_95_high', 24)] * 100:.2f}] & "
+        f"[{wide.loc[age, ('buyer_cluster_ci_95_low', 24)] * 100:.2f}, {wide.loc[age, ('buyer_cluster_ci_95_high', 24)] * 100:.2f}] \\\\"
         for age in wide.index
     )
 
@@ -775,9 +783,10 @@ not resolve to exactly one episode and were dropped rather than guessed, and
 anchors the review declined to decide are excluded rather than counted as
 negatives, leaving {usable_anchors} evaluable anchors.
 
-The sample is split into a pilot part and a locked part. The acceptance threshold
-was fixed before the locked part was read, which is what allows locked-split
-figures to be reported as held out. The pilot split carries
+The sample is split into a pilot part and a recorded locked part. Project history
+shows that evidence from this reference informed the retained operating policy,
+so both parts provide internal-validation evidence rather than an untouched
+holdout. The pilot split carries
 {pilot["usable_anchors"]} evaluable anchors
 ({pilot["positive_anchors"]} with a reviewed successor) and
 {modeling["outputs"]["dev"]["rows"]:,} pair rows; the locked split carries
@@ -1267,8 +1276,8 @@ so these rates are read for direction only.}}
 \begin{{figure}}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{{figures/benchmark_dev_method_metrics.png}}
-\caption{{The pilot split as conditional probabilities. It is shown for
-completeness; the held-out reading is the locked split below.}}
+\caption{{The pilot split as conditional probabilities. It is shown beside the
+recorded locked stratum below; both are internal-validation evidence.}}
 \end{{figure}}
 
 \section{{Locked Reference Results}}
@@ -1385,7 +1394,7 @@ takes the opposite trade, which is the one this study needs.}}
 \end{{figure}}
 
 \section{{Quality Evidence And Interpretation}}
-The held-out result supports retaining a conservative baseline for continued
+The internal-validation result supports retaining a conservative baseline for continued
 work; it does not establish final accuracy. Within this reference the direction
 is coherent, with \code{{M\_B}} best on \(P(C=1\mid A=1)\) and lowest on
 \(P(A=1\mid P=0)\) among useful methods and \code{{M\_C}} showing the expected
@@ -1395,7 +1404,7 @@ must be read before separating any two methods.
 The pair-level ROC and precision-recall curves should be read as score-ranking
 diagnostics, not as the final operating decision. The final pipeline decision is
 anchor-level: choose one successor or abstain. The ROC curve is stepped rather
-than smooth because the held-out reference contains a finite number of
+than smooth because the internal reference contains a finite number of
 labelled pairs and many tied or near-tied scores.
 
 The emphasis on precision-recall for rare positive decisions is supported by
@@ -1423,10 +1432,10 @@ which {int(locked_70.true_positive)} are correct (precision
 correct (precision {locked_60.precision:.3f}, recall {locked_60.recall:.3f},
 FPR {locked_60.false_positive_rate:.3f}). On the pilot split the same two points
 give precision {pilot_70.precision:.3f} and {pilot_60.precision:.3f}
-respectively. The threshold was fixed before this reference was read, which is
-the only reason the locked split can be reported as held out; selecting one from
-these rows now would convert it into a tuning set. The lower threshold is therefore
-reported as a sensitivity arm rather than promoted after inspecting validation.
+respectively. Project history shows that this reference informed the retained
+$0.70$ policy, so the comparison is internal validation rather than an untouched
+holdout. The policy is now frozen after development; replacing it requires fresh
+independent evidence. The lower threshold remains a required sensitivity arm.
 
 \section{{Model-Assisted Challenge Review}}
 A separate blinded challenge review sampled 20 accepted links, 20
@@ -1657,21 +1666,22 @@ the two left-hand forms being identical because the conditioning event
 \(\{{T>a\}}\) already excludes \(T\le a\). Here \(a\) is the episode's current
 age, \(h\) the forward horizon, and \(\{{T>a\}}\) the statement that no
 observable successor has appeared yet. The quantity is read off the
-Kaplan--Meier estimator with the {int(conditional_probabilities["interval_method"].iloc[0].split()[-2])}-draw
-episode-bootstrap intervals described in \S\ref{{sec:survival-methods}}.
+Kaplan--Meier estimator with the {int(conditional_probabilities["episode_interval_method"].iloc[0].split()[-2])}-draw
+episode- and buyer-cluster-bootstrap intervals described in \S\ref{{sec:survival-methods}}.
 \begin{{table}}[H]
 \centering
 \small
-\begin{{tabularx}}{{\textwidth}}{{lrlrl}}
+\begin{{tabularx}}{{\textwidth}}{{lrrrrrr}}
 \toprule
-Age \(a\) at assessment & \(P(T\le a{{+}}12\mid T{{>}}a)\) & 95\% CI & \(P(T\le a{{+}}24\mid T{{>}}a)\) & 95\% CI \\
+Age \(a\) & \(P_{{12}}\) & episode CI & buyer CI & \(P_{{24}}\) & episode CI & buyer CI \\
 \midrule
 {latex_conditional_rows(conditional_probabilities)}
 \bottomrule
 \end{{tabularx}}
 \caption{{Given that an episode has reached age \(a\) with no accepted
 observable successor, the estimated probability that one becomes visible in the
-following 12 or 24 months. Kaplan--Meier on the
+following 12 or 24 months, with episode-bootstrap and buyer-cluster-bootstrap
+95\% intervals. Kaplan--Meier on the
 {survival_main["validation"]["rows"]:,}-episode cohort under \(M_B@0.70\).}}
 \end{{table}}
 Worked example, the row a purchasing body would use most. At
@@ -1679,9 +1689,12 @@ Worked example, the row a purchasing body would use most. At
 \[
 \hat{{P}}(T\le 48\mid T>36)={float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "probability"].iloc[0]):.4f},
 \qquad
-\text{{95\% CI }}[{float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "ci_95_low"].iloc[0]):.4f},\,
+\text{{episode 95\% CI }}[{float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "ci_95_low"].iloc[0]):.4f},\,
 {float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "ci_95_high"].iloc[0]):.4f}].
 \]
+The corresponding buyer-cluster 95\% interval is
+[{float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "buyer_cluster_ci_95_low"].iloc[0]):.4f},
+{float(conditional_probabilities.loc[(conditional_probabilities["contract_age_months"] == 36) & (conditional_probabilities["horizon_months"] == 12), "buyer_cluster_ci_95_high"].iloc[0]):.4f}].
 In words: conditional on an episode reaching 36 months with no accepted
 observable successor, the estimated probability that one becomes visible in the
 following 12 months is
@@ -1868,10 +1881,10 @@ The final event definition is \code{{M\_B\_text\_ranking @ 0.70}}, a frozen
 conservative observable-successor baseline, with the stricter
 (\(M_B@0.80\)), looser (\(M_B@0.60\)), and weighted-gated (\(M_C@0.70\)) variants
 as the required sensitivity analyses, together with the borderline-band check.
-The threshold is not claimed to be optimal; it is claimed to be
-pre-specified. It was fixed before the regional reference was consulted and has
-not been moved since, so the locked-split figures are held out rather than
-fitted. Moreover, the completed
+The threshold is not claimed to be optimal; it is a frozen post-development
+policy. Project history shows that regional-reference evidence informed the
+retained rule, so the locked-stratum figures are internal validation rather than
+an untouched holdout. Moreover, the completed
 model-assisted review confirmed only 14 of 20 sampled production links at
 $0.70$ conservatively, so lowering an unreviewed threshold would not support a
 stronger accuracy claim. This is a precision-first design. Low recall is
@@ -1948,7 +1961,7 @@ anchor-by-anchor verification and not an independent specialist panel, and its
 negatives are corpus-relative, so the reported false-positive rate is a
 sample diagnostic rather than a population-wide rate
 (\S\ref{{sec:linkage-caveat}}).
-\item The held-out reference is small: {locked["positive_anchors"]}
+\item The internal reference is small: {locked["positive_anchors"]}
 positive anchors and {int(m_b.accepted_links)} accepted \code{{M\_B}} links.
 The selected threshold should not be over-tuned and its accuracy remains provisional.
 \item Buyer standardisation is improved but remains an important risk area. The
@@ -2136,8 +2149,10 @@ be reconstructed, so the recall and candidate-reachability figures below should 
 be read as fully independent of the text score they evaluate. Precision is
 unaffected by that gap.
 
-The threshold was frozen before this reference was consulted and has not been moved
-since. `0.60` remains a required survival sensitivity arm. The completed
+Project history shows that this reference informed the retained `0.70` policy,
+so the split evaluation is internal validation rather than an untouched holdout.
+The policy is now frozen after development, and `0.60` remains a required
+survival sensitivity arm. The completed
 production-link diagnostic at `0.70` confirmed `14/20` sampled links conservatively.
 
 `M_C_weighted_gated` has higher recall but also higher false-positive risk.
@@ -2262,11 +2277,10 @@ must survive that overlap.
 
 ## Decision Rule
 
-`M_B_text_ranking @ 0.70` remains the frozen primary event definition. It was
-fixed before this reference was consulted and has not been moved since, which is
-what allows the locked split to be reported as held out. Choosing a threshold
-from these rows now would convert the locked split into a tuning set. A
-replacement requires a pre-specified selection rule, direct review of the
+`M_B_text_ranking @ 0.70` remains the frozen post-development primary event
+definition. Project history shows that this reference informed the retained
+policy, so the split evaluation is internal validation rather than an untouched
+holdout. A replacement requires a pre-specified selection rule, direct review of the
 incremental links, and fresh evidence.
 
 ## Known Limitations
@@ -2277,8 +2291,8 @@ incremental links, and fresh evidence.
     reference += """
 ## What It May Legitimately Be Used For
 
-Comparing linkage methods on the same exposed candidate pairs, reading the
-frozen operating point held out, and bounding recall through candidate
+Comparing linkage methods on the same exposed candidate pairs, documenting the
+frozen post-development operating point, and bounding recall through candidate
 generation. It may not be used to claim externally validated accuracy, national
 prevalence, or legal renewal status.
 """
@@ -2381,7 +2395,8 @@ legal renewal.
 - Compared four linkage algorithms on a `{manifest["reviewed_anchors"]}`-anchor Grand
   Ouest regional reference, labelled by an LLM research pass over BOAMP notices,
   official URLs, and wider public sources before those algorithms existed and
-  spot-checked on a subset, and kept the pre-frozen `M_B_text_ranking @ 0.70` as the
+  spot-checked on a subset, and kept `M_B_text_ranking @ 0.70` as the frozen
+  post-development
   primary, precision-first rule (precision `{m_b.precision:.3f}`, recall
   `{m_b.recall:.3f}` on its locked split of
   `{manifest["splits"]["validation"]["usable_anchors"]}` anchors).
@@ -2529,9 +2544,9 @@ def write_notebook(
         nbf.v4.new_markdown_cell(
             "## tl;dr\n\n"
             "`M_B_text_ranking @ 0.70` is the frozen conservative primary event "
-            "definition, not a claim of threshold optimality. It was fixed before "
-            "the Grand Ouest regional reference was consulted, which is why the "
-            "locked split below can be read as held out. All four algorithms are "
+            "definition, not a claim of threshold optimality. Project history shows "
+            "that the Grand Ouest regional reference informed the retained policy, "
+            "so the comparison below is internal validation. All four algorithms are "
             "compared, including `M_D_fellegi_sunter`, scored from the fitted model."
         ),
         nbf.v4.new_code_cell(
@@ -2657,7 +2672,7 @@ def write_notebook(
             "condition in `CANDIDATE_GENERATION_AUDIT.md`; neither is an "
             "implementation defect."
         ),
-        nbf.v4.new_markdown_cell("## Held-Out Method Comparison On The Locked Split"),
+        nbf.v4.new_markdown_cell("## Internal-Validation Comparison On The Recorded Locked Stratum"),
         nbf.v4.new_code_cell(
             "display(validation_methods[['method', 'threshold', 'accepted_links', 'precision', 'precision_ci', 'recall', 'recall_ci', 'fpr', 'coverage']])\n\n"
             "ax = validation_methods.set_index('method')[['precision', 'recall', 'fpr']].plot(\n"
@@ -2734,8 +2749,8 @@ def write_notebook(
             "rate is materially higher. For survival analysis, a false link is more "
             "damaging than an abstention because it fabricates both an event and an "
             "event time. Thresholds other than `0.70` are carried as sensitivity arms "
-            "rather than selected from these rows: choosing one now would turn the "
-            "locked split into a tuning set. On a reference this small the intervals "
+            "rather than selected from these rows: replacing the frozen policy requires "
+            "fresh independent evidence. On a reference this small the intervals "
             "overlap heavily, so read them before separating any two methods. The use of "
             "precision-recall evidence for this rare-positive "
             "decision follows [Davis and Goadrich (2006)](https://doi.org/10.1145/1143844.1143874) "

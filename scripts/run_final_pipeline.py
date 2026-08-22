@@ -138,6 +138,7 @@ def evidence_stages() -> tuple[Stage, ...]:
                 PROCESSED / "survival_linkage_sensitivity.csv",
                 PROCESSED / "survival_cox_linkage_sensitivity.csv",
                 PROCESSED / "survival_cox_detectability_sensitivity.csv",
+                PROCESSED / "survival_cox_buyer_stratified_sensitivity.csv",
                 PROCESSED / "survival_borderline_link_sensitivity.csv",
                 PROCESSED / "survival_template_risk_sensitivity.csv",
                 PROCESSED / "survival_parametric_comparison.csv",

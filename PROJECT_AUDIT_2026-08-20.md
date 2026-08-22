@@ -5,6 +5,25 @@ Auditor scope: full repository at `~/Desktop/project-gigalis`, working tree as o
 Method: documentation read in full; pipeline source read; **all headline results independently
 recomputed from the materialised data** rather than taken from the reports.
 
+> **Status as of 2026-08-22 — READ THIS FIRST.**
+> This audit describes the working tree of **2026-08-19 21:39**. A corrective pass was run on
+> 2026-08-20 (pipeline run 11:23–11:57). The following items in this document are **resolved and no
+> longer describe the repository**: Critical **C1** (the calibrated-confidence narrative — §12 of the
+> technology report now reports the deployed *raw* variant and the validator enforces the agreement),
+> **I1** (candidate-pool detectability is now published as a diagnostic row and a Cox sensitivity
+> column), **I3** (`technology_stages()` now runs before `evidence_stages()`, and
+> `final_pipeline_manifest.json` records the technology stages), **I4** (Holm and Benjamini-Hochberg
+> are now applied to the five CPV trend slopes and the executive summary reports CPV-48 as a nominal
+> signal that does not survive correction), and Minor **M1-M6**. **I2** (the unrecorded
+> candidate-export rule of the regional reference) cannot be repaired and is instead **disclosed** in
+> `REGIONAL_BENCHMARK_REFERENCE.md`, `README.md`, `DATA_QUALITY_REPORT.md` and `QUALITY_EVIDENCE.md`.
+> A later history check also overturned this audit's claim that the retained
+> threshold predated all reference inspection. The current project correctly
+> describes the regional split as **internal validation, not an untouched
+> holdout**. The held-out claims in this historical audit are superseded.
+> Sections **M** (what not to change), **N** and **O** remain current.
+> Do not quote this document's defect list as the current state of the project.
+
 ---
 
 ## A. Executive Assessment
@@ -312,12 +331,10 @@ better leakage hygiene than most published work.
 **Linkage.** The pilot (16 usable anchors) / locked (72 usable anchors) split is recorded *in the
 reference file itself* under the reference's own `benchmark_split` column, dated 2026-08-11 — it is
 not a post-hoc split. `build_regional_benchmark.py` only renames the strata and states explicitly
-that "no anchor moves between them". The threshold-freezing discipline is real and consistently
-enforced, including a written refusal to promote 0.60 despite the sweep showing it has better recall.
-`QUALITY_EVIDENCE.md` states the reason precisely: "Selecting a threshold now, from these rows, would
-convert the locked split into a tuning set." **This is correct practice and I would not change it.**
-
-Caveat: the strength of the held-out reading is bounded by the export-rule question in §E.
+that "no anchor moves between them". A later history check found that designated
+reference evidence informed the retained operating policy. The current project
+therefore treats both strata as internal validation. The 0.70 policy remains a
+frozen post-development convention; replacing it requires fresh independent evidence.
 
 **Technology.** Group-aware nested CV, verified clean. The temporal split (2015–2022 → 2023–2025)
 with boundary families forced into training is a genuine out-of-time check. The learning curve
@@ -576,7 +593,7 @@ acknowledged in the compliance file as a non-blocker.
 | **Worth doing** | Add one sentence to `DATA_QUALITY_REPORT.md` §Data Grain: the digital filter is an any-CPV-code rule at episode level and 30.9% of the cohort has a main CPV outside 32/35/48/72; note that `digital_segment` is the lowest-numbered digital division present and that event rates are near-identical under a main-CPV assignment | Prevents an over-literal reading; the measured robustness is a selling point | Pre-empts the most likely reviewer objection to the cohort | 30 min |
 | **Optional** | Add `reference_conflict_episodes` and `suspicious_review_cases` rows to the integrity table; rename `cohort_link_rate`; show `n/a` for M_A's threshold; the §J doc-drift list | Presentation and future-misquote hygiene | Small | 1 hour total |
 | **Optional** | Stratify the Cox model on award-year band instead of adjusting | Cleanest response to a 4×10⁻¹⁷ PH violation | Marginal — coefficients barely move | 2 hours |
-| **Do not bother** | Re-tuning the 0.70 threshold | The freeze is the reason the locked split is readable as held out | Would destroy the study's best validation property | — |
+| **Do not bother** | Re-tuning the 0.70 threshold on the same reference | The policy is frozen after development and the current evidence is internal validation | Would add post-hoc optimisation without independent evidence | — |
 | **Do not bother** | Running CamemBERT | Pre-registered gate not met; diagnosis is high variance, for which more capacity is the wrong fix | Negative | — |
 | **Do not bother** | Reworking episode reconstruction over the transitive-merge concern | I measured it: only 21/3,800 cohort episodes use the risky route, median span 126 days, 37 episodes with any notice >90 d post-award | None | — |
 | **Do not bother** | Imputing missing durations | Completeness swings 11.8% → 84.4% across years; imputation would fabricate expiry dates | Negative | — |
@@ -591,10 +608,10 @@ acknowledged in the compliance file as a non-blocker.
 This section matters as much as the fix list. The following are already correct and further
 optimisation would produce nothing.
 
-1. **`M_B_text_ranking @ 0.70`, frozen.** It is not optimal and the project never claims it is. Its
-   value is that it was fixed *before* the reference was read, which is the only reason the locked
-   split can be reported as held out. `QUALITY_EVIDENCE.md` even publishes the sweep showing 0.60 has
-   better recall and then refuses to move. **Keep. This is the study's strongest validation asset.**
+1. **`M_B_text_ranking @ 0.70`, frozen after development.** It is not optimal and the project never
+   claims it is. Reference evidence informed the retained policy, so the split is internal validation,
+   not an untouched holdout. `QUALITY_EVIDENCE.md` publishes the sweep showing 0.60 has better recall
+   and retains it as a sensitivity arm. **Keep the policy unless fresh independent evidence supports a change.**
 
 2. **The four-arm sensitivity + borderline band + template-risk re-censoring.** Three independent
    robustness families for one event definition is already generous. The template-risk analysis in

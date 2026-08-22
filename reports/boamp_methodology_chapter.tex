@@ -16,7 +16,7 @@
 \newcommand{\pathcode}[1]{\texttt{\small #1}}
 \title{BOAMP Digital Procurement Study\\\large Successor Linkage, Survival, and Trend Methodology}
 \author{BOAMP Data Science Internship Project}
-\date{2026-08-20T11:55:05}
+\date{2026-08-22T15:52:01}
 \begin{document}
 \sloppy
 \maketitle
@@ -307,9 +307,10 @@ not resolve to exactly one episode and were dropped rather than guessed, and
 anchors the review declined to decide are excluded rather than counted as
 negatives, leaving 88 evaluable anchors.
 
-The sample is split into a pilot part and a locked part. The acceptance threshold
-was fixed before the locked part was read, which is what allows locked-split
-figures to be reported as held out. The pilot split carries
+The sample is split into a pilot part and a recorded locked part. Project history
+shows that evidence from this reference informed the retained operating policy,
+so both parts provide internal-validation evidence rather than an untouched
+holdout. The pilot split carries
 16 evaluable anchors
 (5 with a reviewed successor) and
 5,221 pair rows; the locked split carries
@@ -802,8 +803,8 @@ so these rates are read for direction only.}
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.92\textwidth]{figures/benchmark_dev_method_metrics.png}
-\caption{The pilot split as conditional probabilities. It is shown for
-completeness; the held-out reading is the locked split below.}
+\caption{The pilot split as conditional probabilities. It is shown beside the
+recorded locked stratum below; both are internal-validation evidence.}
 \end{figure}
 
 \section{Locked Reference Results}
@@ -923,7 +924,7 @@ takes the opposite trade, which is the one this study needs.}
 \end{figure}
 
 \section{Quality Evidence And Interpretation}
-The held-out result supports retaining a conservative baseline for continued
+The internal-validation result supports retaining a conservative baseline for continued
 work; it does not establish final accuracy. Within this reference the direction
 is coherent, with \code{M\_B} best on \(P(C=1\mid A=1)\) and lowest on
 \(P(A=1\mid P=0)\) among useful methods and \code{M\_C} showing the expected
@@ -933,7 +934,7 @@ must be read before separating any two methods.
 The pair-level ROC and precision-recall curves should be read as score-ranking
 diagnostics, not as the final operating decision. The final pipeline decision is
 anchor-level: choose one successor or abstain. The ROC curve is stepped rather
-than smooth because the held-out reference contains a finite number of
+than smooth because the internal reference contains a finite number of
 labelled pairs and many tied or near-tied scores.
 
 The emphasis on precision-recall for rare positive decisions is supported by
@@ -961,10 +962,10 @@ which 7 are correct (precision
 correct (precision 0.692, recall 0.500,
 FPR 0.056). On the pilot split the same two points
 give precision 0.500 and 0.667
-respectively. The threshold was fixed before this reference was read, which is
-the only reason the locked split can be reported as held out; selecting one from
-these rows now would convert it into a tuning set. The lower threshold is therefore
-reported as a sensitivity arm rather than promoted after inspecting validation.
+respectively. Project history shows that this reference informed the retained
+$0.70$ policy, so the comparison is internal validation rather than an untouched
+holdout. The policy is now frozen after development; replacing it requires fresh
+independent evidence. The lower threshold remains a required sensitivity arm.
 
 \section{Model-Assisted Challenge Review}
 A separate blinded challenge review sampled 20 accepted links, 20
@@ -1214,24 +1215,25 @@ the two left-hand forms being identical because the conditioning event
 age, \(h\) the forward horizon, and \(\{T>a\}\) the statement that no
 observable successor has appeared yet. The quantity is read off the
 Kaplan--Meier estimator with the 500-draw
-episode-bootstrap intervals described in \S\ref{sec:survival-methods}.
+episode- and buyer-cluster-bootstrap intervals described in \S\ref{sec:survival-methods}.
 \begin{table}[H]
 \centering
 \small
-\begin{tabularx}{\textwidth}{lrlrl}
+\begin{tabularx}{\textwidth}{lrrrrrr}
 \toprule
-Age \(a\) at assessment & \(P(T\le a{+}12\mid T{>}a)\) & 95\% CI & \(P(T\le a{+}24\mid T{>}a)\) & 95\% CI \\
+Age \(a\) & \(P_{12}\) & episode CI & buyer CI & \(P_{24}\) & episode CI & buyer CI \\
 \midrule
-0 months & 4.62\% & [3.91, 5.24] & 6.73\% & [5.91, 7.58] \\
-12 months & 2.21\% & [1.70, 2.73] & 4.26\% & [3.55, 4.98] \\
-24 months & 2.09\% & [1.58, 2.60] & 9.40\% & [8.33, 10.68] \\
-36 months & 7.46\% & [6.52, 8.59] & 9.69\% & [8.58, 11.12] \\
-48 months & 2.41\% & [1.76, 3.07] & 2.89\% & [2.15, 3.72] \\
+0 months & 4.62\% & [3.91, 5.24] & [3.63, 5.68] & 6.73\% & [5.91, 7.58] & [5.25, 8.59] \\
+12 months & 2.21\% & [1.70, 2.73] & [1.38, 3.23] & 4.26\% & [3.55, 4.98] & [3.25, 5.36] \\
+24 months & 2.09\% & [1.58, 2.60] & [1.54, 2.63] & 9.40\% & [8.33, 10.68] & [7.69, 11.20] \\
+36 months & 7.46\% & [6.52, 8.59] & [5.88, 9.06] & 9.69\% & [8.58, 11.12] & [7.88, 11.71] \\
+48 months & 2.41\% & [1.76, 3.07] & [1.66, 3.32] & 2.89\% & [2.15, 3.72] & [2.08, 3.91] \\
 \bottomrule
 \end{tabularx}
 \caption{Given that an episode has reached age \(a\) with no accepted
 observable successor, the estimated probability that one becomes visible in the
-following 12 or 24 months. Kaplan--Meier on the
+following 12 or 24 months, with episode-bootstrap and buyer-cluster-bootstrap
+95\% intervals. Kaplan--Meier on the
 3,800-episode cohort under \(M_B@0.70\).}
 \end{table}
 Worked example, the row a purchasing body would use most. At
@@ -1239,9 +1241,12 @@ Worked example, the row a purchasing body would use most. At
 \[
 \hat{P}(T\le 48\mid T>36)=0.0746,
 \qquad
-\text{95\% CI }[0.0652,\,
+\text{episode 95\% CI }[0.0652,\,
 0.0859].
 \]
+The corresponding buyer-cluster 95\% interval is
+[0.0588,
+0.0906].
 In words: conditional on an episode reaching 36 months with no accepted
 observable successor, the estimated probability that one becomes visible in the
 following 12 months is
@@ -1447,10 +1452,10 @@ The final event definition is \code{M\_B\_text\_ranking @ 0.70}, a frozen
 conservative observable-successor baseline, with the stricter
 (\(M_B@0.80\)), looser (\(M_B@0.60\)), and weighted-gated (\(M_C@0.70\)) variants
 as the required sensitivity analyses, together with the borderline-band check.
-The threshold is not claimed to be optimal; it is claimed to be
-pre-specified. It was fixed before the regional reference was consulted and has
-not been moved since, so the locked-split figures are held out rather than
-fitted. Moreover, the completed
+The threshold is not claimed to be optimal; it is a frozen post-development
+policy. Project history shows that regional-reference evidence informed the
+retained rule, so the locked-stratum figures are internal validation rather than
+an untouched holdout. Moreover, the completed
 model-assisted review confirmed only 14 of 20 sampled production links at
 $0.70$ conservatively, so lowering an unreviewed threshold would not support a
 stronger accuracy claim. This is a precision-first design. Low recall is
@@ -1527,7 +1532,7 @@ anchor-by-anchor verification and not an independent specialist panel, and its
 negatives are corpus-relative, so the reported false-positive rate is a
 sample diagnostic rather than a population-wide rate
 (\S\ref{sec:linkage-caveat}).
-\item The held-out reference is small: 18
+\item The internal reference is small: 18
 positive anchors and 8 accepted \code{M\_B} links.
 The selected threshold should not be over-tuned and its accuracy remains provisional.
 \item Buyer standardisation is improved but remains an important risk area. The

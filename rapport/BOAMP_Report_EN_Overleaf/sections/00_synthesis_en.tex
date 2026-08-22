@@ -1,0 +1,60 @@
+\section*{Executive summary}
+\addcontentsline{toc}{section}{Executive summary}
+\markboth{Executive summary}{}
+
+\emph{This note is independent of the report and can be read on its own. It is written for a non-specialist reader.}
+
+
+
+\subsection*{The setting}
+
+Gigalis is the public-interest group for digital services in the Pays de la Loire region. Among other roles it acts as a central purchasing body: it negotiates pooled contracts --- cloud, cybersecurity, networks, artificial intelligence --- that local authorities and public institutions may use, but are never obliged to. The value of those contracts depends on when they are opened. Open one too early and it sits unused; open it too late and buyers have already run their own procurements. Hence the question put to this internship: using public data, can we anticipate when a digital purchasing need will reappear?
+
+\subsection*{What we know}
+
+French public procurement notices are published in the BOAMP, an official bulletin that is freely accessible. This internship processed \textbf{1.6 million notices} published between 2015 and 2025 and derived a study population of \textbf{3,800 reconstructed awarded procurement episodes} containing a digital CPV code in the Grand Ouest region.
+
+One obstacle appeared immediately and shaped the entire project: \textbf{the BOAMP never records that one contract renews another}. There is therefore no list of renewals to learn from. The information had to be constructed: for each awarded contract, search the later notices published by the same buyer for the one that continues the same need, and accept the match only when the resemblance is strong. What the study measures is consequently an \textbf{``observable successor''} --- a later procurement that visibly takes over --- and not a legal renewal. The distinction is maintained throughout, because it changes what may legitimately be concluded.
+
+\subsection*{What the models indicate}
+
+On this basis, roughly \textbf{one episode in seven} shows an observable successor before the end of 2025. The probability that a successor becomes visible is estimated at \textbf{4.6 \% within twelve months} of award and \textbf{6.7 \% within twenty-four months}. Follow-up differs across award years, and Kaplan--Meier estimation explicitly accounts for right censoring when estimating these age-specific probabilities; no causal explanation is assigned to their numerical level.
+
+The most useful result is not that average level but its shape over time: the probability \textbf{rises markedly between the third and fourth year} of a contract, which matches the usual duration of public framework agreements. That is the window where monitoring pays off.
+
+Two comparative readings require different levels of caution. Across the Grand Ouest population, episodes in \textbf{CPV-35 security and surveillance equipment} show earlier observable successors; that contrast weakens within the same buyer, suggesting that part of it reflects which buyers procure CPV-35. \textbf{Framework agreements} also show successors earlier. The association remains positive after direct detectability adjustment and in the primary within-buyer analysis, although its magnitude attenuates.
+
+The second contribution is of a different kind. Public contracts are classified under a European administrative vocabulary that is too coarse for business use: a single category mixes telephony, software and IT services. A model trained on \textbf{500 hand-annotated notices} learns to recover, from the wording of the contract object alone, an eight-family business segmentation --- cloud, cybersecurity, networks, infrastructure, business software, data, artificial intelligence, IT services. It is \textbf{substantially better than the official vocabulary} for that purpose, and the gap is measured with its uncertainty. Gigalis therefore gains a technology-level reading that did not exist in the source data.
+
+\subsection*{What remains uncertain}
+
+Three points must be stated plainly.
+
+\textbf{The quality of the matches is not independently validated.} It was measured against a reference sample built for the project, and on a very small number of accepted links. The order of magnitude is encouraging; the uncertainty interval is wide. A review by a procurement specialist is the missing control; the protocol and the sample are ready.
+
+\textbf{Absolute levels depend strongly on the rule chosen.} Depending on how demanding the matching rule is, the number of successors identified ranges from 296 to 1,332. Percentages must therefore never be quoted alone. Several comparative patterns are more stable under changes to the event definition, but buyer-level composition matters: CPV-35 attenuates within buyer, framework magnitude weakens under controls, and a slower CPV-48 pattern appears only in the within-buyer sensitivity.
+
+\textbf{Contract-by-contract prediction was not established.} A model was trained on the earlier years and tested on the recent ones without any refitting: its point estimate was close to chance, and the available temporal validation did not establish useful individual discrimination. The model is therefore not used as an individual ranking engine, and the ``twenty contracts most likely to be renewed'' table planned at the outset was not delivered.
+
+\subsection*{What this means for Gigalis}
+
+The work delivers \textbf{an instrument for measurement and monitoring, not a prediction engine}.
+
+In practice it can say which \emph{groups} of contracts are entering the period where a successor becomes likely --- by segment and by age --- and focus human attention on the three-to-four-year window, starting with the fastest-moving segments. It provides a technology segmentation of the regional portfolio that can be used to map activity. And it leaves behind a reproducible, documented and tested pipeline that can be re-run on updated data.
+
+As it stands, it does not support claiming that a specific contract will be renewed, nor forecasting the evolution of a segment: over the observed period, no volume trend survives the appropriate statistical tests.
+
+\subsection*{What we recommend next}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Have a sample of matches reviewed by an independent specialist before any quantified claim about the method's accuracy is communicated.
+\item
+  Have part of the technology corpus annotated by a second person, so that label reliability can be measured.
+\item
+  Provide Gigalis-internal membership data so that the causal question --- does opening a pooled contract actually change members' purchasing behaviour? --- can be addressed, which public data alone cannot do.
+\item
+  Treat individual prediction as a separate experiment, with its variables, validation protocol and success criterion fixed in advance, rather than as an adjustment of the current model.
+\end{enumerate}

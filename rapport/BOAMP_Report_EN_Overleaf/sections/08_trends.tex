@@ -1,0 +1,75 @@
+\section{Trends and change-point detection}
+
+\subsection{Constructing the series}
+
+For a segment \(s\) and quarter \(q\), the count is
+\[N_{s,q} = \sum_i \mathbf{1}(S_i = s,\ Q_i = q).\]
+The series span \textbf{43 quarters} (2015Q2 to 2025Q4); the partial first quarter of 2015 is excluded and every subsequent quarter is represented, zeros included. Amount series are absent, for want of a validated canonical awarded value (\S~3.4).
+
+The objective, as the brief states, is not to forecast: it is to \textbf{date and qualify changes}.
+
+\subsection{Three instruments, three different questions}
+
+\textbf{PELT} \citep{killick2012} minimises
+\[\sum_{r=0}^{m}\mathcal{C}\big(y_{\tau_r+1:\tau_{r+1}}\big) + \beta m,\]
+where \(\mathcal{C}\) is within-segment squared error and \(\beta = \lambda\log(n)\) after standardisation. The first term rewards fit; the second charges a fixed price per break, which is what stops the optimum from placing a break between every pair of quarters. The central result uses \(\lambda = 1\), with sensitivity at 0.5 and 2.0, and \textbf{a break is declared stable only if it appears within one quarter under all three penalties}. That requirement eliminates half the candidate breaks.
+
+\textbf{ADF and KPSS} test opposite null hypotheses --- unit root for the first, level stationarity for the second --- and are therefore read together \citep{dickey1979,kwiatkowski1992}. They are not forced to agree: disagreement means the series is not cleanly classified over so short a window, and that is the useful information.
+
+\textbf{The hidden Markov model} with three states is fitted on the \textbf{quarter-over-quarter change} \(\Delta N_t\), not on the level. Its states therefore describe a typical direction of change --- decline, plateau, growth --- not a segment's activity level. The reported figure is a posterior probability of the current state, not a forecast; the general framework is Markov regime switching \citep{hamilton1989}.
+
+\subsection{Signal matrix}
+
+\begingroup\footnotesize
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1071}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1071}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1429}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1429}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1429}}
+  >{\raggedleft\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1429}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1071}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 14\tabcolsep) * \real{0.1071}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Segment
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Recent direction
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Slope\\(ep./qtr)
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Raw p
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+Holm p
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedleft
+BH p
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Reading
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Last stable break
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Overall & stable or uncertain & $-$0.11 & 0.921 & 1.000 & 0.989 & no signal & --- \\
+CPV-32 & stable or uncertain & $-$0.01 & 0.989 & 1.000 & 0.989 & no signal & 2020Q2 \\
+CPV-35 & stable or uncertain & +0.03 & 0.923 & 1.000 & 0.989 & no signal & --- \\
+\textbf{CPV-48} & \textbf{decline} & \textbf{$-$0.84} & \textbf{0.032} & 0.159 & 0.159 & \textbf{nominal signal only} & 2024Q1 \\
+CPV-72 & stable or uncertain & +0.70 & 0.285 & 1.000 & 0.714 & no signal & 2021Q1 \\
+\end{longtable}
+\endgroup
+
+Five slopes are fitted and read at once, so the raw p-values are reported beside Holm \citep{holm1979} and Benjamini--Hochberg \citep{benjamini1995} adjustments. A segment whose raw p clears the pre-declared exploratory level of 0.10 but whose Holm p does not is \textbf{a nominal signal to monitor, not a finding}.
+
+That is the case of CPV-48, and it is the one row in the table requiring an editorial decision. It is presented as it stands: the recent decline in CPV-48 procurement is the clearest signal in the panel, it does not survive correction for the five segments tested, and it justifies watching for a few more quarters --- not a conclusion, still less a forecast.
+
+\subsection{Breaks and regimes}
+
+Only three breaks are stable under all three penalties: CPV-32 in 2020Q2, CPV-48 in 2024Q1 and CPV-72 in 2021Q1. Neither the overall series nor CPV-35 carries one: their candidate breaks disappear as soon as the penalty changes. \textbf{None is attributed to a cause.} A PELT break dates a change in level; it does not say why. Attributing the 2020Q2 break to the pandemic would be plausible and undemonstrated, and the report abstains: such attributions require documentary evidence and stakeholder validation.
+
+The hidden Markov model places the overall series, CPV-32 and CPV-72 in a growth regime in the final quarter (posterior probabilities 0.750, 0.992 and 0.594). That label may look inconsistent with the null twelve-quarter slopes; it is not. The slope summarises twelve quarters, the regime describes the most recent change. The two are complementary, and the report does not reconcile them artificially.
+
+\subsection{What the trend analysis establishes}
+
+Over the observed window, \textbf{no CPV segment shows a recent linear trend surviving multiplicity correction}, and neither does any technology series. Three level shifts are stably dated. The operational reading is therefore a monitoring arrangement: keep watching all segments, and follow CPV-48 as a lead to investigate. This is a weaker result than the brief hoped for: forty-three quarters, often with low counts, leave limited power for recent-trend inference.

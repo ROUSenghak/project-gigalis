@@ -24,9 +24,10 @@ evaluation code does not need a second dialect:
     The reference's own ``PILOT_DEVELOPMENT`` stratum. Used for threshold
     *display* only.
 ``benchmark_validation.parquet``
-    The reference's own ``LOCKED_TEST`` stratum. The held-out split. The
-    operating point was frozen before this reference was consulted, so these
-    anchors were never used to choose it.
+    The reference's own recorded ``LOCKED_TEST`` stratum. Project history shows
+    that reference evidence informed the retained operating policy, so this is
+    an internal-validation stratum despite its source label, not an untouched
+    holdout.
 ``exposure_full.parquet``
     The production candidate pairs for the benchmark anchors, so the benchmark
     measures the linkage stack as the study actually runs it.

@@ -1,0 +1,21 @@
+\section{Limitations}
+
+Ranked by what they can do to the results, not by category.
+
+\textbf{1. Linkage validation is not independent.} \emph{Mechanism}: the reference labels come from a language-model pass spot-checked by sampling, the 60-pair review is likewise model-assisted, and project history shows that operating-point and candidate-generation decisions used reference evidence including the designated locked stratum. \emph{Effect}: the reported metrics are internal validation rather than a fully untouched test; any precision figure is provisional, and the conservative review gives 0.700, below target. \emph{Mitigation in place}: strict exact-successor accounting, intervals published everywhere, frozen post-development policy, and an independent review protocol with its sample prepared.
+
+\textbf{2. Linkage errors distort both status and timing.} \emph{Mechanism}: a false link creates an event and its date; a missed link creates censoring. \emph{Effect}: absolute levels are not a lower bound, contrary to what a quick reading would suggest. \emph{Mitigation}: four event arms, the borderline band, template-risk re-censoring, and an editorial rule --- never quote a level without its range.
+
+\textbf{3. Detectability and buyer dependence.} \emph{Mechanism}: the score is a maximum over a block, blocks vary greatly in size, and several episodes belong to one buyer. Candidate-pool size varies within 92\,\% of multi-episode buyers, so buyer stratification does not eliminate this anchor-level channel. \emph{Effect}: prolific buyers produce more observable links and episode-level intervals can be too narrow. \emph{Mitigation}: direct pool-size adjustment, a distinct within-buyer Cox sensitivity, and buyer-cluster bootstrap intervals for the operational KM quantities.
+
+\textbf{4. Technology labels are predictions.} \emph{Mechanism}: macro-F1 of 0.744, with errors concentrated on definitional boundaries. \emph{Effect}: every technology-level figure carries a measurement error that does not enter its intervals. \emph{Mitigation}: two gates before any downstream use, an editorial rule forbidding treatment of a predicted class as an observed attribute, and exclusion of the fallback classes.
+
+\textbf{5. The annotation corpus has no reliability measure.} \emph{Mechanism}: a single pass, no annotator identifier, no second independent reading. \emph{Effect}: taxonomy reproducibility, ambiguity and label reliability cannot be quantified. \emph{Mitigation}: three internal inconsistencies documented, annotation quotas flagged, \texttt{AI} declared unevaluable. Future work should independently annotate a pre-specified subset, compute Cohen's $\kappa$ or another suitable agreement statistic, and review disagreement patterns. Agreement would diagnose label reliability; it would not mathematically define a maximum achievable macro-F1.
+
+\textbf{6. The Cox model violates proportional hazards.} \emph{Mechanism}: three covariates, award year severely so, structurally confounded with follow-up length. \emph{Effect}: the coefficients are descriptive time averages. \emph{Mitigation}: diagnostic published, interpretation restricted, no predictive use.
+
+\textbf{7. The cohort is broader than its name.} \emph{Mechanism}: an any-CPV-code rule at episode level. \emph{Effect}: 30.9 \% of episodes have a main CPV outside the perimeter. \emph{Mitigation}: explicit phrasing, and measurement of the segment tie-break effect (94.7 \% agreement).
+
+\textbf{8. The time series are short and noisy.} \emph{Mechanism}: 43 quarters, low counts, a documented completeness break in 2025. \emph{Effect}: no trend survives correction; change-point detection proposes candidates without explaining them. \emph{Mitigation}: break stability required under three penalties, multiplicity correction in both test families, and an explicit refusal to forecast.
+
+\textbf{9. Geographic and temporal reach.} The results concern the Grand Ouest, 2015-2025, for contracts published in the BOAMP. They do not extend to France as a whole, to below-threshold purchases, or to procurements routed through a central purchasing body without their own publication.

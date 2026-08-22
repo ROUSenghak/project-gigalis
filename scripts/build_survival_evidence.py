@@ -100,6 +100,24 @@ def candidate_pool_sizes() -> pd.Series:
     return pairs.groupby("anchor_episode_id").size()
 
 
+def buyer_cluster_id(frame: pd.DataFrame) -> pd.Series:
+    """Stable buyer cluster with a name fallback for missing buyer keys."""
+    key = frame["buyer_key"].fillna("").astype(str).str.strip()
+    name = (
+        frame["buyer_name_raw"]
+        .fillna("")
+        .astype(str)
+        .str.lower()
+        .str.replace(r"\s+", " ", regex=True)
+        .str.strip()
+    )
+    return pd.Series(
+        np.where(key.ne(""), "key:" + key, "name:" + name),
+        index=frame.index,
+        dtype="string",
+    )
+
+
 def prepare(frame: pd.DataFrame) -> pd.DataFrame:
     frame = frame.copy()
     frame["t_months"] = np.maximum(frame["duration_days"], 1) / MONTH_DAYS
@@ -115,6 +133,7 @@ def prepare(frame: pd.DataFrame) -> pd.DataFrame:
         frame["episode_id"].map(pool).fillna(0).astype(int)
     )
     frame["log_candidate_pool_size"] = np.log1p(frame["candidate_pool_size"])
+    frame["buyer_cluster"] = buyer_cluster_id(frame)
     return frame
 
 
@@ -180,26 +199,52 @@ def km_outputs(frame: pd.DataFrame) -> tuple[KaplanMeierFitter, pd.DataFrame, pd
 
 def conditional_outputs(km: KaplanMeierFitter, frame: pd.DataFrame) -> pd.DataFrame:
     ages = (0, 12, 24, 36, 48)
-    rng = np.random.default_rng(20260812)
-    draws = {(age, horizon): [] for age in ages for horizon in (12, 24)}
+    episode_rng = np.random.default_rng(20260812)
+    buyer_rng = np.random.default_rng(20260822)
+    episode_draws = {(age, horizon): [] for age in ages for horizon in (12, 24)}
+    buyer_draws = {(age, horizon): [] for age in ages for horizon in (12, 24)}
     for _ in range(500):
-        sample = frame.iloc[rng.integers(0, len(frame), len(frame))]
+        sample = frame.iloc[episode_rng.integers(0, len(frame), len(frame))]
         fitted = KaplanMeierFitter().fit(sample["t_months"], sample["event"])
-        for age, horizon in draws:
-            draws[(age, horizon)].append(conditional_probability(fitted, age, horizon))
+        for age, horizon in episode_draws:
+            episode_draws[(age, horizon)].append(
+                conditional_probability(fitted, age, horizon)
+            )
+
+    clusters = {
+        cluster: group.index.to_numpy()
+        for cluster, group in frame.groupby("buyer_cluster", sort=False)
+    }
+    cluster_keys = np.asarray(list(clusters), dtype=object)
+    for _ in range(500):
+        sampled_clusters = buyer_rng.choice(
+            cluster_keys, size=len(cluster_keys), replace=True
+        )
+        sampled_index = np.concatenate([clusters[key] for key in sampled_clusters])
+        sample = frame.loc[sampled_index]
+        fitted = KaplanMeierFitter().fit(sample["t_months"], sample["event"])
+        for age, horizon in buyer_draws:
+            buyer_draws[(age, horizon)].append(
+                conditional_probability(fitted, age, horizon)
+            )
 
     rows = []
     for age in ages:
         for horizon in (12, 24):
-            values = np.asarray(draws[(age, horizon)], dtype=float)
-            values = values[np.isfinite(values)]
+            episode_values = np.asarray(episode_draws[(age, horizon)], dtype=float)
+            episode_values = episode_values[np.isfinite(episode_values)]
+            buyer_values = np.asarray(buyer_draws[(age, horizon)], dtype=float)
+            buyer_values = buyer_values[np.isfinite(buyer_values)]
             rows.append({
                 "contract_age_months": age,
                 "horizon_months": horizon,
                 "probability": conditional_probability(km, age, horizon),
-                "ci_95_low": float(np.percentile(values, 2.5)),
-                "ci_95_high": float(np.percentile(values, 97.5)),
-                "interval_method": "episode bootstrap, 500 draws",
+                "ci_95_low": float(np.percentile(episode_values, 2.5)),
+                "ci_95_high": float(np.percentile(episode_values, 97.5)),
+                "buyer_cluster_ci_95_low": float(np.percentile(buyer_values, 2.5)),
+                "buyer_cluster_ci_95_high": float(np.percentile(buyer_values, 97.5)),
+                "episode_interval_method": "episode bootstrap, 500 draws",
+                "buyer_interval_method": "buyer-cluster bootstrap, 500 draws",
             })
     return pd.DataFrame(rows)
 
@@ -274,10 +319,11 @@ def cox_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict[s
     def evaluate(last_test_year: int) -> dict[str, Any]:
         mask = frame["award_year"].ge(2022) & frame["award_year"].le(last_test_year)
         test = design.loc[mask.to_numpy()]
-        test_c = concordance_index(
-            test["t_months"], -temporal.predict_partial_hazard(test), test["event"]
-        )
-        return {
+        risk = temporal.predict_partial_hazard(test).to_numpy(dtype=float)
+        durations = test["t_months"].to_numpy(dtype=float)
+        events = test["event"].to_numpy(dtype=int)
+        test_c = concordance_index(durations, -risk, events)
+        result = {
             "train_years": "2015-2021",
             "test_years": f"2022-{last_test_year}",
             "train_contracts": len(train),
@@ -290,6 +336,54 @@ def cox_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, dict[s
             "train_c_index": round(float(temporal.concordance_index_), 3),
             "test_c_index": round(float(test_c), 3),
         }
+        # Uncertainty is computed on the fixed out-of-time predictions: the
+        # model is not refitted inside the bootstrap.  Episode resampling is
+        # shown for continuity; buyer-cluster resampling is the conservative
+        # analysis when several episodes belong to the same buyer.
+        if last_test_year == 2024:
+            episode_rng = np.random.default_rng(20260821)
+            buyer_rng = np.random.default_rng(20260822)
+            episode_values: list[float] = []
+            buyer_values: list[float] = []
+            for _ in range(2000):
+                index = episode_rng.integers(0, len(test), len(test))
+                episode_values.append(
+                    concordance_index(durations[index], -risk[index], events[index])
+                )
+
+            test_clusters = frame.loc[mask, "buyer_cluster"].reset_index(drop=True)
+            cluster_positions = {
+                cluster: positions.to_numpy()
+                for cluster, positions in test_clusters.groupby(test_clusters).groups.items()
+            }
+            cluster_keys = np.asarray(list(cluster_positions), dtype=object)
+            for _ in range(2000):
+                sampled = buyer_rng.choice(
+                    cluster_keys, size=len(cluster_keys), replace=True
+                )
+                index = np.concatenate([cluster_positions[key] for key in sampled])
+                buyer_values.append(
+                    concordance_index(durations[index], -risk[index], events[index])
+                )
+            result["uncertainty"] = {
+                "bootstrap_model_refit": False,
+                "draws": 2000,
+                "episode_bootstrap_ci_95": [
+                    round(float(value), 3)
+                    for value in np.percentile(episode_values, [2.5, 97.5])
+                ],
+                "buyer_cluster_bootstrap_ci_95": [
+                    round(float(value), 3)
+                    for value in np.percentile(buyer_values, [2.5, 97.5])
+                ],
+                "episode_probability_c_gt_055": round(
+                    float(np.mean(np.asarray(episode_values) > 0.55)), 3
+                ),
+                "buyer_probability_c_gt_055": round(
+                    float(np.mean(np.asarray(buyer_values) > 0.55)), 3
+                ),
+            }
+        return result
 
     primary = evaluate(2024)
     primary["role"] = "primary; the internship guideline's 2015-2021 / 2022-2024 split"
@@ -374,6 +468,95 @@ def detectability_cox_outputs(frame: pd.DataFrame) -> tuple[pd.DataFrame, dict[s
         ),
     }
     return table, diagnostics
+
+
+def buyer_stratified_cox_outputs() -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Within-buyer Cox sensitivity over each retained linkage arm.
+
+    Buyer stratification gives each buyer a separate baseline hazard and thus
+    absorbs fixed buyer attributes.  It does not absorb anchor-specific
+    candidate-pool size, which varies with award date and future activity.
+    """
+    from scipy import stats
+    from statsmodels.duration.hazard_regression import PHReg
+
+    rows: list[dict[str, Any]] = []
+    primary_diagnostics: dict[str, Any] = {}
+    covariates = [
+        "framework_flag",
+        "award_year_centered",
+        "digital_segment_CPV-35",
+        "digital_segment_CPV-48",
+        "digital_segment_CPV-72",
+    ]
+    for arm, filename in ARM_FILES.items():
+        frame = prepare(pd.read_parquet(PROCESSED / filename))
+        eligible_clusters = frame.groupby("buyer_cluster").filter(
+            lambda group: len(group) >= 2 and int(group["event"].sum()) >= 1
+        )
+        design = pd.DataFrame(
+            {
+                "framework_flag": eligible_clusters["framework_flag"].astype(int),
+                "award_year_centered": (
+                    eligible_clusters["award_year"]
+                    - eligible_clusters["award_year"].median()
+                ),
+                "digital_segment_CPV-35": eligible_clusters["digital_segment"].eq("CPV-35").astype(int),
+                "digital_segment_CPV-48": eligible_clusters["digital_segment"].eq("CPV-48").astype(int),
+                "digital_segment_CPV-72": eligible_clusters["digital_segment"].eq("CPV-72").astype(int),
+            },
+            index=eligible_clusters.index,
+        )
+        fit = PHReg(
+            eligible_clusters["t_months"].to_numpy(dtype=float),
+            design[covariates].to_numpy(dtype=float),
+            status=eligible_clusters["event"].to_numpy(dtype=int),
+            strata=pd.factorize(eligible_clusters["buyer_cluster"])[0],
+            ties="breslow",
+        ).fit()
+        for position, covariate in enumerate(covariates):
+            coefficient = float(fit.params[position])
+            standard_error = float(fit.bse[position])
+            rows.append(
+                {
+                    "arm": arm,
+                    "episodes": int(len(eligible_clusters)),
+                    "events": int(eligible_clusters["event"].sum()),
+                    "buyers": int(eligible_clusters["buyer_cluster"].nunique()),
+                    "covariate": covariate,
+                    "hazard_ratio": float(np.exp(coefficient)),
+                    "ci_95_low": float(np.exp(coefficient - 1.96 * standard_error)),
+                    "ci_95_high": float(np.exp(coefficient + 1.96 * standard_error)),
+                    "p_value": float(2 * stats.norm.sf(abs(coefficient / standard_error))),
+                }
+            )
+        if arm == "main":
+            grouped = frame.groupby("buyer_cluster")["candidate_pool_size"].agg(
+                episodes="size", distinct_pool_sizes="nunique", minimum="min", maximum="max"
+            )
+            multi = grouped["episodes"].ge(2)
+            varying = grouped["distinct_pool_sizes"].gt(1)
+            primary_diagnostics = {
+                "role": "within-buyer sensitivity controlling fixed buyer-level heterogeneity",
+                "episodes": int(len(eligible_clusters)),
+                "events": int(eligible_clusters["event"].sum()),
+                "buyers": int(eligible_clusters["buyer_cluster"].nunique()),
+                "all_cohort_buyers": int(frame["buyer_cluster"].nunique()),
+                "multi_episode_buyers": int(multi.sum()),
+                "multi_episode_buyers_with_varying_candidate_pool_size": int(
+                    (multi & varying).sum()
+                ),
+                "share_multi_episode_buyers_with_varying_candidate_pool_size": float(
+                    (multi & varying).sum() / multi.sum()
+                ),
+                "interpretation": (
+                    "Buyer stratification controls time-invariant buyer characteristics by "
+                    "giving each buyer its own baseline hazard. Candidate-pool size is "
+                    "anchor-specific and varies within most multi-episode buyers, so the "
+                    "stratified model does not eliminate that detectability channel."
+                ),
+            }
+    return pd.DataFrame(rows), primary_diagnostics
 
 
 def sensitivity_outputs() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -738,6 +921,7 @@ def write_report(
     selection: pd.DataFrame,
     conditional: pd.DataFrame,
     detectability_cox: pd.DataFrame,
+    buyer_stratified_cox: pd.DataFrame,
 ) -> None:
     temporal = summary["cox"]["temporal_validation"]
     extended = summary["cox"]["temporal_validation_including_latest_cohort"]
@@ -751,17 +935,22 @@ def write_report(
     template_verdict = template["assessment"]["interpretation"]
     wide = conditional.pivot(
         index="contract_age_months", columns="horizon_months",
-        values=["probability", "ci_95_low", "ci_95_high"],
+        values=[
+            "probability", "ci_95_low", "ci_95_high",
+            "buyer_cluster_ci_95_low", "buyer_cluster_ci_95_high",
+        ],
     )
     conditional_lines = "\n".join([
-        "| Contract age | P(successor within 12m) | 95% CI | P(successor within 24m) | 95% CI |",
-        "|---:|---:|---|---:|---|",
+        "| Episode age | P(successor within 12m) | Episode-bootstrap 95% CI | Buyer-cluster 95% CI | P(successor within 24m) | Episode-bootstrap 95% CI | Buyer-cluster 95% CI |",
+        "|---:|---:|---|---|---:|---|---|",
         *[
             f"| {age} months "
             f"| {wide.loc[age, ('probability', 12)]:.3%} "
             f"| [{wide.loc[age, ('ci_95_low', 12)]:.3%}, {wide.loc[age, ('ci_95_high', 12)]:.3%}] "
+            f"| [{wide.loc[age, ('buyer_cluster_ci_95_low', 12)]:.3%}, {wide.loc[age, ('buyer_cluster_ci_95_high', 12)]:.3%}] "
             f"| {wide.loc[age, ('probability', 24)]:.3%} "
-            f"| [{wide.loc[age, ('ci_95_low', 24)]:.3%}, {wide.loc[age, ('ci_95_high', 24)]:.3%}] |"
+            f"| [{wide.loc[age, ('ci_95_low', 24)]:.3%}, {wide.loc[age, ('ci_95_high', 24)]:.3%}] "
+            f"| [{wide.loc[age, ('buyer_cluster_ci_95_low', 24)]:.3%}, {wide.loc[age, ('buyer_cluster_ci_95_high', 24)]:.3%}] |"
             for age in wide.index
         ],
     ])
@@ -789,9 +978,13 @@ def write_report(
         ],
     ])
     hr = cox.set_index("covariate")
+    stratified_main = buyer_stratified_cox.loc[
+        buyer_stratified_cox["arm"].eq("main")
+    ].set_index("covariate")
+    temporal_uncertainty = temporal["uncertainty"]
     text = f"""# Survival Analysis Report
 
-Generated: `{summary['generated_at']}`  
+Generated: `{summary['generated_at']}`
 Event: **accepted observable successor procurement**, not certified legal renewal.
 
 ## Cohort And Event Definition
@@ -840,12 +1033,13 @@ The primary split is the one the internship guideline specifies. The extended sp
 adds the 2025 award cohort, whose follow-up is shortest, and is carried only as a
 sensitivity read.
 
-Out-of-time discrimination is weak in both: a C-index near `0.5` means the model
-does not usefully rank individual episodes by time to successor on unseen award
-years. That is the result, not a prompt to retune. Part of it is structural, since
-episodes awarded from 2022 onwards can only contribute short-gap events, but the
-model has no demonstrated out-of-time discriminative power and nothing in the
-operational deliverable rests on it.
+The primary point estimate is close to chance. Its 95% interval is
+`{temporal_uncertainty['episode_bootstrap_ci_95']}` under episode resampling and
+`{temporal_uncertainty['buyer_cluster_bootstrap_ci_95']}` under buyer-cluster
+resampling. The latter is wider because several episodes belong to the same buyer.
+The available temporal validation therefore does not establish useful individual
+discrimination, and the model is not used as an individual ranking engine. This is
+the result, not a prompt to retune.
 
 ## Parametric Models And Indicators
 
@@ -857,7 +1051,7 @@ The selected parametric model is **not** the source of the operational numbers.
 Every horizon reported here falls inside the observed window, and the smooth
 families flatten the observed renewal shoulder, so the 12/24-month conditional
 probabilities in `survival_conditional_probabilities.csv` are read off the
-Kaplan-Meier estimator, with 500-draw episode-bootstrap intervals. The generalized
+Kaplan-Meier estimator, with 500-draw episode and buyer-cluster bootstrap intervals. The generalized
 gamma is reported as the best-fitting family and as the instrument any
 extrapolation past `2025-12-31` would use.
 
@@ -920,7 +1114,7 @@ full follow-up as censored exposure.
 For a contract that has reached age `a` months with no accepted successor, the
 probability that one becomes visible within the next `h` months is
 `P(T <= a+h | T > a) = 1 - S(a+h)/S(a)`, read off the Kaplan-Meier estimator with
-500-draw episode-bootstrap intervals. This is the study's operational output.
+500-draw episode and buyer-cluster bootstrap intervals. This is the study's operational output.
 
 {conditional_lines}
 
@@ -987,6 +1181,26 @@ Neither statement is causal. Candidate-pool size is a description of a buyer's
 publication volume, and this model adjusts for it to separate observability from
 behaviour -- it does not identify an effect of either.
 
+### Buyer-stratified sensitivity has a different role
+
+Giving each buyer its own baseline hazard controls fixed buyer characteristics,
+including persistent procurement culture and long-run publication propensity. It
+does not eliminate anchor-specific detectability: candidate-pool size varies within
+`{summary['buyer_stratified_cox']['multi_episode_buyers_with_varying_candidate_pool_size']}`
+of `{summary['buyer_stratified_cox']['multi_episode_buyers']}` multi-episode buyers.
+The direct detectability sensitivity therefore remains the model adding
+`log(1 + candidate pool size)`.
+
+In the primary buyer-stratified arm, framework HR is
+`{stratified_main.loc['framework_flag', 'hazard_ratio']:.3f}`
+(`p={stratified_main.loc['framework_flag', 'p_value']:.3g}`), CPV-35 is
+`{stratified_main.loc['digital_segment_CPV-35', 'hazard_ratio']:.3f}`
+(`p={stratified_main.loc['digital_segment_CPV-35', 'p_value']:.3g}`), and CPV-48 is
+`{stratified_main.loc['digital_segment_CPV-48', 'hazard_ratio']:.3f}`
+(`p={stratified_main.loc['digital_segment_CPV-48', 'p_value']:.3g}`). Thus the
+population CPV-35 contrast attenuates within buyer, framework remains positive,
+and the CPV-48 pattern is an exploratory secondary within-buyer result.
+
 ## Linkage Sensitivity
 
 Event counts range from `{summary['sensitivity']['minimum_events']}` to
@@ -1020,6 +1234,7 @@ def main() -> int:
     selection, selection_categories = selection_outputs(frame)
     cox, ph, cox_diagnostics = cox_outputs(frame)
     detectability_cox, detectability_diagnostics = detectability_cox_outputs(frame)
+    buyer_stratified_cox, buyer_stratified_diagnostics = buyer_stratified_cox_outputs()
     sensitivity, cox_sensitivity = sensitivity_outputs()
     borderline, borderline_summary = borderline_outputs(frame)
     template_risk, template_risk_summary = template_risk_outputs(frame)
@@ -1036,6 +1251,7 @@ def main() -> int:
         "survival_linkage_sensitivity.csv": sensitivity,
         "survival_cox_linkage_sensitivity.csv": cox_sensitivity,
         "survival_cox_detectability_sensitivity.csv": detectability_cox,
+        "survival_cox_buyer_stratified_sensitivity.csv": buyer_stratified_cox,
         "survival_borderline_link_sensitivity.csv": borderline,
         "survival_template_risk_sensitivity.csv": template_risk,
         "survival_parametric_comparison.csv": parametric,
@@ -1078,6 +1294,7 @@ def main() -> int:
         "logrank": logrank,
         "cox": cox_diagnostics,
         "detectability_cox": detectability_diagnostics,
+        "buyer_stratified_cox": buyer_stratified_diagnostics,
         "parametric": {
             "selected_model": selected_model,
             "selection_basis": "minimum AIC and BIC, checked against empirical KM",
@@ -1117,7 +1334,10 @@ def main() -> int:
         json.dumps(summary, ensure_ascii=False, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
-    write_report(summary, cox, selection, conditional, detectability_cox)
+    write_report(
+        summary, cox, selection, conditional, detectability_cox,
+        buyer_stratified_cox,
+    )
     if not summary["validation_passed"]:
         raise RuntimeError("survival evidence validation failed")
     print(json.dumps(summary, ensure_ascii=False, indent=2, default=str))

@@ -5,7 +5,7 @@
     "surface": "report",
     "title": "BOAMP Project: Current Methodological Readiness",
     "description": "Evidence-backed status of data quality, linkage, survival, trends, limitations, and next actions.",
-    "generatedAt": "2026-08-20T11:55:08",
+    "generatedAt": "2026-08-22T15:52:08",
     "cards": [
       {
         "id": "cohort-card",
@@ -140,8 +140,8 @@
     "tables": [
       {
         "id": "method-table",
-        "title": "Held-Out Internal Method Comparison",
-        "subtitle": "Grand Ouest regional reference sample; independent of the methods scored, but not an independent specialist panel.",
+        "title": "Internal-Validation Method Comparison",
+        "subtitle": "Grand Ouest regional reference sample; labels predate the methods, but reference evidence informed the retained policy.",
         "dataset": "methods",
         "sourceId": "evaluation",
         "defaultSort": {
@@ -271,7 +271,7 @@
       },
       {
         "id": "evaluation",
-        "label": "Held-out internal development-reference evaluation",
+        "label": "Internal development-reference evaluation",
         "path": "reports/current_project_readiness.db",
         "query": {
           "engine": "SQLite",
@@ -361,7 +361,7 @@
       {
         "id": "summary",
         "type": "markdown",
-        "body": "## Executive Summary\n\n**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable frozen conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from deterministic an LLM-generated, subset-spot-checked reference sample rather than independent specialist ground truth. Survival and trend results are therefore descriptive and conditional on the linkage definition. The model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."
+        "body": "## Executive Summary\n\n**Overall assessment: ready for final descriptive reporting with caveats.** The end-to-end measurement pipeline is reproducible and structurally tested. `M_B_text_ranking @ 0.70` remains a reasonable frozen post-development conservative operating baseline, not an optimal-threshold claim. Its reported accuracy comes from an LLM-generated, subset-spot-checked reference sample rather than independent specialist ground truth. Reference evidence informed the retained policy, so the comparison is internal validation rather than an untouched holdout. Survival and trend results are therefore descriptive and conditional on the linkage definition. The model-assisted challenge review confirmed 14 of 20 sampled accepted links, below the 0.80 point target. Independent human review is future work for stronger accuracy claims, not a blocker to the narrowed descriptive scope."
       },
       {
         "id": "headline-metrics",
@@ -383,7 +383,7 @@
         "id": "linkage-finding",
         "type": "markdown",
         "sourceId": "evaluation",
-        "body": "## Linkage Evidence\n\nThe held-out internal reference favors `M_B` for false-positive control. Its exact-successor precision is 80.0%, recall 18.2%, and negative-anchor FPR 0.0%, but only five links were accepted. One changed decision would move precision materially. These values guide method development; they must not be reported as independently validated accuracy."
+        "body": "## Linkage Evidence\n\nThe internal reference favors `M_B` for false-positive control. Its exact-successor precision is 87.5%, recall 38.9%, and negative-anchor FPR 0.0%, with 8 accepted links. One changed decision would move precision materially. These values guide method development; they must not be reported as independently validated accuracy."
       },
       {
         "id": "methods",
@@ -441,7 +441,7 @@
   },
   "snapshot": {
     "version": 1,
-    "generatedAt": "2026-08-20T11:55:08",
+    "generatedAt": "2026-08-22T15:52:08",
     "status": "ready",
     "datasets": {
       "headline": [
@@ -965,7 +965,7 @@
     },
     {
       "id": "evaluation",
-      "label": "Held-out internal development-reference evaluation",
+      "label": "Internal development-reference evaluation",
       "path": "reports/current_project_readiness.db",
       "query": {
         "engine": "SQLite",

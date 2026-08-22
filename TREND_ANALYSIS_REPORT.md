@@ -1,6 +1,6 @@
 # BOAMP Descriptive Trend Analysis
 
-Generated: `2026-08-20T11:55:02`  
+Generated: `2026-08-22T15:51:58`
 Analysis window: `2015Q2-2025Q4`  
 Unit: awarded Grand Ouest digital procurement episodes
 

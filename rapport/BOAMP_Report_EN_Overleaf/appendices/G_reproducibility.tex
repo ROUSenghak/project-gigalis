@@ -1,0 +1,100 @@
+\section{Reproducibility}
+\label{app:repro}
+
+\subsection*{One command}
+
+From the repository root:
+
+\begin{quote}
+\texttt{PYTHONPATH=. python3 scripts/run\_final\_pipeline.py}\\ \texttt{\phantom{xx}--with-notebooks --with-tests}
+\end{quote}
+
+The run executes every stage in dependency order:
+
+\begin{quote}
+\texttt{base $\rightarrow$ episodes $\rightarrow$ cohort $\rightarrow$ linkage}\\
+\texttt{survival $\rightarrow$ technology $\rightarrow$ evidence and reader-artifact refresh}\\
+\texttt{canonical state validation $\rightarrow$ manifest}
+\end{quote}
+
+The ordering is an invariant, not a convenience: every stage that writes an artifact runs before every stage
+that reads it. The technology layer in particular runs \emph{before} the documents that quote its numbers and
+before the validation gate, because the reverse order fails silently --- it republishes the previous run's
+figures and certifies a state that is then overwritten.
+
+\subsection*{Environment recorded with the run}
+
+Python 3.12.6; pandas 2.3.3; numpy 2.4.4; scipy 1.17.1; scikit-learn 1.9.0; lifelines 0.30.3; statsmodels
+0.14.6; ruptures 1.1.10; hmmlearn 0.3.3; joblib 1.5.3; matplotlib 3.10.9; pyarrow 25.0.1.
+
+\subsection*{Canonical facts asserted by the manifest}
+
+\begin{longtable}[]{@{}lr@{}}
+\toprule\noalign{}
+Fact & Value \\
+\midrule\noalign{}
+\endhead
+Cohort rows & 3,800 \\
+Events / censored & 544 / 3,256 \\
+Event rate & 0.1432 \\
+Selected linkage method & \texttt{M\_B\_text\_ranking} @ 70.0 \\
+Technology specification & \texttt{M2\_tfidf\_logreg\_balanced} \\
+Technology out-of-fold macro-F1 & 0.7442 \\
+Calibration adopted & false (deployed variant: \texttt{raw}) \\
+Episodes carrying a technology prediction & 3,800 \\
+Canonical state validation & passed \\
+\bottomrule\noalign{}
+\end{longtable}
+
+The manifest also records the git commit and working-tree state, and SHA-256 digests of the reference inputs
+and canonical outputs, so a later run can be shown to have consumed the same inputs.
+
+\subsection*{Cross-artifact validation gate}
+
+\texttt{canonical\_state\_validation.json} runs fifteen checks across artifacts that are produced by different
+stages, and the build fails if any returns false. They include: the accepted-link count agrees between the
+linkage application and the survival events; accepted links are unique and contain no self-links; the
+evaluations use the regional reference and its anchor counts match the reference manifest; no materialised
+metadata points at a legacy path; the retired France-level benchmark and the duration-conditioned linkage arm
+are absent from the repository; every cohort episode carries exactly one technology prediction; and the
+deployed confidence variant is consistent across the configuration, the prediction file, the report, the
+notebook and the run log.
+
+That last check exists because of a defect it was written to prevent: an earlier version of the report
+described a calibrated confidence score while the deployed artifact carried the raw one. Thirty technology
+tests existed and none caught it, because the gap was between a \emph{document} and a \emph{configuration}
+rather than inside the code.
+
+\subsection*{Tests}
+
+Thirteen test modules under \texttt{tests/}, collected by \texttt{pytest.ini}, which restricts collection to
+that directory: pipeline structure, canonical layout, candidate-generation audit, evidence construction,
+Fellegi--Sunter scoring, linkage rules, quality evidence, reference metrics, regional benchmark, review audit,
+survival evidence, technology taxonomy, and the final pipeline. Passing tests establish implementation
+consistency; they do not establish real-world linkage accuracy, and the report does not treat them as if they
+did.
+
+\subsection*{Where the numbers in this report live}
+
+\begin{longtable}[]{@{}>{\raggedright\arraybackslash}p{5.6cm}>{\raggedright\arraybackslash}p{8.4cm}@{}}
+\toprule\noalign{}
+Content & Artifact \\
+\midrule\noalign{}
+\endhead
+Cohort and selection funnel & survival\_cohort\_summary.json \\
+Survival headline and diagnostics & survival\_analysis\_summary.json \\
+Kaplan--Meier horizons & survival\_km\_horizons.csv \\
+Cox estimates & survival\_cox\_results.csv \\
+PH diagnostics & survival\_ph\_diagnostics.csv \\
+Parametric comparison & survival\_parametric\_comparison.csv \\
+Sensitivity arms & survival\_linkage\_sensitivity.csv \\
+Borderline and template-risk checks & survival\_borderline\_link\_sensitivity.csv, survival\_template\_risk\_sensitivity.csv \\
+Detectability & survival\_selection\_diagnostic.csv, survival\_cox\_detectability\_sensitivity.csv \\
+Linkage evaluation & linkage\_evaluation\_validation.json, quality\_evidence/ \\
+Candidate-generation audit & candidate\_generation\_audit.json \\
+Technology model and deployment & technology/ (config, out-of-fold predictions, per-class metrics) \\
+Trend series and signals & trend\_quarterly.csv, trend\_signal\_matrix.csv, trend\_breakpoints.csv \\
+\bottomrule\noalign{}
+\end{longtable}
+
+All paths are relative to \texttt{data/processed/boamp/}.
